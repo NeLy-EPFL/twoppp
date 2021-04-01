@@ -8,17 +8,18 @@ from shutil import copyfile
 
 import utils2p
 
-NAS_DIR_LINUX = "/mnt/NAS"
+NAS_DIR = "/mnt/NAS"
 LABSERVER_DIR = "/mnt/labserver"
 LABSERVER_DIR_LH = os.path.join(LABSERVER_DIR, "HERMANS_Laura", "Experimental_data")
 LABSERVER_DIR_LH_2P = os.path.join(LABSERVER_DIR_LH, "_2p")
 LABSERVER_DIR_LH_BEH = os.path.join(LABSERVER_DIR_LH, "_behavior")
-
+LABSERVER_DIR_JB  = os.path.join(LABSERVER_DIR, "BRAUN_Jonas", "Experimental_data", "2p")
+NAS_DIR_JB = os.path.join(NAS_DIR, "JB")
 
 HOME_DIR = str(Path.home())
 TMP_PROCESS_DIR = os.path.join(HOME_DIR, "tmp")
-LOCAL_DATA_DIR = os.path.join(HOME_DIR, "data", "longterm")
-
+LOCAL_DATA_DIR = os.path.join(HOME_DIR, "data")
+LOCAL_DATA_DIR_LONGTERM = os.path.join(LOCAL_DATA_DIR, "longterm")
 TWOP_FOLDER = "2p"
 PROCESSED_FOLDER = "processed"
 
@@ -99,17 +100,21 @@ def load_trial(trial_dir):
     
     return (green,) if meta_data.get_gainB() == 0 else (green, red)
 
-def convert_raw_to_tiff(trial_dir, overwrite=False, return_stacks=True):
+def convert_raw_to_tiff(trial_dir, overwrite=False, return_stacks=True, green_dir=None, red_dir=None):
+    #TODO: make this processed_dir more flexible
     processed_dir = os.path.join(trial_dir, PROCESSED_FOLDER)
     if not os.path.exists(os.path.join(processed_dir)):
         os.makedirs(os.path.join(processed_dir))
 
-    if os.path.isfile(os.path.join(processed_dir, RAW_GREEN_TIFF)) and not overwrite:
+    green_dir = os.path.join(processed_dir, RAW_GREEN_TIFF) if green_dir is None else green_dir
+    red_dir = os.path.join(processed_dir, RAW_GREEN_TIFF) if red_dir is None else red_dir
+
+    if os.path.isfile(green_dir) and not overwrite:
         if not return_stacks:
             return None, None
-        green = utils2p.load_img(os.path.join(processed_dir, RAW_GREEN_TIFF))
+        green = utils2p.load_img(green_dir)
         try:
-            red = utils2p.load_img(os.path.join(processed_dir, RAW_RED_TIFF))
+            red = utils2p.load_img(red_dir)
         except FileNotFoundError:
             red = None
             Warning("No red tif was found. Returning None. If you recorded it and want to create it, toggle the overwrite Flag")
@@ -119,31 +124,44 @@ def convert_raw_to_tiff(trial_dir, overwrite=False, return_stacks=True):
     if len(stacks) == 1:
         green = stacks[0]
         red = None
-        utils2p.save_img(os.path.join(processed_dir, RAW_GREEN_TIFF), green)
+        utils2p.save_img(green_dir, green)
     elif len(stacks) == 2:
         green, red = stacks
-        utils2p.save_img(os.path.join(processed_dir, RAW_GREEN_TIFF), green)
-        utils2p.save_img(os.path.join(processed_dir, RAW_RED_TIFF), red)
+        utils2p.save_img(green_dir, green)
+        utils2p.save_img(red_dir, red)
     else:
         raise NotImplementedError("More than two stacks are not implemented in load_experiment.")
 
     return green, red
 
 if __name__ == "__main__":
-    # trial_dirs = ["210212/Fly1/cs_003",
-    #               "210212/Fly1/cs_005",
-    #               "210212/Fly1/cs_007",
-    #               "210212/Fly1/cs_010"]
+    COPY = False
+    CONVERT = False
+    if COPY:
+        trial_dirs = ["210212/Fly1/cs_003",
+                      "210212/Fly1/cs_005",
+                      "210212/Fly1/cs_007",
+                      "210212/Fly1/cs_010"]
 
-    # copy_remote_to_local(trial_dirs=trial_dirs, source_base_dir=LABSERVER_DIR_LH_2P, target_base_dir=LOCAL_DATA_DIR, raw=True, xml=True)
+        copy_remote_to_local(trial_dirs=trial_dirs, source_base_dir=LABSERVER_DIR_LH_2P, 
+                             target_base_dir=LOCAL_DATA_DIR_LONGTERM, raw=True, xml=True)
+    
+    elif CONVERT:
+        date_dir = os.path.join(LOCAL_DATA_DIR_LONGTERM, "210212")
+        fly_dirs = get_flies_from_datedir(date_dir)
+        trial_dirs = get_trials_from_fly(fly_dirs)
 
-    date_dir = os.path.join(LOCAL_DATA_DIR, "210212")
-    fly_dirs = get_flies_from_datedir(date_dir)
-    trial_dirs = get_trials_from_fly(fly_dirs)
+        for fly_trial_dirs in trial_dirs:
+            for trial_dir in fly_trial_dirs:
+                convert_raw_to_tiff(trial_dir, return_stacks=False)
+    
+    else:
+        copy_remote_to_local(trial_dirs=["210216_J1xCI9/Fly1/001_xz"], source_base_dir=LABSERVER_DIR_JB,
+                             target_base_dir=LOCAL_DATA_DIR, raw=True, xml=True)
 
-    for fly_trial_dirs in trial_dirs:
-        for trial_dir in fly_trial_dirs:
-            convert_raw_to_tiff(trial_dir, return_stacks=False)
+        trial_dir = os.path.join(LOCAL_DATA_DIR, "210216_J1xCI9", "Fly1", "001_xz")
+        convert_raw_to_tiff(trial_dir, return_stacks=False)
+
 
 
 

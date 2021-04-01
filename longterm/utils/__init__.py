@@ -17,3 +17,10 @@ def get_stack(stack):
         raise NotImplementedError
 
     return stack
+
+def torch_to_numpy(x):
+        return x.detach().cpu().data.numpy()
+
+def makedirs_safe(dir):
+    if not os.path.exists(dir):
+        os.makedirs(dir)

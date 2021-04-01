@@ -22,44 +22,13 @@ sys.path.append(MODULE_PATH)
 
 from longterm import load, utils
 from longterm.plot.videos import make_video_2p, make_multiple_video_2p
+from longterm.register.warping import apply_offset, center_stack
 
 def resize_stack(stack, size=(128, 128)):
     res_stack = np.zeros((stack.shape[0], size[0], size[1]), np.float32)
     for i in range(stack.shape[0]):
         res_stack[i] = resize(stack[i], size)
     return res_stack
-
-def center_stack(frames, return_offset=False, sigma_filt=(0, 10, 10), foreground_thres=0.75):
-    N, H, W = frames.shape
-    offsets = np.zeros((N,2))
-    frames_filt = gaussian_filter(frames, sigma=sigma_filt, truncate=2)
-    for i_frame, (frame, frame_filt) in enumerate(zip(frames, frames_filt)):
-        thres = np.quantile(frame_filt, foreground_thres)
-        frame_thres = (frame_filt > thres).astype(np.float)
-        offsets[i_frame, :] = np.array(center_of_mass(frame_thres))  - np.array([H/2, W/2])
-    offsets = offsets.astype(np.int)
-    frames_shifted = apply_offset(frames, offsets)
-    if return_offset:
-        return frames_shifted, offsets
-    else:
-        return frames_shifted
-
-def apply_offset(frames, offsets):
-    if frames.ndim == 2:  # TODO: test this
-        frames = frames[np.newaxis, :, :]
-        squeeze = True
-    else:
-        squeeze = False
-    N, H, W = frames.shape
-    border_value = np.mean(frames[:, :10,:10])
-    frames_shifted = np.ones_like(frames) * border_value
-    for i_frame, (frame, offset) in enumerate(zip(frames, offsets)):
-        T = np.float32([[1,0, -offset[1]], [0, 1, -offset[0]]])
-        frames_shifted[i_frame, :, :] = cv2.warpAffine(frame, T, (W,H), borderMode=cv2.BORDER_CONSTANT, borderValue=border_value.astype(np.float))
-
-    if squeeze:
-        frames_shifted = np.squeeze(frames_shifted)
-    return frames_shifted
 
 def crop_stack(stack, crop_size):
     return stack[:, crop_size[0]:-crop_size[0], crop_size[1]:-crop_size[1]]
@@ -76,13 +45,13 @@ def prepare_data(stacks, data_out_dir, resize=(128, 128), center=True,
         offsets = []
         for i_stack, (stack, center_out_dir) in enumerate(zip(stacks, center_out_dirs)):
             if os.path.isfile(center_out_dir):
-                offset = np.load(offset_dir)
+                offset = np.load(center_out_dir)
                 stack = apply_offset(stack, offset)
             else:
                 stack, offset = center_stack(stack, return_offset=True)
                 if center_out_dir is not None: #TODO:
                     np.save(center_out_dir, offset)
-                    
+
             centered.append(stack)
             offsets.append(offset)
             
@@ -93,7 +62,7 @@ def prepare_data(stacks, data_out_dir, resize=(128, 128), center=True,
         if crop_size is None:
             crop_size = np.abs(np.mean(offsets, axis=(0, 1))).astype(np.int)
 
-        stacks = [crop_stack(stack, crop_size)) for stack in stacks]
+        stacks = [crop_stack(stack, crop_size) for stack in stacks]
 
     # resize each stack
     if resize == "max":
@@ -118,7 +87,7 @@ if __name__ == "__main__":
     REDUCE_DATA = False
 
     if PREP_DATA:
-        date_dir = os.path.join(load.LOCAL_DATA_DIR, "210212")
+        date_dir = os.path.join(load.LOCAL_DATA_DIR_LONGTERM, "210212")
         fly_dirs = load.get_flies_from_datedir(date_dir)
         trial_dirs = load.get_trials_from_fly(fly_dirs)
 
@@ -142,7 +111,7 @@ if __name__ == "__main__":
         """
         prepare_data(stacks=stacks, data_out_dir=data_out_dir_256, resize=(256,256), 
                      center=True, center_out_dirs=center_out_dirs,
-                     crop=True, crop_out_dir=crop_out_dir)
+                     crop=True, crop_out_dir=crop_out_dir, crop_size=(32,48))
         """
         prepare_data(stacks=stacks, data_out_dir=data_out_dir_max, resize="max", 
                      center=True, center_out_dirs=center_out_dirs,
