@@ -66,7 +66,7 @@ class FrameFromRawMetadata(FrameFromRaw):
 
 
 if __name__ == "__main__":
-    USE_METADATA = False
+    USE_METADATA = True
 
     data_dir = "/home/jbraun/data/210216_J1xCI9/Fly1/001_xz/2p"
     raw_dir = utils2p.find_raw_file(data_dir)
