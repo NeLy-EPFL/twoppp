@@ -1,0 +1,21 @@
+name: longterm
+channels:
+  - defaults
+dependencies:
+  - python=3.7.7
+  - scipy
+  - numpy=1.16.6
+  - matplotlib
+  - jupyter
+  - tifffile
+  - pytorch
+  - scikit-image
+  - tensorboard
+  - tqdm
+  - pytorch-lightning
+  - psutil
+  - torchvision
+  - bokeh
+  - pyqt
+  - pandas=1.2.4
+prefix: /home/jbraun/anaconda3/envs/longterm

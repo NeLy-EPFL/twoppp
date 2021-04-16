@@ -7,6 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import cv2
+import json
+import pandas as pd
 
 from torch import from_numpy
 
@@ -14,6 +16,7 @@ import utils2p
 import utils_video.generators
 from utils_video import make_video
 from utils_video.utils import resize_shape, colorbar, add_colorbar
+from deepfly.CameraNetwork import CameraNetwork
 
 FILE_PATH = os.path.realpath(__file__)
 PLOT_PATH, _ = os.path.split(FILE_PATH)
@@ -21,7 +24,7 @@ LONGTERM_PATH, _ = os.path.split(PLOT_PATH)
 MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.utils import get_stack, torch_to_numpy
+from longterm.utils import get_stack, torch_to_numpy, find_file
 from longterm import load
 from longterm.utils.color_wheel import flow_to_color
 from longterm.register.warping import apply_motion_field, apply_offset
@@ -253,12 +256,100 @@ def make_multiple_video_motion_field(motion_fields, out_dir, video_name, frames=
     generator = utils_video.generators.stack(generators, axis=1)
     utils_video.make_video(os.path.join(out_dir, video_name), generator, frame_rate)
 
+def generator_df3d(image_folder, cameras=[5,3,1], font_size=16, print_frame_num=True, print_frame_time=True, 
+                   print_beh_label=False, beh_label_dir=None,
+                   N_frames=None, frame_rate=None, factor_downsample=1, speedup=None):
+    N_frames = -1 if N_frames is None else N_frames
+    camNet = CameraNetwork(image_folder=image_folder, output_folder=os.path.join(image_folder, 'df3d'), num_images=N_frames)
+    N_frames = camNet.cam_list[0].points2d.shape[0]
+    camNet.num_images = N_frames
+
+    cmap = plt.cm.get_cmap("seismic")
+    i_cs = np.linspace(start=0, stop=1, num=10)
+    i_cs[5:] = np.flip(i_cs[5:])
+    colors = [np.array(cmap(i_c))*255 for i_c in i_cs]
+    if os.path.isfile(os.path.join(image_folder, "camera_{}_img_0.jpg".format(cameras[0]))):
+        saved_as_videos = False
+    else:
+        saved_as_videos = True
+        caps = [cv2.VideoCapture(os.path.join(image_folder, "camera_{}.mp4".format(cam))) for cam in cameras]
+        videos = [[] for _ in cameras]
+        for i_cam, (cam, cap) in enumerate(zip(cameras, caps)):
+            i_frame = 0
+            while(1):
+                ret, frame = cap.read()
+                videos[i_cam].append(frame)
+                i_frame += 1
+                if cv2.waitKey(1) & 0xFF == ord('q') or ret==False or i_frame >= N_frames:
+                    cap.release()
+                    break
+
+    def single_cam_frame_generator(cam):
+        i_cam = np.argwhere(np.array(cameras)==cam)[0,0]
+        cam_df3d = np.argwhere(np.array(camNet.cid2cidread)==cam)[0,0]
+        for i_frame in range(0, N_frames, factor_downsample):
+            img = videos[i_cam][i_frame] if saved_as_videos else None
+            frame = camNet.cam_list[cam_df3d].plot_2d(img_id=i_frame, colors=colors, img=img)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            yield frame
+
+    if len(cameras) == 1:
+        generator = single_cam_frame_generator(cameras[0])
+    else:
+        generators = [single_cam_frame_generator(cam) for cam in cameras]
+        generator = utils_video.generators.stack(generators, axis=1)
+
+    if print_frame_num:
+        text = ["frame: {:5d}".format(i) for i in range(0, N_frames, factor_downsample)]
+        generator = utils_video.generators.add_text(generator, text=text, pos=(10,100))
+    if print_frame_time:
+        if frame_rate is None:
+            metadata_dir = utils2p.find_seven_camera_metadata_file(trial_dir)
+            with open(metadata_dir, "r") as f:
+                metadata = json.load(f)
+            frame_rate = metadata["FPS"]
+            del metadata
+        text = ["time: {:5.1f} s".format(i/frame_rate) for i in range(0, N_frames, factor_downsample)]
+        generator = utils_video.generators.add_text(generator, text=text, pos=(10,150))
+    if print_beh_label:
+        beh_labels = pd.read_pickle(beh_label_dir)
+        assert len(beh_labels) >= N_frames
+        text = beh_labels["Prediction"][0:N_frames:factor_downsample].values
+        generator = utils_video.generators.add_text(generator, text=text, pos=(10,200))
+    if speedup is not None:
+        text = "{}x".format(speedup)
+        generator = utils_video.generators.add_text(generator, text=text, pos=(10,50))
+    return generator
+
+def make_video_df3d(trial_dir, out_dir, video_name, frames=None, frame_rate=None, cameras=[5,3,1], 
+                    print_frame_num=True, print_frame_time=True, print_beh_label=False, beh_label_dir=None,
+                    downsample=None, speedup=1):
+    image_dir = os.path.join(trial_dir, "behData", "images")
+    if frame_rate is None:
+        metadata_dir = utils2p.find_seven_camera_metadata_file(trial_dir)
+        with open(metadata_dir, "r") as f:
+            metadata = json.load(f)
+        frame_rate = metadata["FPS"]
+        del metadata
+
+    factor_downsample = 1 if downsample is None else downsample
+    
+    if not video_name.endswith(".mp4"):
+        video_name = video_name + ".mp4"
+
+    generator = generator_df3d(image_dir, cameras=cameras, frame_rate=frame_rate, N_frames=frames,
+                               print_frame_time=print_frame_time, print_frame_num=print_frame_num,
+                               print_beh_label=print_beh_label, beh_label_dir=beh_label_dir,
+                               factor_downsample=factor_downsample, speedup=speedup)
+    utils_video.make_video(os.path.join(out_dir, video_name), generator, frame_rate/factor_downsample*speedup)
+
 if __name__ == "__main__":
 
     JB_DATA = False
     LH_DATA = False
     DENOISED = False
-    PIPELINE = True
+    PIPELINE = False
+    DF3D = True
     if JB_DATA:
         date_dir = os.path.join(load.LOCAL_DATA_DIR, "210301_J1xCI9")  # 210216_J1xCI9 fly1 trial 0
         fly_dirs = load.get_flies_from_datedir(date_dir)
@@ -331,4 +422,19 @@ if __name__ == "__main__":
                       red=os.path.join(trial_dir, load.PROCESSED_FOLDER, "dn640_warped_red.tif"),
                       video_name="dn640_warped.mp4", out_dir=os.path.join(trial_dir, load.PROCESSED_FOLDER),
                       trial_dir=trial_dir, frames=np.arange(500))
+        pass
+
+    elif DF3D:
+        date_dir = os.path.join(load.NAS_DIR_JB, "210301_J1xCI9")  # 210216_J1xCI9 fly1 trial 0
+        fly_dirs = load.get_flies_from_datedir(date_dir)
+        trial_dirs = load.get_trials_from_fly(fly_dirs)[0]
+        for trial_dir in trial_dirs:
+            print(trial_dir)
+            # out_dir=os.path.join(trial_dir, "behData", "images", "df3d")
+            out_dir = os.path.join(trial_dir, "behData")
+            video_name = "beh_classify"  # "df3d"
+            make_video_df3d(trial_dir, out_dir,
+                            print_beh_label=True,
+                            beh_label_dir=os.path.join(trial_dir, load.PROCESSED_FOLDER, "behaviour_labels.pkl"),
+                            video_name=video_name, cameras=[5], downsample=1, speedup=1)  # [5, 1], 5, 10
         pass

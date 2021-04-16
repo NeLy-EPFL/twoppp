@@ -122,6 +122,83 @@ def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_di
 
     return stack1_warped, stack2_warped if return_stacks else None, None
 
+def warp_N_parts(stack1, stack1_out_dir, N_parts, stack2=None, stack2_out_dir=None, ref_frame=None, 
+         com_pre_reg=False, offset_dir=None, return_stacks=False, overwrite=False,
+         select_frames=None, parallel=True, verbose=False, w_output=None, initial_w=None, param=None):
+    param = ofco.utils.default_parameters() if param is None else param
+
+    if os.path.isfile(stack1_out_dir) and not overwrite:
+        if not return_stacks:
+            return None, None
+        stack1_warped = utils2p.load_img(stack1_out_dir)
+        if stack2 is not None and os.path.isfile(stack2_out_dir):
+            stack2_warped = utils2p.load_img(stack2_out_dir)
+        else:
+            stack2_warped = None
+        return stack1_warped, stack2_warped
+
+    if isinstance(stack1, str):
+        stack1 = utils2p.load_img(stack1)
+        if com_pre_reg and os.path.isfile(offset_dir):
+            offsets = np.load(offset_dir)
+            stack1 = apply_offset(stack1, offsets)
+        elif com_pre_reg:
+            stack1, offsets = center_stack(stack1, return_offset=True)
+            np.save(offset_dir, offsets)
+    if not isinstance(stack1, np.ndarray):
+        raise NotImplementedError
+
+    N_frames, N_y, N_x = stack1.shape
+
+    if stack2 is not None:
+        stack2 = utils.get_stack(stack2)
+        assert(stack1.shape == stack2.shape)
+        if com_pre_reg:
+            stack2 = apply_offset(stack2, offsets)
+
+    if isinstance(ref_frame, int):
+        assert ref_frame < N_frames
+    elif ref_frame is not None:
+        ref_frame = utils.get_stack(ref_frame)
+        ref_frame = np.squeeze(ref_frame)
+        if ref_frame.ndim == 3:
+            ref_frame = ref_frame[0, :, :]
+    else:
+        ref_frame = stack1[0, :, :]
+    assert(ref_frame.shape == (N_y, N_x))
+
+    N_per_part = np.ceil(N_frames / N_parts)
+    for i_part in np.arange(N_parts):
+        ind_part = np.arange(i_part*N_per_part, np.min((N_frames, (i_part+1)*N_per_part)))
+        # TODO: incorporate select_frames and initial_w
+        w_output_i = w_output[:-4] + "_{}".format(i_part) + w_output[-4:] if not w_output is None else None
+
+        stack1_part_warped, stack2_part_warped = ofco.motion_compensate(stack1[ind_part, :, :], stack2[ind_part, :, :] if stack2 is not None else None, 
+                                                          frames=range(len(ind_part)) if select_frames is None else select_frames,
+                                                          param=param, verbose=verbose, parallel=parallel, w_output=w_output_i, 
+                                                          initial_w=initial_w, ref_frame=ref_frame)
+
+        if i_part == 0:
+            utils2p.save_img(stack1_out_dir, stack1_part_warped)
+            if stack2_part_warped is not None:
+                utils2p.save_img(stack2_out_dir, stack2_part_warped)
+        else:
+            stack1_warped = utils2p.load_img(stack1_out_dir)
+            stack1_warped = np.concatenate((stack1_warped, stack1_part_warped), axis=0)
+            utils2p.save_img(stack1_out_dir, stack1_warped)
+            if i_part < N_parts -  1:
+                del stack1_warped
+            if stack2_part_warped is not None:
+                stack2_warped = utils2p.load_img(stack2_out_dir)
+                stack2_warped = np.concatenate((stack2_warped, stack2_part_warped), axis=0)
+                utils2p.save_img(stack2_out_dir, stack2_warped)
+                if i_part < N_parts -  1:
+                    del stack2_warped
+        del stack1_part_warped
+        del stack2_part_warped
+
+    return stack1_warped, stack2_warped if return_stacks else None, None
+ 
 
 def apply_warp(stack, stack_out_dir, w_output, select_frames=None,
                com_pre_reg=False, offset_dir=None, return_stacks=False, overwrite=False):

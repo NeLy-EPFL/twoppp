@@ -102,13 +102,13 @@ class PreProcessParams:
         return self._make_runid(processed_dir, appendix=self.green_com_warped)
 
 class PreProcessFly:
-    def __init__(self, fly_dir, params=PreProcessParams(), beh_fly_dir=None):
+    def __init__(self, fly_dir, params=PreProcessParams(), beh_fly_dir=None, trial_dirs=None, beh_trial_dirs=None):
         super().__init__()
         self.params = params
         self.fly_dir = fly_dir
-        self.trial_dirs = load.get_trials_from_fly(self.fly_dir)[0]
+        self.trial_dirs = load.get_trials_from_fly(self.fly_dir)[0] if trial_dirs is None else trial_dirs
         self.beh_fly_dir = self.fly_dir if beh_fly_dir is None else beh_fly_dir
-        self.beh_trial_dirs = load.get_trials_from_fly(self.beh_fly_dir)[0]
+        self.beh_trial_dirs = load.get_trials_from_fly(self.beh_fly_dir)[0] if beh_trial_dirs is None else beh_trial_dirs
         
         self.match_trials_and_beh_trials()
         self.create_processed_structure()

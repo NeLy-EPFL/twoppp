@@ -26,7 +26,7 @@ def makedirs_safe(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
 
-def find_file(directory, name, file_type):
+def find_file(directory, name, file_type=""):
     """
     This function finds a unique file with a given name in
     in the directory.
