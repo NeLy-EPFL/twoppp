@@ -23,7 +23,7 @@ def plot_sample_pixels(stacks, pixels, legends=[], colors=[], roi_size=2, f_s=16
                 if roi_size == 0:
                     roi_signal = stack[:, pixel[0], pixel[1]]
                 else:
-                    roi_signal = stack[:, pixel[0]-roi_size:pixel[0]+roi_size, pixel[1]-roi_size:pixel[1]]
+                    roi_signal = stack[:, pixel[0]-roi_size:pixel[0]+roi_size, pixel[1]-roi_size:pixel[1]+roi_size]
                 ax.plot(x, np.mean(roi_signal, axis=(1,2)), color=color, alpha=alpha, label=legend)
         
         ax.set_title(pixel)

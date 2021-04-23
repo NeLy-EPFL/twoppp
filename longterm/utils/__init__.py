@@ -5,6 +5,7 @@
 import numpy as np
 import os.path
 from pathlib import Path
+from skimage.transform import resize
 
 from utils2p import load_img
 
@@ -20,7 +21,16 @@ def get_stack(stack):
     return stack
 
 def torch_to_numpy(x):
-        return x.detach().cpu().data.numpy()
+    return x.detach().cpu().data.numpy()
+
+def resize_stack(stack, size=(128, 128)):
+    res_stack = np.zeros((stack.shape[0], size[0], size[1]), np.float32)
+    for i in range(stack.shape[0]):
+        res_stack[i] = resize(stack[i], size)
+    return res_stack
+
+def crop_stack(stack, crop_size):
+    return stack[:, crop_size[0]:-crop_size[0], crop_size[1]:-crop_size[1]]
 
 def makedirs_safe(dir):
     if not os.path.exists(dir):

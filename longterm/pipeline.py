@@ -70,7 +70,7 @@ class PreProcessParams:
         self.denoise_tmp_run_dir = join(os.path.expanduser("~"), "tmp", "deepinterpolation", "runs")
         self.denoise_runid = self._make_runid
         self.denoise_final_dir = "denoising_run"
-        self.denoise_delete_tmp_run_dir = False  # TODO: change this to True
+        self.denoise_delete_tmp_run_dir = True
         self.denoise_params = denoise.DefaultInterpolationParams()
 
         # dff params
@@ -84,6 +84,7 @@ class PreProcessParams:
         self.dff_use_crop=False
         self.dff_manual_add_to_crop = 20
         self.dff_blur = 0
+        self.dff_baseline_exclude_trials = None
 
         # deepfly3d params
         self.behaviour_as_videos = True
@@ -108,7 +109,7 @@ class PreProcessFly:
         self.fly_dir = fly_dir
         self.trial_dirs = load.get_trials_from_fly(self.fly_dir)[0] if trial_dirs is None else trial_dirs
         self.beh_fly_dir = self.fly_dir if beh_fly_dir is None else beh_fly_dir
-        self.beh_trial_dirs = load.get_trials_from_fly(self.beh_fly_dir)[0] if beh_trial_dirs is None else beh_trial_dirs
+        self.beh_trial_dirs = self.trial_dirs if beh_trial_dirs is None else beh_trial_dirs
         
         self.match_trials_and_beh_trials()
         self.create_processed_structure()
@@ -161,6 +162,7 @@ class PreProcessFly:
                                      return_stacks=False)
         ref_stack = join(ref_processed_dir, self.params.red_raw)
         self.ref_frame = join(self.fly_processed_dir, self.params.ref_frame)
+        # TODO: leave a note which ref frame is saved
         warping.save_ref_frame(stack=ref_stack,
                                ref_frame_dir=self.ref_frame,
                                i_frame=self.params.i_ref_frame,
@@ -289,10 +291,9 @@ class PreProcessFly:
                             tif_out_dirs=join(processed_dir, self.params.green_denoised),
                             params=self.params.denoise_params)
             denoise.clean_up(tmp_run_dir, tmp_data_dir)
-            # TODO:
-            # denoise.copy_run_dir(tmp_run_dir,
-            #                      join(processed_dir, self.params.denoise_final_dir),
-            #                      delete_tmp=self.params.denoise_delete_tmp_run_dir)
+            denoise.copy_run_dir(tmp_run_dir,
+                                 join(processed_dir, self.params.denoise_final_dir),
+                                 delete_tmp=self.params.denoise_delete_tmp_run_dir)
             gc.collect()
 
     def _compute_dff_trial(self, processed_dir, force_single_baseline=False, force_overwrite=False):
@@ -327,10 +328,14 @@ class PreProcessFly:
                                                 return_stack=False)
 
     def _compute_dff_alltrials(self):
+        if self.params.dff_baseline_exclude_trials is None:
+            self.params.dff_baseline_exclude_trials = [False for _ in self.trial_dirs]
         stacks = [join(processed_dir, self.params.green_denoised) 
-                  for processed_dir in self.trial_processed_dirs if processed_dir != ""]
+                  for i_dir, processed_dir in enumerate(self.trial_processed_dirs) 
+                  if processed_dir != "" and not self.params.dff_baseline_exclude_trials[i_dir]]
         baseline_dirs = [join(processed_dir, self.params.dff_baseline)
-                         for processed_dir in self.trial_processed_dirs if processed_dir != ""]
+                         for i_dir, processed_dir in enumerate(self.trial_processed_dirs) 
+                         if processed_dir != "" and not self.params.dff_baseline_exclude_trials[i_dir]]
         if self.params.dff_common_baseline:
             print("===== computing dff baseline")
             if not os.path.isfile(join(self.fly_processed_dir, self.params.dff_baseline)) or self.params.overwrite:

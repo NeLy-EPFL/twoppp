@@ -107,9 +107,9 @@ def convert_raw_to_tiff(trial_dir, overwrite=False, return_stacks=True, green_di
         os.makedirs(os.path.join(processed_dir))
 
     green_dir = os.path.join(processed_dir, RAW_GREEN_TIFF) if green_dir is None else green_dir
-    red_dir = os.path.join(processed_dir, RAW_GREEN_TIFF) if red_dir is None else red_dir
+    red_dir = os.path.join(processed_dir, RAW_RED_TIFF) if red_dir is None else red_dir
 
-    if os.path.isfile(green_dir) and not overwrite:
+    if os.path.isfile(green_dir) and (os.path.isfile(red_dir) or red_dir is None) and not overwrite:
         if not return_stacks:
             return None, None
         green = utils2p.load_img(green_dir)

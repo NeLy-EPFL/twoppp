@@ -25,7 +25,7 @@ def get_frame_times_indices(trial_dir, crop_2p_start_end=0):
     frame_times_2p = frame_times_2p[crop_2p_start_end:-crop_2p_start_end] if crop_2p_start_end != 0 else frame_times_2p
     beh_frame_idx -= crop_2p_start_end
     beh_frame_idx[beh_frame_idx<0] = -9223372036854775808  # smallest possible uint64 number
-    beh_frame_idx[beh_frame_idx>len(frame_times_2p)] = -9223372036854775808
+    beh_frame_idx[beh_frame_idx>=len(frame_times_2p)] = -9223372036854775808
     return frame_times_2p, frame_times_beh, beh_frame_idx
 
 if __name__ == "__main__":

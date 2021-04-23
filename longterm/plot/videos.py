@@ -9,8 +9,9 @@ import math
 import cv2
 import json
 import pandas as pd
+from scipy.ndimage.filters import gaussian_filter
 
-from torch import from_numpy
+# from torch import from_numpy
 
 import utils2p
 import utils_video.generators
@@ -24,11 +25,9 @@ LONGTERM_PATH, _ = os.path.split(PLOT_PATH)
 MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.utils import get_stack, torch_to_numpy, find_file
+from longterm.utils import get_stack, find_file
 from longterm import load
-from longterm.utils.color_wheel import flow_to_color
 from longterm.register.warping import apply_motion_field, apply_offset
-from longterm.register.deepreg.model import Warper
 
 
 def make_video_2p(green, out_dir, video_name, red=None, percentiles=(5,99), frames=None, frame_rate=None, trial_dir=None):
@@ -57,8 +56,7 @@ def make_video_2p(green, out_dir, video_name, red=None, percentiles=(5,99), fram
     generator = utils_video.generators.frames_2p(red, green, percentiles=percentiles)
     utils_video.make_video(os.path.join(out_dir, video_name), generator, frame_rate)
     
-    
-def generator_dff(stack, size=None, font_size=16, vmin=None, vmax=None):
+def generator_dff(stack, size=None, font_size=16, vmin=None, vmax=None, blur=0):
     # copied and modified from utils_video to allow external definition of vmin and vmax
     vmin = np.percentile(stack, 0.5) if vmin is None else vmin
     vmax = np.percentile(stack, 99.5) if vmax is None else vmax
@@ -78,6 +76,8 @@ def generator_dff(stack, size=None, font_size=16, vmin=None, vmax=None):
 
     def frame_generator():
         for frame in stack:
+            if blur:
+                frame = gaussian_filter(frame, (blur, blur))
             frame = cmap(norm(frame))
             frame = (frame * 255).astype(np.uint8)
             frame = cv2.resize(frame, image_shape[::-1])
@@ -87,7 +87,7 @@ def generator_dff(stack, size=None, font_size=16, vmin=None, vmax=None):
     return frame_generator()
 
 def make_video_dff(dff, out_dir, video_name, frames=None, frame_rate=None, trial_dir=None,
-                   vmin=None, vmax=None):
+                   vmin=None, vmax=None, blur=0):
     dff = get_stack(dff)
     if frames is None:
         frames = np.arange(dff.shape[0])
@@ -105,7 +105,7 @@ def make_video_dff(dff, out_dir, video_name, frames=None, frame_rate=None, trial
     if not video_name.endswith(".mp4"):
         video_name = video_name + ".mp4"
 
-    generator = generator_dff(dff, vmin=vmin, vmax=vmax)
+    generator = generator_dff(dff, vmin=vmin, vmax=vmax, blur=blur)
     utils_video.make_video(os.path.join(out_dir, video_name), generator, frame_rate)
 
 def make_multiple_video_2p(greens, out_dir, video_name, reds=None, percentiles=(5,99), frames=None, frame_rate=None, trial_dir=None):
@@ -141,9 +141,8 @@ def make_multiple_video_2p(greens, out_dir, video_name, reds=None, percentiles=(
     generator = utils_video.generators.stack(generators, axis=1)
     utils_video.make_video(os.path.join(out_dir, video_name), generator, frame_rate)
 
-
 def make_multiple_video_dff(dffs, out_dir, video_name, frames=None, frame_rate=None, trial_dir=None,
-                            vmin=None, vmax=None):
+                            vmin=None, vmax=None, blur=0):
     if not isinstance(dffs, list):
         dffs = [dffs]
     dffs = [get_stack(dff) for dff in dffs]
@@ -167,16 +166,9 @@ def make_multiple_video_dff(dffs, out_dir, video_name, frames=None, frame_rate=N
     if not video_name.endswith(".mp4"):
         video_name = video_name + ".mp4"
 
-    generators = [generator_dff(dff, vmin=vmin, vmax=vmax) for dff in dffs]
+    generators = [generator_dff(dff, vmin=vmin, vmax=vmax, blur=blur) for dff in dffs]
     generator = utils_video.generators.stack(generators, axis=1)
     utils_video.make_video(os.path.join(out_dir, video_name), generator, frame_rate)
-
-def generator_motion_field_colorwheeel(motion_fields):
-    def frame_generator():
-        for field in motion_fields:
-            colorwheel = flow_to_color(field)
-            yield colorwheel
-    return frame_generator()
 
 def generator_motion_field_grid(motion_fields, line_distance=5, warping="dnn"):
     N_frames, N_y, N_x, _ = motion_fields.shape
@@ -185,11 +177,12 @@ def generator_motion_field_grid(motion_fields, line_distance=5, warping="dnn"):
     grids[:, :, np.arange(0, N_x, line_distance)] = 1
 
     if warping == "dnn":
-        grids = from_numpy(grids[:, np.newaxis, :, :]).float().cuda()
-        motion_fields = from_numpy(np.moveaxis(motion_fields, -1, 1)).float().cuda()
-        warper = Warper()
-        grids_applied = warper(grids, motion_fields)
-        grids_applied = np.squeeze(torch_to_numpy(grids_applied))
+        raise NotImplementedError
+        # grids = from_numpy(grids[:, np.newaxis, :, :]).float().cuda()
+        # motion_fields = from_numpy(np.moveaxis(motion_fields, -1, 1)).float().cuda()
+        # warper = Warper()
+        # grids_applied = warper(grids, motion_fields)
+        # grids_applied = np.squeeze(torch_to_numpy(grids_applied))
     elif warping == "ofco":
         grids_applied = apply_motion_field(grids, motion_fields)
 
@@ -220,7 +213,7 @@ def make_video_motion_field(motion_fields, out_dir, video_name, frames=None, fra
     if not video_name.endswith(".mp4"):
         video_name = video_name + ".mp4"
     if visualisation == "colorwheel":
-        generator = generator_motion_field_colorwheeel(motion_fields)
+        raise NotImplementedError
     elif visualisation == "grid":
         generator = generator_motion_field_grid(motion_fields, line_distance, warping)
     else:
@@ -248,7 +241,7 @@ def make_multiple_video_motion_field(motion_fields, out_dir, video_name, frames=
         video_name = video_name + ".mp4"
 
     if visualisation == "colorwheel":
-        generators = [generator_motion_field_colorwheeel(motion_field) for motion_field in motion_fields]
+        raise NotImplementedError
     elif visualisation == "grid":
         generators = [generator_motion_field_grid(motion_field, line_distance, warping) for motion_field in motion_fields]
     else:
