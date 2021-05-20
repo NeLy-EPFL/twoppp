@@ -7,18 +7,23 @@ import os.path
 from pathlib import Path
 from skimage.transform import resize
 
-from utils2p import load_img
+from utils2p import load_img, save_img
 
 def get_stack(stack):
+    if stack is None:
+        return None
     if isinstance(stack, str) and os.path.isfile(stack):
         stack = load_img(stack)
     elif isinstance(stack, str):
-        raise FileNotFoundError
+        raise FileNotFoundError("Could not find file: " + stack)
     
     if not isinstance(stack, np.ndarray):
-        raise NotImplementedError
+        raise NotImplementedError("stack is not a numpy array.")
 
     return stack
+
+def save_stack(path, stack):
+    save_img(path, stack)
 
 def torch_to_numpy(x):
     return x.detach().cpu().data.numpy()
@@ -29,8 +34,42 @@ def resize_stack(stack, size=(128, 128)):
         res_stack[i] = resize(stack[i], size)
     return res_stack
 
-def crop_stack(stack, crop_size):
-    return stack[:, crop_size[0]:-crop_size[0], crop_size[1]:-crop_size[1]]
+def crop_stack(stack, crop):
+    if crop is not None and len(crop) == 2:
+        assert crop[0]*2 < stack.shape[1]
+        assert crop[1]*2 < stack.shape[2]
+        stack = stack[:, crop[0]:stack.shape[1]-crop[0], crop[1]:stack.shape[2]-crop[1]]
+    elif crop is not None and len(crop) == 4:
+        assert crop[0] < stack.shape[1]
+        assert crop[1] < stack.shape[1]
+        assert crop[2] < stack.shape[2]
+        assert crop[3] < stack.shape[2]
+        stack = stack[:, crop[0]:crop[1], crop[2]:crop[3]]
+    elif crop is None:
+        return stack
+    else:
+        raise NotImplementedError("crop should be either of length 2 or 4, or be None")
+    return stack
+
+def crop_img(img, crop):
+    if len(img.shape) > 2:
+        img = np.squeeze(img)
+    assert len(img.shape) == 2
+    if crop is not None and len(crop) == 2:
+        assert crop[0]*2 < img.shape[0]
+        assert crop[1]*2 < img.shape[1]
+        img = img[crop[0]:img.shape[0]-crop[0], crop[1]:img.shape[1]-crop[1]]
+    elif crop is not None and len(crop) == 4:
+        assert crop[0] < img.shape[0]
+        assert crop[1] < img.shape[0]
+        assert crop[2] < img.shape[1]
+        assert crop[3] < img.shape[1]
+        img = img[crop[0]:crop[1], crop[2]:crop[3]]
+    elif crop is None:
+        return img
+    else:
+        raise NotImplementedError("crop should be either of length 2 or 4, or be None")
+    return img
 
 def makedirs_safe(dir):
     if not os.path.exists(dir):
@@ -62,3 +101,11 @@ def find_file(directory, name, file_type=""):
     elif len(file_names) == 0:
         raise FileNotFoundError(f"No {file_type} file found in {directory}")
     return str(file_names[0])
+
+def readlines_tolist(file, remove_empty=True):
+    with open(file) as f:
+        out = f.readlines()
+    out = [line.strip() for line in out]
+    if remove_empty:
+        out = [line for line in out if line != ""]
+    return out
