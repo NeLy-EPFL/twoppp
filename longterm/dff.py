@@ -8,7 +8,7 @@ from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import gaussian_filter1d, convolve1d
 from scipy.signal import medfilt
 from skimage.filters import threshold_otsu
-from skimage.morphology import binary_opening
+from skimage.morphology import binary_opening, binary_closing
 from scipy.ndimage.filters import median_filter
 import math
 
@@ -23,7 +23,7 @@ LONGTERM_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.utils import get_stack
+from longterm.utils import get_stack, crop_img
 from longterm import load
 from longterm.plot.videos import make_video_dff, make_multiple_video_dff, make_multiple_video_2p
 
@@ -119,9 +119,16 @@ def _quantile_baseline(stack, quantile):
             baseline_img[i, j] = np.quantile(stack[:, i, j], quantile)
     return baseline_img
 
-def compute_dff_from_stack(stack, baseline_blur=3, baseline_med_filt=3, blur_pre=False, baseline_mode="convolve", # slow alternative: "quantile"
+def find_dff_mask(baseline, otsu_frac=0.4, kernel=np.ones((20,20)), sigma=0, crop=None):  # 0.4, 30, 30, 10
+    baseline = get_stack(baseline)
+    baseline_filt = gaussian_filter(baseline, sigma=(sigma, sigma))
+    mask = binary_closing(baseline_filt > otsu_frac*threshold_otsu(baseline_filt), selem=kernel)
+    mask = crop_img(mask, crop)
+    return mask
+
+def compute_dff_from_stack(stack, baseline_blur=10, baseline_med_filt=1, blur_pre=True, baseline_mode="convolve", # slow alternative: "quantile"
                            baseline_length=10, baseline_quantile=0.05, baseline_dir=None,
-                           use_crop=True, manual_add_to_crop=20,
+                           use_crop=False, manual_add_to_crop=20, min_baseline=None,
                            dff_blur=0, dff_out_dir=None, return_stack=True):
     # load from path in case stack is a path. if numpy array, then just continue
     stack = get_stack(stack)
@@ -130,7 +137,8 @@ def compute_dff_from_stack(stack, baseline_blur=3, baseline_med_filt=3, blur_pre
     dff_baseline = find_dff_baseline(stack, baseline_blur=baseline_blur, 
                                      baseline_med_filt=baseline_med_filt, blur_pre=blur_pre,
                                      baseline_mode=baseline_mode, baseline_length=baseline_length,
-                                     baseline_quantile=baseline_quantile, baseline_dir=baseline_dir)
+                                     baseline_quantile=baseline_quantile, baseline_dir=baseline_dir,
+                                     min_baseline=min_baseline)
         
     # 3. compute cropping indices or use the ones supplied externally
     if (isinstance(use_crop, list) or isinstance(use_crop, tuple)) and len(use_crop) == 4:
@@ -152,7 +160,7 @@ def compute_dff_from_stack(stack, baseline_blur=3, baseline_med_filt=3, blur_pre
         y_max = N_y
     
     #4. apply cropping
-    stack = stack[y_min : y_max, x_min : x_max]
+    stack = stack[:, y_min : y_max, x_min : x_max]
     dff_baseline = dff_baseline[y_min : y_max, x_min : x_max]
     
     # 5. compute dff
@@ -170,14 +178,16 @@ def compute_dff_from_stack(stack, baseline_blur=3, baseline_med_filt=3, blur_pre
     else:
         return None
 
-def find_dff_baseline(stack, baseline_blur=3, baseline_med_filt=3, blur_pre=False, baseline_mode="convolve", # slow alternative: "quantile"
-                      baseline_length=10, baseline_quantile=0.05, baseline_dir=None, min_baseline=0):
+def find_dff_baseline(stack, baseline_blur=10, baseline_med_filt=1, blur_pre=True, baseline_mode="convolve", # slow alternative: "quantile"
+                      baseline_length=10, baseline_quantile=0.05, baseline_dir=None, min_baseline=None):
     # load from path in case stack is a path. if numpy array, then just continue
     stack = get_stack(stack)
     N_frames, N_y, N_x = stack.shape
 
+    # 0. clip stack at 0
+    stack = np.clip(stack, 0, None)
     # 1. blur stack if required
-    stack_blurred = gaussian_filter(medfilt(stack, [0, baseline_med_filt, baseline_med_filt]), (0, baseline_blur, baseline_blur)) if baseline_blur and blur_pre else stack
+    stack_blurred = gaussian_filter(medfilt(stack, [1, baseline_med_filt, baseline_med_filt]), (0, baseline_blur, baseline_blur)) if baseline_blur and blur_pre else stack
     
     # 2. compute baseline
     if baseline_mode == "convolve":
@@ -190,27 +200,30 @@ def find_dff_baseline(stack, baseline_blur=3, baseline_med_filt=3, blur_pre=Fals
         dff_baseline = utils2p.load_img(baseline_dir)
         assert dff_baseline.shape == (N_y, N_x)
     else:
-        raise(NotImplementedError)
+        raise NotImplementedError("baseline should be either 'convolve', 'quantile', or 'fromfile.")
 
     if not blur_pre and baseline_blur:
         dff_baseline = gaussian_filter(medfilt(dff_baseline, [baseline_med_filt, baseline_med_filt]), (baseline_blur, baseline_blur))
     
-    dff_baseline[dff_baseline <= min_baseline] = 0  # set to 0 because then the dff will be set to zero throughout by compute_dff
+    if min_baseline is not None:
+        dff_baseline[dff_baseline <= min_baseline] = 0  # set to 0 because then the dff will be set to zero throughout by compute_dff
 
     if baseline_dir is not None and baseline_mode != "fromfile":
         utils2p.save_img(baseline_dir, dff_baseline)
 
     return dff_baseline
 
-def find_dff_baseline_multi_stack(stacks, baseline_blur=3, baseline_med_filt=3, blur_pre=False, baseline_mode="convolve", # slow alternative: "quantile"
+def find_dff_baseline_multi_stack(stacks, baseline_blur=10, baseline_med_filt=1, blur_pre=True, baseline_mode="convolve", # slow alternative: "quantile"
                                   baseline_length=10, baseline_quantile=0.05, baseline_dir=None,
-                                  return_multiple_baselines=False):
+                                  return_multiple_baselines=False, min_baseline=None):
     if not isinstance(stacks, list):
         stacks = [stacks]
     stacks = [get_stack(stack) for stack in stacks]
 
+    # 0. clip stack at 0
+    stacks = [np.clip(stack, 0, None) for stack in stacks]
     # 1. blur stack if required
-    stacks_blurred = [gaussian_filter(medfilt(stack, [0, baseline_med_filt, baseline_med_filt]), (0, baseline_blur, baseline_blur)) if baseline_blur and blur_pre else stack 
+    stacks_blurred = [gaussian_filter(medfilt(stack, [1, baseline_med_filt, baseline_med_filt]), (0, baseline_blur, baseline_blur)) if baseline_blur and blur_pre else stack 
                       for stack in stacks]
 
     # 2. concatenate stacks
@@ -231,29 +244,30 @@ def find_dff_baseline_multi_stack(stacks, baseline_blur=3, baseline_med_filt=3, 
         dff_baseline = utils2p.load_img(baseline_dir)
         assert dff_baseline.shape == (N_y, N_x)
     else:
-        raise(NotImplementedError)
+        raise NotImplementedError("baseline should be either 'convolve', 'quantile', or 'fromfile.")
 
     if not blur_pre and baseline_blur:
         dff_baseline = gaussian_filter(medfilt(dff_baseline, [baseline_med_filt, baseline_med_filt]), (baseline_blur, baseline_blur))
 
-    dff_baseline[dff_baseline <= 0] = 0
+    if min_baseline is not None:
+        dff_baseline[dff_baseline <= min_baseline] = 0
 
     if baseline_dir is not None and baseline_mode != "fromfile":
         utils2p.save_img(baseline_dir, dff_baseline)
 
     return dff_baseline
 
-def find_dff_baseline_multi_stack_load_single(stacks, individual_baselin_dirs,
-                                              baseline_blur=3, baseline_med_filt=3,
-                                              blur_pre=False, 
+def find_dff_baseline_multi_stack_load_single(stacks, individual_baseline_dirs,
+                                              baseline_blur=10, baseline_med_filt=1,
+                                              blur_pre=True, 
                                               baseline_mode="convolve", # slow alternative: "quantile"
                                               baseline_length=10, baseline_quantile=0.05, 
-                                              baseline_dir=None):
+                                              baseline_dir=None, min_baseline=None):
     if not isinstance(stacks, list):
         stacks = [stacks]
-    if not isinstance(individual_baselin_dirs, list):
-        individual_baselin_dirs = [individual_baselin_dirs]
-    assert len(stacks) == len(individual_baselin_dirs)
+    if not isinstance(individual_baseline_dirs, list):
+        individual_baseline_dirs = [individual_baseline_dirs]
+    assert len(stacks) == len(individual_baseline_dirs)
 
     baselines = [find_dff_baseline(stack=stack, baseline_blur=baseline_blur, 
                                    baseline_med_filt=baseline_med_filt, blur_pre=blur_pre,
@@ -261,22 +275,18 @@ def find_dff_baseline_multi_stack_load_single(stacks, individual_baselin_dirs,
                                    baseline_quantile=baseline_quantile,
                                    baseline_dir=trial_baseline_dir)
                  for i_trial, (stack, trial_baseline_dir) 
-                 in enumerate(zip(stacks, individual_baselin_dirs))]
+                 in enumerate(zip(stacks, individual_baseline_dirs))]
 
     dff_baseline = np.min(np.array(baselines), axis=0)
-    dff_baseline[dff_baseline <= 0] = 0
-
-    # TODO: check whether we want to blur again after taking the minimum
-    # if not blur_pre and baseline_blur:
-    #     dff_baseline = gaussian_filter(dff_baseline, (baseline_blur, baseline_blur))
+    if min_baseline is not None:
+        dff_baseline[dff_baseline <= min_baseline] = 0
 
     if baseline_dir is not None:
         utils2p.save_img(baseline_dir, dff_baseline)
 
     return dff_baseline
                 
-
-def find_dff_crop_multi_stack(stacks, baseline_blur=0, manual_add_to_crop=20):
+def find_dff_crop_multi_stack(stacks, baseline_blur=10, manual_add_to_crop=20):
     if not isinstance(stacks, list):
         stacks = [stacks]
     stacks = [get_stack(stack) for stack in stacks]
@@ -301,9 +311,9 @@ def find_dff_crop_multi_stack(stacks, baseline_blur=0, manual_add_to_crop=20):
 
     return (x_min, x_max, y_min, y_max)
 
-def compute_dff_multi_stack(stacks, baseline_blur=3, baseline_med_filt=3, blur_pre=False, baseline_mode="convolve", # slow alternative: "quantile"
+def compute_dff_multi_stack(stacks, baseline_blur=10, baseline_med_filt=1, blur_pre=True, baseline_mode="convolve", # slow alternative: "quantile"
                            baseline_length=10, baseline_quantile=0.05, baseline_dir=None,
-                           use_crop=True, manual_add_to_crop=20,
+                           use_crop=False, manual_add_to_crop=20, min_baseline=None,
                            dff_blur=0, dff_out_dirs=None, return_stacks=True):
     if not isinstance(stacks, list):
         stacks = [stacks]
@@ -312,7 +322,7 @@ def compute_dff_multi_stack(stacks, baseline_blur=3, baseline_med_filt=3, blur_p
                                                  baseline_med_filt=baseline_med_filt, blur_pre=blur_pre,
                                                  baseline_mode=baseline_mode,
                                                  baseline_length=baseline_length, baseline_quantile=baseline_quantile,
-                                                 baseline_dir=baseline_dir)
+                                                 baseline_dir=baseline_dir, min_baseline=min_baseline)
 
     if (isinstance(use_crop, list) or isinstance(use_crop, tuple)) and len(use_crop) == 4:
         crop_all_stacks = use_crop
