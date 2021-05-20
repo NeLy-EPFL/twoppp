@@ -7,6 +7,8 @@ from os.path import join
 import gc
 import numpy as np
 from copy import deepcopy
+import time
+import pickle
 
 from ofco.utils import default_parameters
 from deepinterpolation import interface as denoise
@@ -17,15 +19,22 @@ MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
 sys.path.append(MODULE_PATH)
 
 from longterm import load, dff
-from longterm.utils import makedirs_safe, get_stack
+from longterm.utils import makedirs_safe, get_stack, save_stack, readlines_tolist
 from longterm.register import warping
 from longterm.behaviour import df3d
+from longterm.plot.videos import make_video_dff, make_multiple_video_dff, make_video_raw_dff_beh, make_multiple_video_raw_dff_beh
+from longterm.rois import local_correlations
 
 class PreProcessParams:
+    """Class containing all default parameters for the PreProcessFly class."""
+
     def __init__(self):
+        """Class containing all default parameters for the PreProcessFly class."""
         # names of tif/npy files generated throughout processing
         self.red_raw = "red.tif"
         self.green_raw = "green.tif"
+        self.green_com_crop = "green_com_crop.tif"
+        self.red_com_crop = "red_com_crop.tif"
         self.red_warped = "red_warped.tif"
         self.green_warped = "green_warped.tif"
         self.red_com_warped = "red_com_warped.tif"
@@ -36,30 +45,43 @@ class PreProcessParams:
         self.dff_baseline = "dff_baseline.tif"
         self.drr = "drr.tif"
         self.drr_baseline = "drr_baseline.tif"
+        self.dff_mask = "dff_mask.tif"
 
         self.ref_frame = "ref_frame_com.tif"
         self.com_offset = "com_offset.npy"
         self.motion_field = "motion_field_com.npy"
 
+        self.trial_dirs = "trial_dirs.txt"
+        self.beh_trial_dirs = "beh_trial_dirs.txt"
+        self.sync_trial_dirs = "sync_trial_dirs.txt"
+
+        self.summary_stats = "compare_trials.pkl"
+
         # mode of pre-processing: if True, perfom one processing step 
         # on each trial before moving to next processing step
         self.breadth_first = True
         self.overwrite = False
-        self.use_warp = True
-        self.use_denoise = True
-        self.use_dff = True
-        self.use_df3d = True
-        self.use_df3dPostProcess = True
+        self.use_warp = False
+        self.use_denoise = False
+        self.use_dff = False
+        self.use_df3d = False
+        self.use_df3dPostProcess = False
         self.use_behaviour_classifier = False
         self.select_trials = False
+        self.cleanup_files = False
+        self.make_dff_videos = False
+        self.make_summary_stats = True
 
         # ofco params
         self.i_ref_trial = 0
         self.i_ref_frame = 0
         self.use_com = True
+        self.post_com_crop = True
+        self.post_com_crop_values = None
         self.save_motion_field = False  # TODO: set this to True if we have enought space
         self.ofco_param = default_parameters()
         self.ofco_parallel = True
+        self.ofco_verbose = True
         # self.ofco_out_dtype = np.float32  # TODO: verify whether this is the best choice
 
         # denoising params
@@ -72,19 +94,31 @@ class PreProcessParams:
         self.denoise_final_dir = "denoising_run"
         self.denoise_delete_tmp_run_dir = True
         self.denoise_params = denoise.DefaultInterpolationParams()
+        self.denoise_train_each_trial = False
+        self.denoise_train_trial = 0
 
         # dff params
         self.dff_common_baseline = True
-        self.dff_baseline_blur = 1
-        self.dff_baseline_med_filt = 3
-        self.dff_baseline_blur_pre = False
+        self.dff_baseline_blur = 10
+        self.dff_baseline_med_filt = 1
+        self.dff_baseline_blur_pre = True
         self.dff_baseline_mode = "convolve"
         self.dff_baseline_length = 10
         self.dff_baseline_quantile = 0.95
         self.dff_use_crop=False
         self.dff_manual_add_to_crop = 20
         self.dff_blur = 0
+        self.dff_min_baseline = None
         self.dff_baseline_exclude_trials = None
+
+        self.dff_video_name = "dff"
+        self.dff_beh_video_name = "dff_beh"
+        self.dff_video_pmin = None
+        self.dff_video_vmin = 0
+        self.dff_video_pmax = 99
+        self.dff_video_vmax = None
+        self.dff_video_share_lim = True
+        self.default_video_camera = 6
 
         # deepfly3d params
         self.behaviour_as_videos = True
@@ -103,19 +137,74 @@ class PreProcessParams:
         return self._make_runid(processed_dir, appendix=self.green_com_warped)
 
 class PreProcessFly:
-    def __init__(self, fly_dir, params=PreProcessParams(), beh_fly_dir=None, trial_dirs=None, beh_trial_dirs=None):
+    """Class to automatise preprocessing of 2p and behavioural data."""
+
+    def __init__(self, fly_dir, params=PreProcessParams(), trial_dirs=None, selected_trials=None,
+                 beh_fly_dir=None, beh_trial_dirs=None, sync_fly_dir=None, sync_trial_dirs=None):
         super().__init__()
         self.params = params
         self.fly_dir = fly_dir
-        self.trial_dirs = load.get_trials_from_fly(self.fly_dir)[0] if trial_dirs is None else trial_dirs
-        self.beh_fly_dir = self.fly_dir if beh_fly_dir is None else beh_fly_dir
-        self.beh_trial_dirs = self.trial_dirs if beh_trial_dirs is None else beh_trial_dirs
-        
-        self.match_trials_and_beh_trials()
-        self.create_processed_structure()
-        self.save_ref_frame()
+        if trial_dirs == "fromfile":
+            self.trial_dirs = readlines_tolist(join(self.fly_dir, self.params.trial_dirs))
+        elif isinstance(trial_dirs, str) and os.path.isfile(trial_dirs):
+            self.trial_dirs = readlines_tolist(trial_dirs)
+        elif isinstance(trial_dirs, str):
+            raise FileNotFoundError("could not find: " + trial_dirs)
+        elif isinstance(trial_dirs, list):
+            self.trial_dirs = trial_dirs
+        else:
+            print("Automatically detecting trial dirs.")
+            self.trial_dirs = load.get_trials_from_fly(self.fly_dir)[0]
 
-    def match_trials_and_beh_trials(self):
+        if beh_trial_dirs == "fromfile":
+            self.beh_trial_dirs = readlines_tolist(join(self.fly_dir, self.params.beh_trial_dirs))
+        elif isinstance(beh_trial_dirs, str) and os.path.isfile(beh_trial_dirs):
+            self.beh_trial_dirs = readlines_tolist(beh_trial_dirs)
+        elif isinstance(beh_trial_dirs, str):
+            raise FileNotFoundError("could not find: " + beh_trial_dirs)
+        elif isinstance(beh_trial_dirs, list):
+            self.beh_trial_dirs = beh_trial_dirs
+        else:
+            self.beh_trial_dirs = self.trial_dirs
+        self.beh_fly_dir, _ = os.path.split(self.beh_trial_dirs[0]) if beh_fly_dir is None else beh_fly_dir
+
+        if sync_trial_dirs == "fromfile":
+            self.sync_trial_dirs = readlines_tolist(join(self.fly_dir, self.params.sync_trial_dirs))
+        elif isinstance(sync_trial_dirs, str) and os.path.isfile(sync_trial_dirs):
+            self.sync_trial_dirs = readlines_tolist(sync_trial_dirs)
+        elif isinstance(sync_trial_dirs, str):
+            raise FileNotFoundError("could not find: " + sync_trial_dirs)
+        elif isinstance(sync_trial_dirs, list):
+            self.sync_trial_dirs = sync_trial_dirs
+        else:
+            self.sync_trial_dirs = self.trial_dirs
+        self.sync_fly_dir, _ = os.path.split(self.sync_trial_dirs[0]) if sync_fly_dir is None else sync_fly_dir
+
+        self._match_trials_and_beh_trials()
+        if selected_trials is not None and isinstance(selected_trials, list):
+            self.trial_dirs = [self.trial_dirs[i] for i in selected_trials]
+            self.beh_trial_dirs = [self.beh_trial_dirs[i] for i in selected_trials]
+            self.sync_trial_dirs = [self.sync_trial_dirs[i] for i in selected_trials]
+            self._match_trials_and_beh_trials()
+        elif selected_trials is not None:
+            raise NotImplementedError("selected_trials should be None or a list containing integer indices.")
+        
+        self._get_trial_names()
+        self._create_processed_structure()
+        self._save_ref_frame()
+
+    def _get_trial_names(self):
+        trial_names = []
+        for trial in self.trial_dirs:
+            _, name = os.path.split(trial)
+            trial_names.append(name)
+        self.trial_names = trial_names
+
+    def _match_trials_and_beh_trials(self):
+        assert len(self.beh_trial_dirs) == len(self.trial_dirs)
+        assert len(self.sync_trial_dirs) == len(self.trial_dirs)
+        return
+        """
         if len(self.trial_dirs) == len(self.beh_trial_dirs) \
             and all([trial_dir == beh_trial_dir 
                      for trial_dir, beh_trial_dir 
@@ -145,8 +234,9 @@ class PreProcessFly:
                     print("Did not find matching 2p trial for " + beh_trial_dir)
             self.trial_dirs = new_trial_dirs
             self.beh_trial_dirs = new_beh_trial_dirs
+        """
 
-    def create_processed_structure(self):
+    def _create_processed_structure(self):
         self.fly_processed_dir = join(self.fly_dir, load.PROCESSED_FOLDER)
         makedirs_safe(self.fly_processed_dir)
         self.trial_processed_dirs = [join(trial_dir, load.PROCESSED_FOLDER) if trial_dir != "" else ""
@@ -154,7 +244,7 @@ class PreProcessFly:
         _ = [makedirs_safe(processed_dir)
              for processed_dir in self.trial_processed_dirs if processed_dir != ""]
 
-    def save_ref_frame(self):
+    def _save_ref_frame(self):
         ref_trial_dir = self.trial_dirs[self.params.i_ref_trial]
         ref_processed_dir = self.trial_processed_dirs[self.params.i_ref_trial]
         _ = load.convert_raw_to_tiff(ref_trial_dir, 
@@ -167,7 +257,9 @@ class PreProcessFly:
                                ref_frame_dir=self.ref_frame,
                                i_frame=self.params.i_ref_frame,
                                com_pre_reg=self.params.use_com,
-                               overwrite=self.params.overwrite)
+                               overwrite=self.params.overwrite,
+                               crop=self.params.post_com_crop_values 
+                               if self.params.post_com_crop else None)
 
     def run_all_trials(self):
         if self.params.breadth_first:
@@ -183,18 +275,22 @@ class PreProcessFly:
         if self.params.use_warp:
             self._warp_trial(processed_dir)
         if self.params.use_denoise:
-            self._denoise_trial(processed_dir)
+            self._denoise_trial_trainNinfer(processed_dir)
         if self.params.use_dff:
             self._compute_dff_trial(processed_dir, force_single_baseline=True)
         if self.params.use_df3d:
             self._pose_estimate(beh_trial_dir)
         if self.params.use_df3dPostProcess:
             self._post_process_pose(beh_trial_dir)
+        if self.params.make_dff_videos:
+            self._make_dff_video_trial(i_trial)
+        if self.params.make_summary_stats:
+            self._compute_summary_stats(i_trials=[i_trial])
 
     def _run_breadth_first(self):
         for i_trial, (trial_dir, processed_dir) in \
             enumerate(zip(self.trial_dirs, self.trial_processed_dirs)):
-            print("===== converting trial to tif: " + trial_dir)
+            print(time.ctime(time.time()), " converting trial to tif: " + trial_dir)
             self._convert_raw_to_tiff_trial(trial_dir, processed_dir)
             gc.collect()
         if self.params.use_warp:
@@ -202,17 +298,21 @@ class PreProcessFly:
                  for processed_dir in self.trial_processed_dirs]
             gc.collect()
         if self.params.use_denoise:
-            _ = [self._denoise_trial(processed_dir) 
+            _ = [self._denoise_trial_trainNinfer(processed_dir) 
                  for processed_dir in self.trial_processed_dirs]
         if self.params.use_dff:
-            print("===== computing dff")
+            print(time.ctime(time.time()), " computing dff")
             self._compute_dff_alltrials()
         if self.params.use_df3d:
-            print("===== performing pose estimation with deepfly3d")
+            print(time.ctime(time.time()), " performing pose estimation with deepfly3d")
             self._pose_estimate()
         if self.params.use_df3dPostProcess:
-            print("===== post processing df3d pose")
+            print(time.ctime(time.time()), " post processing df3d pose")
             self._post_process_pose()
+        if self.params.make_dff_videos:
+            self._make_dff_videos()
+        if self.params.make_summary_stats:
+            self._compute_summary_stats()
         
     def _run_depth_first(self, force_single_trial_dff=False):
         if isinstance(self.params.select_trials, bool) and not self.params.select_trials:
@@ -220,7 +320,7 @@ class PreProcessFly:
         elif isinstance(self.params.select_trials, list) and len(self.params.select_trials) == len(self.trial_dirs):
             selected_trials = self.params.select_trials
         else:
-            raise NotImplementedError
+            raise NotImplementedError("selected trials should be a list of booleans with the same length as self.trial_dirs.")
         for i_trial, (trial_dir, beh_trial_dir, processed_dir) in \
             enumerate(zip(self.trial_dirs, self.beh_trial_dirs, self.trial_processed_dirs)):
             if selected_trials[i_trial]:
@@ -228,7 +328,7 @@ class PreProcessFly:
                 if self.params.use_warp:
                     self._warp_trial(processed_dir)
                 if self.params.use_denoise:
-                    self._denoise_trial(processed_dir)
+                    self._denoise_trial_trainNinfer(processed_dir)
                 if self.params.use_df3d:
                     self._pose_estimate(trial_dir)
                 if self.params.use_dff and force_single_trial_dff:
@@ -239,6 +339,10 @@ class PreProcessFly:
                     self._post_process_pose(beh_trial_dir)
         if self.params.use_dff:
             self._compute_dff_alltrials()
+        if self.params.make_dff_videos:
+            self._make_dff_videos()
+        if self.params.make_summary_stats:
+            self._compute_summary_stats()
         
     def _convert_raw_to_tiff_trial(self, trial_dir, processed_dir):
         if trial_dir != "" and processed_dir != "":
@@ -251,28 +355,51 @@ class PreProcessFly:
     
     def _warp_trial(self, processed_dir):
         if processed_dir != "":
-            print("===== warping trial: " + processed_dir)
-            _ = warping.warp(stack1=join(processed_dir, self.params.red_raw),
-                            stack2=join(processed_dir, self.params.green_raw),
+            print(time.ctime(time.time()), " com correcting and cropping trial: " + processed_dir)
+            if self.params.use_com and self.params.post_com_crop:
+                _ = warping.center_and_crop(stack1=join(processed_dir, self.params.red_raw),
+                                            stack2=join(processed_dir, self.params.green_raw),
+                                            crop=self.params.post_com_crop_values,
+                                            stack1_out_dir=join(processed_dir, self.params.red_com_crop),
+                                            stack2_out_dir=join(processed_dir, self.params.green_com_crop),
+                                            offset_dir=join(processed_dir, self.params.com_offset),
+                                            return_stacks=False,
+                                            overwrite=self.params.overwrite)
+                if self.params.cleanup_files:
+                    pass
+                    # TODO: os.remove(join(processed_dir, self.params.red_raw))
+                    # TODO: os.remove(join(processed_dir, self.params.green_raw))
+                stack1 = join(processed_dir, self.params.red_com_crop)
+                stack2 = join(processed_dir, self.params.green_com_crop)
+                use_com = False  # because it was already done
+            else:
+                stack1 = join(processed_dir, self.params.red_raw)
+                stack2 = join(processed_dir, self.params.green_raw)
+                use_com = self.params.use_com
+                
+            print(time.ctime(time.time()), "warping trial: " + processed_dir)
+            
+            _ = warping.warp(stack1=stack1,
+                            stack2=stack2,
                             ref_frame=self.ref_frame,
                             stack1_out_dir=join(processed_dir, self.params.red_com_warped),
                             stack2_out_dir=join(processed_dir, self.params.green_com_warped),
-                            com_pre_reg=self.params.use_com,
+                            com_pre_reg=use_com,
                             offset_dir=join(processed_dir, self.params.com_offset),
                             return_stacks=False,
                             overwrite=self.params.overwrite,
                             select_frames=None,
                             parallel=self.params.ofco_parallel,
-                            verbose=False,
+                            verbose=self.params.ofco_verbose,
                             w_output=join(processed_dir, self.params.motion_field)
                             if self.params.save_motion_field else None,
                             initial_w=None,
                             param=self.params.ofco_param
                             )
 
-    def _denoise_trial(self, processed_dir):
+    def _denoise_trial_trainNinfer(self, processed_dir):
         if processed_dir != "":
-            print("===== denoising trial: " + processed_dir)
+            print(time.ctime(time.time()), "denoising trial: " + processed_dir)
             if os.path.isfile(join(processed_dir, self.params.green_denoised)) and not self.params.overwrite:
                 return
             input_data = join(processed_dir, self.params.green_com_warped)
@@ -293,6 +420,41 @@ class PreProcessFly:
             denoise.clean_up(tmp_run_dir, tmp_data_dir)
             denoise.copy_run_dir(tmp_run_dir,
                                  join(processed_dir, self.params.denoise_final_dir),
+                                 delete_tmp=self.params.denoise_delete_tmp_run_dir)
+            gc.collect()
+
+    def _denoise_all_trials(self):
+        if self.params.denoise_train_each_trial:
+            _ = [self._denoise_trial_trainNinfer(processed_dir) 
+                 for processed_dir in self.trial_processed_dirs]
+        else:
+            input_datas = []
+            tmp_data_dirs = []
+            input_datas = [join(processed_dir, self.params.green_com_warped) for processed_dir in self.trial_processed_dirs]
+            tmp_data_dirs = [join(self.params.denoise_tmp_data_dir, 
+                                  self.params.denoise_tmp_data_name(processed_dir)) for processed_dir in self.trial_processed_dirs]
+            denoise.prepare_data(train_data_tifs=input_datas, 
+                                out_data_tifs=tmp_data_dirs,
+                                offset=self.params.denoise_crop_offset,
+                                size=self.params.denoise_crop_size)
+            
+            training_processed_dir = self.trial_processed_dirs[self.params.denoise_train_trial]
+            training_input_data = input_datas[self.params.denoise_train_trial]
+            training_tmp_data_dir = tmp_data_dirs[self.params.denoise_train_trial]
+            tmp_run_dir = denoise.train(train_data_tifs=training_tmp_data_dir, 
+                                        run_base_dir=self.params.denoise_tmp_run_dir,
+                                        run_identifier=self.params.denoise_runid(training_processed_dir),
+                                        params=self.params.denoise_params)
+
+            tif_out_dirs = [join(processed_dir, self.params.green_denoised) for processed_dir in self.trial_processed_dirs]
+            denoise.inference(data_tifs=tmp_data_dirs,
+                              run_dir=tmp_run_dir,
+                              tif_out_dirs=tif_out_dirs,
+                              param=self.params.denoise_params)
+
+            denoise.clean_up(tmp_run_dir, tmp_data_dirs)
+            denoise.copy_run_dir(tmp_run_dir, 
+                                 join(self.fly_processed_dir, self.params.denoise_final_dir),
                                  delete_tmp=self.params.denoise_delete_tmp_run_dir)
             gc.collect()
 
@@ -324,6 +486,7 @@ class PreProcessFly:
                                                 use_crop=self.params.dff_use_crop,
                                                 manual_add_to_crop=self.params.dff_manual_add_to_crop,
                                                 dff_blur=self.params.dff_blur,
+                                                min_baseline=self.params.dff_min_baseline,
                                                 dff_out_dir=join(processed_dir, self.params.dff),
                                                 return_stack=False)
 
@@ -337,21 +500,22 @@ class PreProcessFly:
                          for i_dir, processed_dir in enumerate(self.trial_processed_dirs) 
                          if processed_dir != "" and not self.params.dff_baseline_exclude_trials[i_dir]]
         if self.params.dff_common_baseline:
-            print("===== computing dff baseline")
+            print(time.ctime(time.time()), "computing dff baseline")
             if not os.path.isfile(join(self.fly_processed_dir, self.params.dff_baseline)) or self.params.overwrite:
                 _ = dff.find_dff_baseline_multi_stack_load_single(stacks=stacks,
-                        individual_baselin_dirs=baseline_dirs,
+                        individual_baseline_dirs=baseline_dirs,
                         baseline_blur=self.params.dff_baseline_blur,
                         baseline_med_filt=self.params.dff_baseline_med_filt,
                         blur_pre=self.params.dff_baseline_blur_pre,
                         baseline_mode=self.params.dff_baseline_mode,
                         baseline_length=self.params.dff_baseline_length,
                         baseline_quantile=self.params.dff_baseline_quantile,
+                        min_baseline=self.params.dff_min_baseline,
                         baseline_dir=join(self.fly_processed_dir, self.params.dff_baseline))
                
         for i_trial, processed_dir \
             in enumerate(self.trial_processed_dirs):
-            print("===== computing dff for trial: " + processed_dir)
+            print(time.ctime(time.time()), "computing dff for trial: " + processed_dir)
             self._compute_dff_trial(processed_dir)
             
     def _pose_estimate(self, trial_dirs=None):
@@ -370,9 +534,230 @@ class PreProcessFly:
         trial_dirs = deepcopy(self.beh_trial_dirs) if trial_dirs is None else trial_dirs
         for trial_dir in trial_dirs:
             if trial_dir != "":
-                print("===== postprocessing df3d for trial: " + trial_dir)
+                print(time.ctime(time.time()), "postprocessing df3d for trial: " + trial_dir)
                 df3d.postprocess_df3d_trial(trial_dir, overwrite=self.params.overwrite)         
 
+    def _make_dff_video_trial(self, i_trial, mask=None):
+        processed_dir = self.trial_processed_dirs[i_trial]
+        trial_dir = self.trial_dirs[i_trial]
+        trial_name = self.trial_names[i_trial]
+        if not isinstance(mask, np.ndarray):
+            if (isinstance(mask, bool) and mask == True) \
+                or mask == "fromfile" or mask == "compute":
+                mask_dir = join(processed_dir, self.params.dff_mask)
+                if not os.path.isfile(mask_dir) or self.params.overwrite:
+                    dff_stack = get_stack(join(processed_dir, self.params.dff))
+                    dff_baseline = get_stack(join(processed_dir, self.params.dff_baseline))
+                    if dff_baseline.shape != dff_stack.shape[1:]:
+                        crop = (np.array(dff_baseline.shape) - np.array(dff_stack.shape[1:])) // 2
+                    else:
+                        crop = None
+                    mask = dff.find_dff_mask(join(processed_dir, self.params.dff_baseline), crop=crop)
+                    save_stack(mask_dir, mask)
+                else:
+                    mask = get_stack(mask_dir)
+                    mask = mask > 0
+
+        make_video_dff(dff=join(processed_dir, self.params.dff),
+                        out_dir=processed_dir,
+                        video_name=self.params.dff_video_name,
+                        trial_dir=trial_dir,
+                        vmin=self.params.dff_video_vmin, 
+                        vmax=self.params.dff_video_vmax,
+                        pmin=self.params.dff_video_pmin,
+                        pmax=self.params.dff_video_pmax, 
+                        blur=0, mask=mask, crop=None, 
+                        text=trial_name)
+    
+    def _make_dff_videos(self, mask=None):
+        if not isinstance(mask, np.ndarray):
+            if (isinstance(mask, bool) and mask == True) \
+                or mask == "fromfile" or mask == "compute":
+                mask_dir = join(self.fly_processed_dir, self.params.dff_mask)
+                if not os.path.isfile(mask_dir) or self.params.overwrite:
+                    dff_stack = get_stack(join(self.trial_processed_dirs[0], self.params.dff))
+                    dff_baseline = get_stack(join(self.fly_processed_dir, self.params.dff_baseline))
+                    if dff_baseline.shape != dff_stack.shape[1:]:
+                        crop = (np.array(dff_baseline.shape) - np.array(dff_stack.shape[1:])) // 2
+                        del dff_stack, dff_baseline
+                    else:
+                        crop = None
+                    mask = dff.find_dff_mask(join(self.fly_processed_dir, self.params.dff_baseline), crop=crop)
+                    save_stack(mask_dir, mask)
+                else:
+                    mask = get_stack(mask_dir)
+        for i_trial, _ in enumerate(self.trial_dirs):
+            self._make_dff_video_trial(i_trial, mask=mask)
+        
+        make_multiple_video_dff(dffs=[join(processed_dir, self.params.dff) 
+                                      for processed_dir in self.trial_processed_dirs],
+                                out_dir=self.fly_processed_dir,
+                                video_name=self.params.dff_video_name+"_multiple", 
+                                trial_dir=self.trial_dirs[0],
+                                vmin=self.params.dff_video_vmin, 
+                                vmax=self.params.dff_video_vmax,
+                                pmin=self.params.dff_video_pmin,
+                                pmax=self.params.dff_video_pmax, 
+                                share_lim=self.params.dff_video_share_lim, 
+                                share_mask=True,
+                                blur=0, mask=mask, crop=None,
+                                text=self.trial_names)
+
+    def _make_dff_behaviour_video_trial(self, i_trial, mask=None, include_2p=False):
+        processed_dir = self.trial_processed_dirs[i_trial]
+        trial_dir = self.trial_dirs[i_trial]
+        beh_trial_dir = self.beh_trial_dirs[i_trial]
+        sync_trial_dir = self.sync_trial_dirs[i_trial]
+        trial_name = self.trial_names[i_trial]
+        green_dir = join(self.trial_processed_dirs[i_trial], self.params.green_com_warped) if include_2p else None
+        red_dir = join(self.trial_processed_dirs[i_trial], self.params.red_com_warped) if include_2p else None
+
+        if not isinstance(mask, np.ndarray):
+            if (isinstance(mask, bool) and mask == True) \
+                or mask == "fromfile" or mask == "compute":
+                mask_dir = join(processed_dir, self.params.dff_mask)
+                if not os.path.isfile(mask_dir) or self.params.overwrite:
+                    dff_stack = get_stack(join(processed_dir, self.params.dff))
+                    dff_baseline = get_stack(join(processed_dir, self.params.dff_baseline))
+                    if dff_baseline.shape != dff_stack.shape[1:]:
+                        crop = (np.array(dff_baseline.shape) - np.array(dff_stack.shape[1:])) // 2
+                    else:
+                        crop = None
+                    mask = dff.find_dff_mask(join(processed_dir, self.params.dff_baseline), crop=crop)
+                    save_stack(mask_dir, mask)
+                else:
+                    mask = get_stack(mask_dir)
+        
+        make_video_raw_dff_beh(dff=join(processed_dir, self.params.dff), 
+                           trial_dir=trial_dir, 
+                           out_dir=processed_dir, 
+                           video_name=self.params.dff_beh_video_name, 
+                           beh_dir=beh_trial_dir, 
+                           sync_dir=sync_trial_dir, 
+                           camera=self.params.default_video_camera, 
+                           stack_axis=0,
+                           green=green_dir,
+                           red=red_dir,
+                           vmin=self.params.dff_video_vmin, 
+                           vmax=self.params.dff_video_vmax, 
+                           pmin=self.params.dff_video_pmin, 
+                           pmax=self.params.dff_video_pmax, 
+                           blur=0, mask=mask, crop=None, text=trial_name, 
+                           asgenerator=False, downsample=10)
+
+    def _make_dff_behaviour_video_multiple_trials(self, i_trials=None, mask=None, include_2p=False):
+        if not isinstance(mask, np.ndarray):
+            if (isinstance(mask, bool) and mask == True) \
+                or mask == "fromfile" or mask == "compute":
+                mask_dir = join(self.fly_processed_dir, self.params.dff_mask)
+                if not os.path.isfile(mask_dir) or self.params.overwrite:
+                    dff_stack = get_stack(join(self.trial_processed_dirs[0], self.params.dff))
+                    dff_baseline = get_stack(join(self.fly_processed_dir, self.params.dff_baseline))
+                    if dff_baseline.shape != dff_stack.shape[1:]:
+                        crop = (np.array(dff_baseline.shape) - np.array(dff_stack.shape[1:])) // 2
+                        del dff_stack, dff_baseline
+                    else:
+                        crop = None
+                    mask = dff.find_dff_mask(join(self.fly_processed_dir, self.params.dff_baseline), crop=crop)
+                    save_stack(mask_dir, mask)
+                else:
+                    mask = get_stack(mask_dir)
+        # for i_trial, _ in enumerate(self.trial_dirs):
+        #     self._make_dff_behaviour_video_trial(i_trial, mask=mask)
+        if i_trials is None:
+            i_trials = range(len(self.trial_processed_dirs))
+        dffs = [join(self.trial_processed_dirs[i_trial], self.params.dff) for i_trial in i_trials]
+        trial_dirs = [self.trial_dirs[i_trial] for i_trial in i_trials]
+        beh_dirs = [self.beh_trial_dirs[i_trial] for i_trial in i_trials]
+        sync_dirs = [self.sync_trial_dirs[i_trial] for i_trial in i_trials]
+        text = [self.trial_names[i_trial] for i_trial in i_trials]
+        green_dirs = [join(self.trial_processed_dirs[i_trial], self.params.green_com_warped) for i_trial in i_trials] if include_2p else None
+        red_dirs = [join(self.trial_processed_dirs[i_trial], self.params.red_com_warped) for i_trial in i_trials] if include_2p else None
+
+        make_multiple_video_raw_dff_beh(dffs=dffs,
+                                    trial_dirs=trial_dirs,
+                                    out_dir=self.fly_processed_dir,
+                                    video_name=self.params.dff_beh_video_name+"_multiple",
+                                    beh_dirs=beh_dirs,
+                                    sync_dirs=sync_dirs,
+                                    camera=self.params.default_video_camera,
+                                    stack_axes=[0, 1],
+                                    greens=green_dirs,
+                                    reds=red_dirs,
+                                    vmin=self.params.dff_video_vmin, 
+                                    vmax=self.params.dff_video_vmax, 
+                                    pmin=self.params.dff_video_pmin, 
+                                    pmax=self.params.dff_video_pmax, 
+                                    share_lim=self.params.dff_video_share_lim, 
+                                    share_mask=True,
+                                    blur=0, mask=mask, crop=None,
+                                    text=text,
+                                    downsample=10)
+
+    def _compute_summary_stats(self, i_trials=None):
+        output = join(self.fly_processed_dir, self.params.summary_stats)
+        if os.path.isfile(output) and not self.params.overwrite:
+            return
+        
+        if i_trials is None:
+            i_trials = range(len(self.trial_processed_dirs))
+
+        dffs = [join(self.trial_processed_dirs[i_trial], self.params.dff) for i_trial in i_trials]
+        trial_dirs = [self.trial_dirs[i_trial] for i_trial in i_trials]
+        greens = [join(self.trial_processed_dirs[i_trial], self.params.green_denoised) for i_trial in i_trials]
+        
+        dffs = [get_stack(dff) for dff in dffs]
+
+        # compute quantities
+        means = [np.mean(dff, axis=0) for dff in dffs]
+        mean_diffs = [mean - means[0] for mean in means]
+        stds = [np.std(dff, axis=0) for dff in dffs]
+        std_diffs = [std - stds[0] for std in stds]
+        quants = [np.percentile(dff, 95, axis=0) for dff in dffs]
+        quant_diffs = [quant - quants[0] for quant in quants]
+        local_corrs = [local_correlations(dff) for dff in dffs]
+        local_corr_diffs = [local_corr - local_corrs[0] for local_corr in local_corrs]
+
+        del dffs
+
+        # get green stacks
+        greens = [get_stack(green) for green in greens]
+
+        # compute quantities
+        means_green = [np.mean(green, axis=0) for green in greens]
+        mean_diffs_green = [mean - means_green[0] for mean in means_green]
+        stds_green = [np.std(green, axis=0) for green in greens]
+        std_diffs_green = [std - stds_green[0] for std in stds_green]
+        quants_green = [np.percentile(green, 95, axis=0) for green in greens]
+        quant_diffs_green = [quant - quants_green[0] for quant in quants_green]
+        local_corrs_green = [local_correlations(green) for green in greens]
+        local_corr_diffs_green = [local_corr - local_corrs_green[0] for local_corr in local_corrs_green]
+
+        del greens
+
+        # make dictionary
+        output_dict = {
+            "dff_means": means,
+            "dff_mean_diffs": mean_diffs,
+            "green_means": means_green,
+            "green_mean_diffs": mean_diffs_green,
+            "dff_stds": stds,
+            "dff_std_diffs": std_diffs,
+            "green_stds": stds_green,
+            "green_std_diffs": std_diffs_green,
+            "dff_quants": quants,
+            "dff_quant_diffs": quant_diffs,
+            "green_quants": quants_green,
+            "green_quant_diffs": quant_diffs_green,
+            "dff_local_corrs": local_corrs,
+            "dff_local_corr_diffs": local_corr_diffs,
+            "green_local_corrs": local_corrs_green,
+            "green_local_corr_diffs": local_corr_diffs_green,
+            "trials": self.trial_names
+        }
+
+        with open(output, "wb") as f:
+            pickle.dump(output_dict, f)
 
 
 if __name__ == "__main__":
