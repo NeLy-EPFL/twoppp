@@ -20,6 +20,6 @@ preprocess = PreProcessFly(fly_dir, params=params)
 
 processed_dir = preprocess.trial_processed_dirs[0]
 
-preprocess._denoise_trial(processed_dir=processed_dir)
+preprocess._denoise_trial_trainNinfer(processed_dir=processed_dir)
 
 pass
