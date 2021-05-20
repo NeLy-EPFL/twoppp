@@ -20,15 +20,49 @@ sys.path.append(MODULE_PATH)
 
 from longterm import load, utils
 
-def save_ref_frame(stack, ref_frame_dir, i_frame = 0, com_pre_reg=True, overwrite=False):
+def save_ref_frame(stack, ref_frame_dir, i_frame = 0, com_pre_reg=True, overwrite=False, crop=None):
     if os.path.isfile(ref_frame_dir):
         return
     stack = utils.get_stack(stack)
     ref_frame = stack[i_frame:i_frame+1, :, :]
     if com_pre_reg:
         ref_frame = center_stack(ref_frame, return_offset=False)
-
+    ref_frame = utils.crop_img(ref_frame, crop)
     utils2p.save_img(ref_frame_dir, ref_frame)
+
+def center_and_crop(stack1, stack2=None, crop=None, stack1_out_dir=None, stack2_out_dir=None, offset_dir=None,
+                    overwrite=False, return_stacks=False):
+    if os.path.isfile(stack1_out_dir) and not overwrite:
+        if not return_stacks:
+            return None, None
+        stack1_shifted = utils2p.load_img(stack1_out_dir)
+        if stack2 is not None and os.path.isfile(stack2_out_dir):
+            stack2_shifted = utils2p.load_img(stack2_out_dir)
+        else:
+            stack2_shifted = None
+        return stack1_shifted, stack2_shifted
+
+    stack1 = utils.get_stack(stack1)
+    stack2 = utils.get_stack(stack2)
+
+    if os.path.isfile(offset_dir):
+        offsets = np.load(offset_dir)
+        stack1_shifted = apply_offset(stack1, offsets)
+    else:
+        stack1_shifted, offsets = center_stack(stack1, return_offset=True)
+    stack2_shifted = apply_offset(stack2, offsets) if stack2 is not None else None
+
+    stack1_shifted = utils.crop_stack(stack1_shifted, crop)
+    stack2_shifted = utils.crop_stack(stack2_shifted, crop)
+
+    if offset_dir is not None:
+        np.save(offset_dir, offsets)
+    if stack1_out_dir is not None:
+        utils2p.save_img(stack1_out_dir, stack1_shifted)
+    if stack2_out_dir is not None:
+        utils2p.save_img(stack2_out_dir, stack2_shifted)
+
+    return stack1_shifted, stack2_shifted if return_stacks else None, None
 
 def center_stack(frames, return_offset=False, sigma_filt=(0, 10, 10), foreground_thres=0.75):
     N, H, W = frames.shape
@@ -89,7 +123,7 @@ def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_di
             stack1, offsets = center_stack(stack1, return_offset=True)
             np.save(offset_dir, offsets)
     if not isinstance(stack1, np.ndarray):
-        raise NotImplementedError
+        raise NotImplementedError("stack1 has to be a numpy array")
 
     N_frames, N_y, N_x = stack1.shape
 
@@ -146,7 +180,7 @@ def warp_N_parts(stack1, stack1_out_dir, N_parts, stack2=None, stack2_out_dir=No
             stack1, offsets = center_stack(stack1, return_offset=True)
             np.save(offset_dir, offsets)
     if not isinstance(stack1, np.ndarray):
-        raise NotImplementedError
+        raise NotImplementedError("stack1 has to be a numpy array")
 
     N_frames, N_y, N_x = stack1.shape
 
@@ -217,7 +251,7 @@ def apply_warp(stack, stack_out_dir, w_output, select_frames=None,
             stack, offsets = center_stack(stack, return_offset=True)
             np.save(offset_dir, offsets)
     if not isinstance(stack, np.ndarray):
-        raise NotImplementedError
+        raise NotImplementedError("stack has to be a numpy array")
 
     if select_frames is not None:
         stack = stack[select_frames, :, :]
