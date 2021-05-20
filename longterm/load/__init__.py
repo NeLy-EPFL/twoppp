@@ -9,12 +9,16 @@ from shutil import copyfile
 import utils2p
 
 NAS_DIR = "/mnt/NAS"
+NAS2_DIR = "/mnt/NAS2"
 LABSERVER_DIR = "/mnt/labserver"
 LABSERVER_DIR_LH = os.path.join(LABSERVER_DIR, "HERMANS_Laura", "Experimental_data")
 LABSERVER_DIR_LH_2P = os.path.join(LABSERVER_DIR_LH, "_2p")
 LABSERVER_DIR_LH_BEH = os.path.join(LABSERVER_DIR_LH, "_behavior")
 LABSERVER_DIR_JB  = os.path.join(LABSERVER_DIR, "BRAUN_Jonas", "Experimental_data", "2p")
 NAS_DIR_JB = os.path.join(NAS_DIR, "JB")
+NAS2_DIR_JB = os.path.join(NAS2_DIR, "JB")
+NAS_DIR_LH = os.path.join(NAS_DIR, "LH")
+NAS2_DIR_LH = os.path.join(NAS2_DIR, "LH")
 
 HOME_DIR = str(Path.home())
 TMP_PROCESS_DIR = os.path.join(HOME_DIR, "tmp")
