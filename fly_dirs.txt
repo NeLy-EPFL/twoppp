@@ -6,3 +6,7 @@
 /mnt/NAS2/LH/210512/fly3
 /mnt/NAS2/LH/210514/fly1
 /mnt/NAS2/LH/210519/fly1
+/mnt/NAS2/LH/210521/fly1
+/mnt/NAS2/LH/210524/fly1
+/mnt/NAS2/LH/210526/fly2
+/mnt/NAS2/LH/210527/fly4
