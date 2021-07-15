@@ -6,6 +6,7 @@ import numpy as np
 import os.path
 from pathlib import Path
 from skimage.transform import resize
+from copy import deepcopy
 
 from utils2p import load_img, save_img
 
@@ -109,3 +110,24 @@ def readlines_tolist(file, remove_empty=True):
     if remove_empty:
         out = [line for line in out if line != ""]
     return out
+
+def list_attr(lst, attr):
+    return [getattr(l, attr) for l in lst]
+def list_fn(lst, fn):
+    return [fn(l) for l in lst]
+
+def list_mthd(lst, mthd):
+    out = []
+    for l in lst:
+        m = getattr(l, mthd)
+        out.append(l.m())
+    return out
+
+def list_join(lst, strs):
+    if not isinstance(strs, list):
+        strs = [strs]
+    out_lst = deepcopy(lst)
+    for s in strs:
+        out_lst = [os.path.join(this_dir, s) for this_dir in out_lst]
+    return out_lst
+
