@@ -424,9 +424,45 @@ def downsample_generator(generator, factor):
         else:
             i_frame = 0
             yield frame
+def selected_frames_generator(generator, select_frames):
+    i_frame = 0
+    except_frame = None
+    frames = []
+    first_except = True
+    while 1:
+        try:
+            frame = next(generator)
+            if i_frame == 0:
+                except_frame = np.zeros_like(frame)
+            if i_frame not in select_frames:
+                i_frame += 1
+                continue
+            else:
+                i_frame += 1
+                frames.append(frame)
+                yield frame
+        except:
+            # yield except_frame
+            if first_except:
+                first_except = False
+                frames = [except_frame] + frames
+                i_frame = 0
+                N_frames = len(frames)
+            elif i_frame >= N_frames:
+                i_frame = 0
+            frame = frames[i_frame]
+            i_frame += 1
+            yield frame
+            
 
-def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sync_dir=None, camera=6, stack_axis=0, green=None, red=None,
-                      vmin=0, vmax=None, pmin=1, pmax=99, blur=0, mask=None, crop=None, text=None, asgenerator=False, downsample=None):
+
+
+
+
+def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sync_dir=None, 
+                           camera=6, stack_axis=0, green=None, red=None,
+                           vmin=0, vmax=None, pmin=1, pmax=99, blur=0, mask=None, crop=None, 
+                           text=None, asgenerator=False, downsample=None, select_frames=None, max_length=None):
     beh_dir = trial_dir if beh_dir is None else beh_dir
     sync_dir = trial_dir if sync_dir is None else sync_dir
     sync_file = utils2p.find_sync_file(sync_dir)
@@ -476,32 +512,51 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
     else:
         twop_generator = None
 
+    if select_frames is not None:
+        max_length = len(select_frames) if max_length is None else max_length
+        if len(select_frames) < max_length:
+            factor = np.ceil(max_length/len(select_frames))
+            select_frames = np.repeat(np.expand_dims(select_frames, axis=0),factor, axis=0).flatten()[:max_length]
+
     dff_generator = generator_dff(dff, vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax, 
                                   blur=blur, mask=mask, crop=crop, text=text)
 
     images_dir, _ = os.path.split(seven_camera_metadata_file)
     # beh_video_dir = os.path.join(images_dir, "camera_{}.mp4".format(camera))
     beh_video_dir = find_file(images_dir, "camera_{}*.mp4".format(camera))
-    beh_generator = generator_video(beh_video_dir, start=beh_start_ind, stop=beh_end_ind)
+    beh_generator = generator_video(beh_video_dir, start=beh_start_ind, stop=beh_end_ind)  # TODO: selected frames
     text = [f"{t:.1f}s" for t in frame_times_beh]
     beh_generator = utils_video.generators.add_text(beh_generator, text, scale=3, pos=(10, 150))
     with open(seven_camera_metadata_file, "r") as f:
         metadata = json.load(f)
-    frame_rate = metadata["FPS"]
+
+    # frame_rate = metadata["FPS"]
+    frame_rate = 1 / np.mean(np.diff(frame_times_2p))
 
     indices = utils2p.synchronization.beh_idx_to_2p_idx(np.arange(len(frame_times_beh)), processed_lines["Cameras"], processed_lines["Frame Counter"])
+    edges = utils2p.synchronization.edges(indices)[0]
+    beh_generator = utils_video.generators.resample(beh_generator, edges)
+    """
     dff_generator = utils_video.generators.resample(dff_generator, indices)
+    """
     if twop_generator is None:
         generator = utils_video.generators.stack([beh_generator, dff_generator], axis=stack_axis)
     else:
-        twop_generator = utils_video.generators.resample(twop_generator, indices)
+        # twop_generator = utils_video.generators.resample(twop_generator, indices)
         generator = utils_video.generators.stack([beh_generator, dff_generator, twop_generator], axis=stack_axis)
+    
+    if select_frames is not None:
+        generator = selected_frames_generator(generator, select_frames)
     if downsample is not None and isinstance(downsample, int) and downsample > 1:
         generator = downsample_generator(generator, downsample)
         N_frames = len(frame_times_beh) // downsample - 1
-        frame_rate = frame_rate // downsample
+        frame_rate = frame_rate / downsample
+        if select_frames is not None:
+            N_frames = max_length // downsample - 1
     else:
         N_frames = len(frame_times_beh) - 1
+        if select_frames is not None:
+            N_frames = max_length - 1
     if not asgenerator:
         if not video_name.endswith(".mp4"):
             video_name = video_name + ".mp4"
@@ -509,8 +564,11 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
     else:
         return generator, N_frames, frame_rate
 
-def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_dirs=None, sync_dirs=None, camera=6, stack_axes=[0, 1], greens=None, reds=None,
-                                vmin=0, vmax=None, pmin=1, pmax=99, share_lim=True, blur=0, mask=None, share_mask=False, crop=None, text=None, downsample=None):
+def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_dirs=None, sync_dirs=None, 
+                                    camera=6, stack_axes=[0, 1], greens=None, reds=None,
+                                    vmin=0, vmax=None, pmin=1, pmax=99, share_lim=True, 
+                                    blur=0, mask=None, share_mask=False, crop=None, text=None, 
+                                    downsample=None, select_frames=None):
     if not isinstance(dffs, list):
         dffs = [dffs]
     if text is not None:
@@ -571,22 +629,30 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
         assert len(sync_dirs) == len(dffs)
     else:
         sync_dirs = [None for _ in  dffs]
+    if select_frames is not None:
+        assert len(select_frames) == len(dffs)
+        max_length = np.max([len(frames) for frames in select_frames])
+    else:
+        select_frames = [None for _ in  dffs]
+        max_length = None
 
     generators = []
     N_frames = []
     frame_rates = []
-    for i_gen, (dff, trial_dir, beh_dir, sync_dir, this_text, this_mask, green, red) \
-        in enumerate(zip(dffs, trial_dirs, beh_dirs, sync_dirs, text, mask, greens, reds)):
+    for i_gen, (dff, trial_dir, beh_dir, sync_dir, this_text, this_mask, green, red, frames) \
+        in enumerate(zip(dffs, trial_dirs, beh_dirs, sync_dirs, text, mask, greens, reds, select_frames)):
         this_generator, this_N_frames, frame_rate = make_video_raw_dff_beh(dff=dff, trial_dir=trial_dir, out_dir=None, video_name=None,
                                                                   beh_dir=beh_dir, sync_dir=sync_dir, camera=camera, stack_axis=stack_axes[0],
                                                                   green=green, red=red,
                                                                   vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax, blur=blur, mask=this_mask,
                                                                   crop=crop, text=this_text, 
-                                                                  asgenerator=True, downsample=downsample)
+                                                                  asgenerator=True, downsample=downsample, max_length=max_length, select_frames=frames)
         generators.append(this_generator)
         N_frames.append(this_N_frames)
         frame_rates.append(frame_rate)
-    assert len(np.unique(frame_rates)) == 1
+    if not len(np.unique(frame_rates)) == 1:
+        print("Frame rates are: ", frame_rates)
+        frame_rate = np.mean(frame_rates)
     N_frames = np.min(N_frames)
     generator = utils_video.generators.stack(generators, axis=stack_axes[1])
     if not video_name.endswith(".mp4"):
