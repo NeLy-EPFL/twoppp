@@ -298,8 +298,7 @@ class PreProcessFly:
                  for processed_dir in self.trial_processed_dirs]
             gc.collect()
         if self.params.use_denoise:
-            _ = [self._denoise_trial_trainNinfer(processed_dir) 
-                 for processed_dir in self.trial_processed_dirs]
+            self._denoise_all_trials()
         if self.params.use_dff:
             print(time.ctime(time.time()), " computing dff")
             self._compute_dff_alltrials()
@@ -425,37 +424,51 @@ class PreProcessFly:
 
     def _denoise_all_trials(self):
         if self.params.denoise_train_each_trial:
+            print(time.ctime(time.time()), "Start denoising by training on all trials.")
             _ = [self._denoise_trial_trainNinfer(processed_dir) 
                  for processed_dir in self.trial_processed_dirs]
         else:
+            print(time.ctime(time.time()), "Start denoising by training on one trial: {}".format(self.params.denoise_train_trial))
             input_datas = []
             tmp_data_dirs = []
-            input_datas = [join(processed_dir, self.params.green_com_warped) for processed_dir in self.trial_processed_dirs]
+            if all([os.path.isfile(join(processed_dir, self.params.green_denoised)) 
+                    for processed_dir in self.trial_processed_dirs]) and not self.params.overwrite:
+                return
+                
+            input_datas = [join(processed_dir, self.params.green_com_warped) 
+                            for processed_dir in self.trial_processed_dirs]
             tmp_data_dirs = [join(self.params.denoise_tmp_data_dir, 
-                                  self.params.denoise_tmp_data_name(processed_dir)) for processed_dir in self.trial_processed_dirs]
+                                  self.params.denoise_tmp_data_name(processed_dir)) 
+                             for processed_dir in self.trial_processed_dirs]
             denoise.prepare_data(train_data_tifs=input_datas, 
                                 out_data_tifs=tmp_data_dirs,
                                 offset=self.params.denoise_crop_offset,
                                 size=self.params.denoise_crop_size)
-            
-            training_processed_dir = self.trial_processed_dirs[self.params.denoise_train_trial]
-            training_input_data = input_datas[self.params.denoise_train_trial]
-            training_tmp_data_dir = tmp_data_dirs[self.params.denoise_train_trial]
-            tmp_run_dir = denoise.train(train_data_tifs=training_tmp_data_dir, 
-                                        run_base_dir=self.params.denoise_tmp_run_dir,
-                                        run_identifier=self.params.denoise_runid(training_processed_dir),
-                                        params=self.params.denoise_params)
+            if os.path.isdir(join(self.fly_processed_dir, self.params.denoise_final_dir)) and not self.params.overwrite:
+                tmp_run_dir = join(self.fly_processed_dir, self.params.denoise_final_dir)
+                already_trained = True
+                print("Using already trained model.")
+            else:
+                already_trained = False
+                training_processed_dir = self.trial_processed_dirs[self.params.denoise_train_trial]
+                training_input_data = input_datas[self.params.denoise_train_trial]
+                training_tmp_data_dir = tmp_data_dirs[self.params.denoise_train_trial]
+                tmp_run_dir = denoise.train(train_data_tifs=training_tmp_data_dir, 
+                                            run_base_dir=self.params.denoise_tmp_run_dir,
+                                            run_identifier=self.params.denoise_runid(training_processed_dir),
+                                            params=self.params.denoise_params)
 
             tif_out_dirs = [join(processed_dir, self.params.green_denoised) for processed_dir in self.trial_processed_dirs]
             denoise.inference(data_tifs=tmp_data_dirs,
                               run_dir=tmp_run_dir,
                               tif_out_dirs=tif_out_dirs,
-                              param=self.params.denoise_params)
+                              params=self.params.denoise_params)
 
             denoise.clean_up(tmp_run_dir, tmp_data_dirs)
-            denoise.copy_run_dir(tmp_run_dir, 
-                                 join(self.fly_processed_dir, self.params.denoise_final_dir),
-                                 delete_tmp=self.params.denoise_delete_tmp_run_dir)
+            if not already_trained:
+                denoise.copy_run_dir(tmp_run_dir, 
+                                    join(self.fly_processed_dir, self.params.denoise_final_dir),
+                                    delete_tmp=self.params.denoise_delete_tmp_run_dir)
             gc.collect()
 
     def _compute_dff_trial(self, processed_dir, force_single_baseline=False, force_overwrite=False):
@@ -692,7 +705,7 @@ class PreProcessFly:
                                     share_mask=True,
                                     blur=0, mask=mask, crop=None,
                                     text=text,
-                                    downsample=10)
+                                    downsample=2)  # 10)
 
     def _compute_summary_stats(self, i_trials=None):
         output = join(self.fly_processed_dir, self.params.summary_stats)
@@ -706,17 +719,29 @@ class PreProcessFly:
         trial_dirs = [self.trial_dirs[i_trial] for i_trial in i_trials]
         greens = [join(self.trial_processed_dirs[i_trial], self.params.green_denoised) for i_trial in i_trials]
         
-        dffs = [get_stack(dff) for dff in dffs]
+        good_dffs = []
+        bad_dffs = []
+        for i_dff, dff_dir in enumerate(dffs):
+            try:
+                dff = get_stack(dff_dir)
+                good_dffs.append(i_dff)
+            except FileNotFoundError:
+                print("could not find: "+dff_dir+" \nWill replace with zeros." )
+                dff = None
+                bad_dffs.append(i_dff)
+            dffs[i_dff] = dff
+        for i_bad in bad_dffs:
+            dffs[i_bad] = np.zeros_like(dffs[good_dffs[0]])
 
         # compute quantities
         means = [np.mean(dff, axis=0) for dff in dffs]
-        mean_diffs = [mean - means[0] for mean in means]
+        mean_diffs = [mean - means[good_dffs[0]] for mean in means]
         stds = [np.std(dff, axis=0) for dff in dffs]
-        std_diffs = [std - stds[0] for std in stds]
+        std_diffs = [std - stds[good_dffs[0]] for std in stds]
         quants = [np.percentile(dff, 95, axis=0) for dff in dffs]
-        quant_diffs = [quant - quants[0] for quant in quants]
+        quant_diffs = [quant - quants[good_dffs[0]] for quant in quants]
         local_corrs = [local_correlations(dff) for dff in dffs]
-        local_corr_diffs = [local_corr - local_corrs[0] for local_corr in local_corrs]
+        local_corr_diffs = [local_corr - local_corrs[good_dffs[0]] for local_corr in local_corrs]
 
         del dffs
 
@@ -753,7 +778,8 @@ class PreProcessFly:
             "dff_local_corr_diffs": local_corr_diffs,
             "green_local_corrs": local_corrs_green,
             "green_local_corr_diffs": local_corr_diffs_green,
-            "trials": self.trial_names
+            "trials": self.trial_names,
+            "ref_trial": good_dffs[0]
         }
 
         with open(output, "wb") as f:
