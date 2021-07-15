@@ -26,6 +26,7 @@ if __name__ == "__main__":
     params.select_trials = False
     params.cleanup_files = False
     params.make_dff_videos = True
+    params.make_summary_stats = True
 
     params.i_ref_trial = 0
     params.i_ref_frame = 0
@@ -57,25 +58,68 @@ if __name__ == "__main__":
     params.dff_video_share_lim = True
     params.default_video_camera = 6
 
-    fly_dirs = [os.path.join(load.NAS2_DIR_LH, "210512", "fly3"),
-                os.path.join(load.NAS2_DIR_LH, "210514", "fly1"),
-                os.path.join(load.NAS2_DIR_LH, "210519", "fly1")]
-    all_selected_trials = [[0,2,3,4,5,11],  # [2,4,5,11]  # ,7]]  #trial 7 has lowest priority
-                           [0,5,6,12],  # 8 trial 8 has lowest priority
-                           [3,5,8,12]]
-    ref_frames = [2268, 0, 0]
-    crops = [[32, 48], [0, 0], [64, 80]]
-    sizes = [(352, 640), (352, 640), (320, 576)]
-    exclude_baselines = [[False, False, False, False, False, False],  # , False]]
+    fly_dirs = [os.path.join(load.NAS2_DIR_LH, "210512", "fly3"),  # water
+                os.path.join(load.NAS2_DIR_LH, "210514", "fly1"),  # caff -> bad
+                os.path.join(load.NAS2_DIR_LH, "210519", "fly1"),  # caff
+                os.path.join(load.NAS2_DIR_LH, "210521", "fly1"),  # nofeed
+                os.path.join(load.NAS2_DIR_LH, "210524", "fly1"),  # bad
+
+                os.path.join(load.NAS2_DIR_LH, "210526", "fly2"),  # caff
+                os.path.join(load.NAS2_DIR_LH, "210527", "fly4"),  # nofeed
+                os.path.join(load.NAS2_DIR_LH, "210531", "fly2"),  # caff
+                os.path.join(load.NAS2_DIR_LH, "210602", "fly2"),  # sucr
+                os.path.join(load.NAS2_DIR_LH, "210603", "fly2"),  # sucr
+
+                os.path.join(load.NAS2_DIR_LH, "210604", "fly3"),  # nofeed
+                os.path.join(load.NAS2_DIR_LH, "210616", "fly2"),   # caff
+                os.path.join(load.NAS2_DIR_LH, "210618", "fly5")   # caff
+                ]
+    all_selected_trials = [[0,2,3,4,5,8,9,11,13],  # [2,4,5,11]  # [0,2,3,4,5,8,11]
+                           [0,5,6,8,12,14],  # 0,5,6,12
+                           [3,5,8,12],
+                           [3,4,7,12],
+                           [2,4,7,11],
+
+                           [2,4,7,11],
+                           [3,4,6,10],
+                           [4,6,9,12],
+                           [3,4,6,10],
+                           [1,4,6,10],
+
+                           [3,5,7,10],
+                           [2,4,7,11,13,16],
+                           [2,5,6,7,8,9,10]]
+    ref_frames = [2268, 0, 0, 0, 0, 
+                  0, 0, 0, 0, 0, 
+                  0, 0, 0]
+    crops = [[32, 48], [0, 0], [64, 80], [64, 80], [64, 80], 
+             [64, 80], [64, 80], [64, 80], [64, 80], [64, 80], 
+             [64, 80], [64, 80], [64, 80]]
+    sizes = [(352, 640), (352, 640), (320, 576), (352, 576), (352, 576), 
+             (352, 576), (352, 576), (352, 576), (352, 576), (352, 576), 
+             (352, 576), (352, 576), (352, 576)]
+    exclude_baselines = [[False, False, False, False, False, False, False],
+                         [False, False, False, False, False, False],
                          [False, False, False, False],
-                         [False, False, False, False]]
+                         [False, False, False, False],
+                         [False, False, False, False],
+
+                         [False, False, False, False],
+                         [False, False, False, False],
+                         [False, False, False, False],
+                         [False, False, False, False],
+                         [False, False, False, False],
+
+                         [False, False, False, False],
+                         [False, False, False, False, False, False, False],
+                         [False, False, False, False, False, False, False]]
 
     params_copy = deepcopy(params)
 
     for i_fly, (fly_dir, selected_trials, crop, size, exclude_baseline, ref_frame) in \
         enumerate(zip(fly_dirs, all_selected_trials, crops, sizes, exclude_baselines, ref_frames)):
         params = deepcopy(params_copy)
-        if i_fly < 2:
+        if i_fly != 12:
             continue
             # pass
         else:
@@ -83,6 +127,7 @@ if __name__ == "__main__":
             pass
         if i_fly == 1:
             params.post_com_crop = False
+        
 
         print("Starting preprocessing of fly \n" + fly_dir)
         params.i_ref_frame = ref_frame
@@ -122,13 +167,18 @@ if __name__ == "__main__":
         preprocess.params.dff_mask = "dff_mask_denoised_t1.tif"
         preprocess.params.dff_video_name = "dff_denoised_t1"
         preprocess.params.dff_beh_video_name = "dff_beh"
+        if i_fly == 0:
+            print("compute summary stats for fly 0")
+            preprocess.params.overwrite = True
+            preprocess._compute_summary_stats()
+            break
         if i_fly >= 2:
             preprocess.params.denoise_train_each_trial = False
             preprocess.params.denoise_train_trial = 0
-        
+
         preprocess.params.make_dff_videos = False
         preprocess.run_all_trials()  # denoise and compute dff
-
+        
         baseline = utils.get_stack(os.path.join(preprocess.fly_processed_dir, preprocess.params.dff_baseline))
         # thresholds for denoised dff videos:
         if i_fly == 0:  
@@ -136,17 +186,28 @@ if __name__ == "__main__":
         elif i_fly == 1:  
             threshold = 10  # 10-32
         elif i_fly == 2:
+            threshold = 7.5  # 7.5-12.5
+        elif i_fly == 3:
+            threshold = 5  # 2.5-7.5
+        elif i_fly == 4:
+            threshold = 0
+        elif i_fly >= 5:
             threshold = 0
         mask = baseline > threshold
 
         utils.save_stack(os.path.join(preprocess.fly_processed_dir, preprocess.params.dff_mask), mask)
         preprocess._make_dff_videos(mask=mask)
         preprocess.params.dff_beh_video_name = "dff_beh_2p"
-        preprocess._make_dff_behaviour_video_multiple_trials(mask=mask, include_2p=True)
+        if i_fly == 12:
+            preprocess.params.dff_video_share_lim = False
+            preprocess._make_dff_behaviour_video_multiple_trials(mask=mask, include_2p=True, i_trials=[0,1,2,5])
+            
+        else:
+            preprocess._make_dff_behaviour_video_multiple_trials(mask=mask, include_2p=True)
         preprocess.params.dff_beh_video_name = "dff_beh"
         # preprocess._make_dff_behaviour_video_multiple_trials(mask=mask)
         
-
+        
         
 
             
