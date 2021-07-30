@@ -155,8 +155,12 @@ if __name__=="__main__":
             with open(sync_out_file, "wb") as f:
                 pickle.dump(processed_lines, f)
     elif GET_PID_DATA:
-        base_dir = "/mnt/labserver/BRAUN_Jonas/Experimental_data/Olfactometer/210615_olfactory_pid_test"
-        sync_names = ["10_mL", "100_mL"]
+        # base_dir = "/mnt/labserver/BRAUN_Jonas/Experimental_data/Olfactometer/210615_olfactory_pid_test"
+        base_dir = "/mnt/NAS2/JB/210726_olfac_pid"  # 210720_olfac_pid  # 210721_olfac_pid  # 210722_olfac_pid
+        # sync_names = ["10_mL", "100_mL"]
+        sync_names = ["sync002"]  # , "sync002", "sync003", "sync004", "sync005", 
+                      # "sync006", "sync007", "sync008", "sync009", "sync010",
+                      # "sync011", "sync012", "sync013", "sync014"]
         sync_dirs = [os.path.join(base_dir, sync_name) for sync_name in sync_names]
         sync_out_files = [os.path.join(base_dir, sync_name+".pkl") for sync_name in sync_names]
         for i_trial, (sync_dir, sync_out_file) in enumerate(zip(sync_dirs, sync_out_files)):
