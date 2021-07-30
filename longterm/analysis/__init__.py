@@ -344,7 +344,8 @@ def all_inter_condition_variance_ratios(X_walks, X_rests, zscore=True):
 class InterPCAAnalysis():
     def __init__(self, fly_dir, i_trials, condition, compare_i_trials=None, thres_walk=0.03, thres_rest=0.01,
                  load_df=True, load_pixels=False, pixel_shape=None, sigma=3, trial_names=None, 
-                 twop_df_name="twop_df.pkl"):
+                 twop_df_name="twop_df.pkl", green_stack_name="green_denoised_t1.tif",
+                 opflow_df_name="opflow_df.pkl", roi_center_file="ROI_centers.txt"):
         self.fly_dir = fly_dir
         self.all_trial_dirs = utils.readlines_tolist(os.path.join(self.fly_dir, "trial_dirs.txt"))
         self.i_trials = i_trials
@@ -359,16 +360,20 @@ class InterPCAAnalysis():
         self.neurons_i_sort = None
         self.pixels_i_sort = None
         self.twop_df_name = twop_df_name
+        self.green_stack_name = green_stack_name
+        self.opflow_df_name = opflow_df_name
+        self.roi_center_file = roi_center_file
 
         self.load(load_df=load_df, load_pixels=load_pixels)
 
     def load(self, load_df=True, load_pixels=False, pixel_shape=None):
         try:
-            self.roi_center = rois.read_roi_center_file(os.path.join(self.fly_dir, "processed", "ROI_centers.txt"))
+            self.roi_center = rois.read_roi_center_file(os.path.join(self.fly_dir, "processed", self.roi_center_file))
         except:
             print("Could not load ROIs for fly ", self.fly_dir)
+            self.roi_center = None
 
-        self.opflow_dfs = [pd.read_pickle(os.path.join(processed_dir, "opflow_df.pkl"))
+        self.opflow_dfs = [pd.read_pickle(os.path.join(processed_dir, self.opflow_df_name))
                            for processed_dir in self.processed_dirs]
         # filtering already performed when saving dataframes
         # self.opflow_dfs = [of.filter_velocities(opflow_df) for opflow_df in self.opflow_dfs]
@@ -379,9 +384,18 @@ class InterPCAAnalysis():
                                for processed_dir in self.processed_dirs]
             self.preprocess_neurons()
             self.split_walk_rest_neurons()
+        else:
+            self.neural_dfs = None
+            self.neurons_mean = None
+            self.neurons_std = None
+            self.neurons = None
+            self.neurons_i_sort = None
+            self.neurons_walk = None
+            self.neurons_rest = None
+
         if load_pixels:
             self.pixel_shape = self.pixel_shape if pixel_shape is None else pixel_shape
-            neural_datas = [utils.get_stack(os.path.join(processed_dir, "green_denoised_t1.tif")) 
+            neural_datas = [utils.get_stack(os.path.join(processed_dir, self.green_stack_name)) 
                      for processed_dir in self.processed_dirs]
             if self.pixel_shape is not None:
                 neural_datas = [neural_data[:, self.pixel_shape[0]:self.pixel_shape[1], 
@@ -394,6 +408,15 @@ class InterPCAAnalysis():
             self.preprocess_pixels()
             self.split_walk_rest_pixels()
             self.pixels_i_sort = np.arange(self.pixels[0].shape[1])
+        else:
+            self.pixel_shape = None
+            self.pixels_raw = None
+            self.pixels_mean = None
+            self.pixels_std = None
+            self.pixels = None
+            self.pixels_i_sort = None
+            self.pixels_walk = None
+            self.pixels_rest = None
 
     def preprocess_rest_walk(self, thres_walk=None, thres_rest=None):
         if thres_walk is None:
@@ -663,10 +686,13 @@ class InterPCAAnalysisFromFile(InterPCAAnalysis):
         # super.__init__(self)
         print("loading from file: ", pickle_dir)
         self.pickle_dir = pickle_dir
+        self.selected_pixels = None
         self.load_from_pickle()
         self.all_trial_dirs = utils.readlines_tolist(os.path.join(self.fly_dir, "trial_dirs.txt"))
-        self.split_walk_rest_neurons()
-        self.split_walk_rest_pixels()
+        if self.neurons is not None:
+            self.split_walk_rest_neurons()
+        if self.pixels is not None:
+            self.split_walk_rest_pixels()
     
     def load_from_pickle(self):
         with open(self.pickle_dir, "rb") as f:
