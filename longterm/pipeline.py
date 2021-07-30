@@ -23,13 +23,17 @@ from longterm.utils import makedirs_safe, get_stack, save_stack, readlines_tolis
 from longterm.register import warping
 from longterm.behaviour import df3d
 from longterm.plot.videos import make_video_dff, make_multiple_video_dff, make_video_raw_dff_beh, make_multiple_video_raw_dff_beh
-from longterm.rois import local_correlations
+from longterm.rois import local_correlations, get_roi_signals_df
+from longterm.behaviour.synchronisation import get_synchronised_trial_dataframes
+from longterm.behaviour.optic_flow import get_opflow_df
+from longterm.analysis import InterPCAAnalysis
 
 class PreProcessParams:
     """Class containing all default parameters for the PreProcessFly class."""
 
     def __init__(self):
         """Class containing all default parameters for the PreProcessFly class."""
+        self.genotype = " "
         # names of tif/npy files generated throughout processing
         self.red_raw = "red.tif"
         self.green_raw = "green.tif"
@@ -49,13 +53,22 @@ class PreProcessParams:
 
         self.ref_frame = "ref_frame_com.tif"
         self.com_offset = "com_offset.npy"
-        self.motion_field = "motion_field_com.npy"
+        self.motion_field = "w.npy"
 
         self.trial_dirs = "trial_dirs.txt"
         self.beh_trial_dirs = "beh_trial_dirs.txt"
         self.sync_trial_dirs = "sync_trial_dirs.txt"
 
         self.summary_stats = "compare_trials.pkl"
+
+        self.opflow_df_out_dir = "opflow_df.pkl"
+        self.df3d_df_out_dir = "beh_df.pkl"
+        self.twop_df_out_dir = "twop_df.pkl"
+
+        self.roi_centers = "ROI_centers.txt"
+        self.roi_mask = "ROI_mask.tif"
+
+        self.pca_analysis_file = "pcan.pkl"
 
         # mode of pre-processing: if True, perfom one processing step 
         # on each trial before moving to next processing step
@@ -124,6 +137,17 @@ class PreProcessParams:
         self.behaviour_as_videos = True
         self.twop_scope = 2
 
+        # optic flow params
+        self.opflow_win_size = 80
+        self.thres_walk = 0.03
+        self.thres_rest = 0.01
+
+        # ROI extraction params
+        self.roi_size = (7,11)
+        self.roi_pattern = "default"
+
+        
+
     @staticmethod
     def _make_runid(processed_dir, appendix=None):
         trial_dir, _ = os.path.split(processed_dir)
@@ -144,6 +168,7 @@ class PreProcessFly:
         super().__init__()
         self.params = params
         self.fly_dir = fly_dir
+        self.selected_trials = selected_trials
         if trial_dirs == "fromfile":
             self.trial_dirs = readlines_tolist(join(self.fly_dir, self.params.trial_dirs))
         elif isinstance(trial_dirs, str) and os.path.isfile(trial_dirs):
@@ -181,17 +206,19 @@ class PreProcessFly:
         self.sync_fly_dir, _ = os.path.split(self.sync_trial_dirs[0]) if sync_fly_dir is None else sync_fly_dir
 
         self._match_trials_and_beh_trials()
-        if selected_trials is not None and isinstance(selected_trials, list):
-            self.trial_dirs = [self.trial_dirs[i] for i in selected_trials]
-            self.beh_trial_dirs = [self.beh_trial_dirs[i] for i in selected_trials]
-            self.sync_trial_dirs = [self.sync_trial_dirs[i] for i in selected_trials]
+        if self.selected_trials is not None and isinstance(self.selected_trials, list):
+            self.trial_dirs = [self.trial_dirs[i] for i in self.selected_trials]
+            self.beh_trial_dirs = [self.beh_trial_dirs[i] for i in self.selected_trials]
+            self.sync_trial_dirs = [self.sync_trial_dirs[i] for i in self.selected_trials]
             self._match_trials_and_beh_trials()
-        elif selected_trials is not None:
+        elif self.selected_trials is not None:
             raise NotImplementedError("selected_trials should be None or a list containing integer indices.")
-        
+        else:
+            self.selected_trials = np.arange(len(self.trial_dirs))
         self._get_trial_names()
+        self._get_experiment_info()
         self._create_processed_structure()
-        self._save_ref_frame()
+        # self._save_ref_frame() --> moved to run_all_trials
 
     def _get_trial_names(self):
         trial_names = []
@@ -199,6 +226,25 @@ class PreProcessFly:
             _, name = os.path.split(trial)
             trial_names.append(name)
         self.trial_names = trial_names
+
+    def _get_experiment_info(self):
+        try:
+            tmp, fly = os.path.split(self.fly_dir)
+            self.fly = int(fly[-1:])
+        except:
+            self.fly = 0
+        try:
+            _, date = os.path.split(tmp)
+            self.date = int(date[:6])
+        except:
+            self.date = 123456
+        try:
+            if len(date) > 7:
+                self.genotpye = date[7:]
+            else:
+                self.genotpye = self.params.genotype
+        except:
+            self.genotpye = self.params.genotype
 
     def _match_trials_and_beh_trials(self):
         assert len(self.beh_trial_dirs) == len(self.trial_dirs)
@@ -262,12 +308,14 @@ class PreProcessFly:
                                if self.params.post_com_crop else None)
 
     def run_all_trials(self):
+        self._save_ref_frame()
         if self.params.breadth_first:
             self._run_breadth_first()
         else:
             self._run_depth_first()
 
     def run_single_trial(self, i_trial):
+        self._save_ref_frame()
         trial_dir = self.trial_dirs[i_trial]
         beh_trial_dir = self.beh_trial_dirs[i_trial]
         processed_dir = self.trial_processed_dirs[i_trial]
@@ -297,6 +345,9 @@ class PreProcessFly:
             _ = [self._warp_trial(processed_dir) 
                  for processed_dir in self.trial_processed_dirs]
             gc.collect()
+        elif self.params.use_com:
+            _ = [self._com_correct_trial(processed_dir)
+                 for processed_dir in self.trial_processed_dirs]
         if self.params.use_denoise:
             self._denoise_all_trials()
         if self.params.use_dff:
@@ -314,6 +365,7 @@ class PreProcessFly:
             self._compute_summary_stats()
         
     def _run_depth_first(self, force_single_trial_dff=False):
+        # TODO: align this trial selection with the new one written up in __init__()
         if isinstance(self.params.select_trials, bool) and not self.params.select_trials:
             selected_trials = [True for trial in self.trial_dirs]
         elif isinstance(self.params.select_trials, list) and len(self.params.select_trials) == len(self.trial_dirs):
@@ -352,18 +404,21 @@ class PreProcessFly:
                                         red_dir=join(processed_dir, self.params.red_raw)
                                         )
     
+    def _com_correct_trial(self, processed_dir):
+        _ = warping.center_and_crop(stack1=join(processed_dir, self.params.red_raw),
+                                    stack2=join(processed_dir, self.params.green_raw),
+                                    crop=self.params.post_com_crop_values,
+                                    stack1_out_dir=join(processed_dir, self.params.red_com_crop),
+                                    stack2_out_dir=join(processed_dir, self.params.green_com_crop),
+                                    offset_dir=join(processed_dir, self.params.com_offset),
+                                    return_stacks=False,
+                                    overwrite=self.params.overwrite)
+
     def _warp_trial(self, processed_dir):
         if processed_dir != "":
             print(time.ctime(time.time()), " com correcting and cropping trial: " + processed_dir)
             if self.params.use_com and self.params.post_com_crop:
-                _ = warping.center_and_crop(stack1=join(processed_dir, self.params.red_raw),
-                                            stack2=join(processed_dir, self.params.green_raw),
-                                            crop=self.params.post_com_crop_values,
-                                            stack1_out_dir=join(processed_dir, self.params.red_com_crop),
-                                            stack2_out_dir=join(processed_dir, self.params.green_com_crop),
-                                            offset_dir=join(processed_dir, self.params.com_offset),
-                                            return_stacks=False,
-                                            overwrite=self.params.overwrite)
+                self._com_correct_trial(processed_dir)
                 if self.params.cleanup_files:
                     pass
                     # TODO: os.remove(join(processed_dir, self.params.red_raw))
@@ -390,9 +445,9 @@ class PreProcessFly:
                             select_frames=None,
                             parallel=self.params.ofco_parallel,
                             verbose=self.params.ofco_verbose,
-                            w_output=join(processed_dir, self.params.motion_field)
-                            if self.params.save_motion_field else None,
+                            w_output=join(processed_dir, self.params.motion_field),
                             initial_w=None,
+                            save_motion_field=self.params.save_motion_field,
                             param=self.params.ofco_param
                             )
 
@@ -784,6 +839,73 @@ class PreProcessFly:
 
         with open(output, "wb") as f:
             pickle.dump(output_dict, f)
+
+    def get_dfs(self):
+        for i_trial, (trial_dir, processed_dir, trial_name) in enumerate(zip(self.trial_dirs, self.trial_processed_dirs, self.trial_names)):
+            print(time.ctime(time.time()), " creating data frames: " + trial_dir)
+            trial_info = {"Date": self.date,
+                        "Genotype": self.genotpye,
+                        "Fly": self.fly,
+                        "TrialName": trial_name,
+                        "i_trial": self.selected_trials[i_trial]
+                        }
+            if not os.path.isdir(processed_dir):
+                os.makedirs(processed_dir)
+            opflow_out_dir = os.path.join(processed_dir, self.params.opflow_df_out_dir)
+            df3d_out_dir = os.path.join(processed_dir, self.params.df3d_df_out_dir)
+            twop_out_dir = os.path.join(processed_dir, self.params.twop_df_out_dir)
+            try:
+                twop_df, df3d_df, opflow_df = get_synchronised_trial_dataframes(trial_dir, 
+                                                                                crop_2p_start_end=self.params.denoise_params.pre_post_frame, 
+                                                                                beh_trial_dir=self.beh_trial_dirs[i_trial], 
+                                                                                sync_trial_dir=self.sync_trial_dirs[i_trial], 
+                                                                                trial_info=trial_info,
+                                                                                opflow=True, 
+                                                                                df3d=True, 
+                                                                                opflow_out_dir=opflow_out_dir, 
+                                                                                df3d_out_dir=df3d_out_dir, 
+                                                                                twop_out_dir=twop_out_dir)
+                
+                opflow_df, frac_walk_rest = get_opflow_df(self.beh_trial_dirs[i_trial], 
+                                                        index_df=opflow_out_dir, 
+                                                        df_out_dir=opflow_out_dir, 
+                                                        block_error=True, 
+                                                        return_walk_rest=True, 
+                                                        winsize=self.params.opflow_win_size,
+                                                        thres_rest=self.params.thres_rest,
+                                                        thres_walk=self.params.thres_walk)
+                print("walking, resting: ", frac_walk_rest)
+            except:
+                print("Error while getting dfs and computing optic flow in trial: " + trial_dir)
+    
+    def extract_rois(self):
+        roi_file = os.path.join(self.fly_processed_dir, "ROI_centers.txt")
+        mask_out_dir = os.path.join(self.fly_processed_dir, "ROI_mask.tif")
+        for i_trial, processed_dir in enumerate(self.trial_processed_dirs):
+            print(time.ctime(time.time()), " extracting ROIs: " + processed_dir)
+            twop_out_dir = os.path.join(processed_dir, self.params.twop_df_out_dir)
+            stack = os.path.join(processed_dir, self.params.green_denoised)
+            df = get_roi_signals_df(stack, roi_file,
+                                    size=self.params.roi_size, pattern=self.params.roi_pattern, 
+                                    index_df=twop_out_dir, df_out_dir=twop_out_dir, 
+                                    mask_out_dir=mask_out_dir)
+
+    def prepare_pca_analysis(self, condition, compare_trials=None, load_df=True, load_pixels=True, pixel_shape=None, sigma=1):
+        print(time.ctime(time.time()), " preparing PCA analysis: " + self.fly_dir)
+        pcan = InterPCAAnalysis(fly_dir=self.fly_dir, 
+                        i_trials=self.selected_trials, 
+                        condition=condition, 
+                        compare_i_trials=self.selected_trials if compare_trials is None else compare_trials, 
+                        thres_walk=self.params.thres_walk, 
+                        thres_rest=self.params.thres_rest,
+                        load_df=load_df, 
+                        load_pixels=load_pixels, 
+                        pixel_shape=pixel_shape, 
+                        sigma=sigma,
+                        trial_names=self.trial_names)
+        out_file = os.path.join(self.fly_processed_dir, self.params.pca_analysis_file)
+        pcan.pickle_self(out_file)
+
 
 
 if __name__ == "__main__":
