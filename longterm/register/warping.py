@@ -101,10 +101,19 @@ def apply_offset(frames, offsets):
 
 def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_dir=None, 
          com_pre_reg=False, offset_dir=None, return_stacks=False, overwrite=False,
-         select_frames=None, parallel=True, verbose=False, w_output=None, initial_w=None, param=None):
+         select_frames=None, parallel=True, verbose=False, w_output=None, initial_w=None, 
+         save_motion_field=True, param=None):
     param = ofco.utils.default_parameters() if param is None else param
 
     if os.path.isfile(stack1_out_dir) and not overwrite:
+        if stack2 is not None and stack2_out_dir is not None and w_output is not None \
+            and not os.path.isfile(stack2_out_dir):
+            try:
+                print("Applying motion field to stack2")
+                apply_warp(stack2, stack2_out_dir, w_output)
+            except:
+                print("Stack1 is already warped, stack2 is not. \n"+\
+                      "Could not find motion weights. If you want to recalculate, select 'overwrite' flag.")
         if not return_stacks:
             return None, None
         stack1_warped = utils2p.load_img(stack1_out_dir)
@@ -146,7 +155,8 @@ def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_di
 
     stack1_warped, stack2_warped = ofco.motion_compensate(stack1, stack2, 
                                                           frames=range(N_frames) if select_frames is None else select_frames,
-                                                          param=param, verbose=verbose, parallel=parallel, w_output=w_output, 
+                                                          param=param, verbose=verbose, parallel=parallel, 
+                                                          w_output=w_output if save_motion_field else None, 
                                                           initial_w=initial_w, ref_frame=ref_frame)
 
     if stack1_out_dir is not None:
