@@ -109,7 +109,7 @@ def local_correlations(Y, eight_neighbours=True, swap_dim=False, order_mean=1):
 
     return rho
 
-def get_roi_signals(stack, centers=None, size=[0, 0], mask=None, pattern=None, mask_out_dir=None):
+def get_roi_signals(stack, centers=None, size=(0, 0), mask=None, pattern=None, mask_out_dir=None):
     if not ((isinstance(centers, list) and isinstance(centers[0], list) and len(centers[0]) == 2) or \
            (isinstance(centers, np.ndarray) and centers.shape[1] == 2) or \
             centers is None):
@@ -118,7 +118,7 @@ def get_roi_signals(stack, centers=None, size=[0, 0], mask=None, pattern=None, m
             raise ValueError("If centers is not None, it should be a list of 2D coordinates")
     stack = get_stack(stack)
     if centers is not None and pattern is None and mask is None:
-        if size == [0, 0]:
+        if size == [0, 0] or size == (0, 0):
             return np.array([stack[:, center[0], center[1]] for center in centers]).T
         else:
             return np.array([np.mean(stack[:, center[0]-size[0]:center[0]+size[0], 
@@ -141,10 +141,10 @@ def get_roi_signals_from_mask(stack, mask):
         signals[:, i_roi] /= len(mask_one_roi[0])
     return signals
 
-def get_roi_mask(stack, centers, size=[7,11], pattern="default", binary=False, mask_out_dir=None):
+def get_roi_mask(stack, centers, size=(7,11), pattern="default", binary=False, mask_out_dir=None):
     assert (isinstance(centers, list) and isinstance(centers[0], list) and len(centers[0]) == 2) or \
            (isinstance(centers, np.ndarray) and centers.shape[1] == 2)
-    if pattern == "default" and size == [7, 11]:
+    if pattern == "default" and (size == [7, 11] or size == (7, 11)):
         pattern = np.array(
             [[0, 0, 0, 1, 0, 0, 0],# 1
             [0, 0, 1, 1, 1, 0, 0],# 2
@@ -158,7 +158,7 @@ def get_roi_mask(stack, centers, size=[7,11], pattern="default", binary=False, m
             [0, 0, 1, 1, 1, 0, 0],# 10
             [0, 0, 0, 1, 0, 0, 0]]# 11
             )#1, 2, 3, 4, 5, 6, 7
-    elif pattern == "default" and size == [5,9]:
+    elif pattern == "default" and (size == [5, 9] or size == (5, 9)):
         pattern = np.array(
             [[0, 0, 1, 0, 0],# 1
             [0, 1, 1, 1, 0],# 2
@@ -170,7 +170,7 @@ def get_roi_mask(stack, centers, size=[7,11], pattern="default", binary=False, m
             [0, 1, 1, 1, 0],# 8
             [0, 0, 1, 0, 0]]# 9
             )#1, 2, 3, 4, 5, 6, 7
-    elif pattern == "default" and size == [3,5]:
+    elif pattern == "default" and (size == [3, 5] or size == (3, 5)):
         pattern = np.array(
             [[0, 1, 0],# 1
             [1, 1, 1],# 2
@@ -255,7 +255,7 @@ def read_roi_center_file(filename):
     print("Read the centers of {} ROIs from file".format(N_rois))
     return roi_centers
 
-def get_roi_signals_df(stack, roi_center_filename, size=[7,11], pattern="default", index_df=None, df_out_dir=None, mask_out_dir=None):
+def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default", index_df=None, df_out_dir=None, mask_out_dir=None):
     roi_centers = read_roi_center_file(roi_center_filename)
     roi_signals = get_roi_signals(stack, centers=roi_centers, size=size, pattern=pattern, mask=None, mask_out_dir=mask_out_dir)
     N_samples, N_rois = roi_signals.shape
