@@ -39,15 +39,31 @@ if __name__ == "__main__":
     params.ofco_verbose = True
 
 
-    fly_dirs = [os.path.join(load.NAS2_DIR_LH, "210723", "fly1"),  # low caff
-                os.path.join(load.NAS2_DIR_LH, "210723", "fly2")   # high caff
+    fly_dirs = [os.path.join(load.NAS2_DIR_LH, "210722", "fly3"),  # high caff
+                os.path.join(load.NAS2_DIR_LH, "210721", "fly3"),  # high caff
+                os.path.join(load.NAS2_DIR_LH, "210723", "fly1"),  # low caff
+                os.path.join(load.NAS2_DIR_LH, "210723", "fly2"),  # high caff
+
+                os.path.join(load.NAS2_DIR_LH, "210802", "fly1"),  # lowcaff
+                os.path.join(load.NAS2_DIR_LH, "210804", "fly1"),  # low caff
+                
+                os.path.join(load.NAS2_DIR_LH, "210804", "fly2")   # low caff
                 ]
-    all_selected_trials = [[1,4,5,8,10,12],
-                           [1,5,6,9,11,12]]
+    all_selected_trials = [
+        [1,3,4,5,6,7,8,9,10,11,12,13],
+        [1,3,4,5,6,7,8,9,10,11,12],
+        [1,3,4,5,6,8,9,10,11,12],
+        [1,3,5,6,7,8,9,10,11,12,13,14],
+        
+        [1,3,4,5,6,7,8,9,11,12],  # 10 exlcuded because CC out of center
+        [1,3,4,5,6,7,8,9,10,11,12],
+        [1,3,4,5,6,7,8,9,10,11,12]]
     params_copy = deepcopy(params)
 
     for i_fly, (fly_dir, selected_trials) in \
         enumerate(zip(fly_dirs, all_selected_trials)):
+        if i_fly != 4:
+            continue
         params = deepcopy(params_copy)   
 
         print("Starting preprocessing of fly \n" + fly_dir)

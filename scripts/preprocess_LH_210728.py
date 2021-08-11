@@ -1,5 +1,7 @@
 import os, sys
 from copy import deepcopy
+from time import time, sleep
+from tqdm import tqdm
 
 FILE_PATH = os.path.realpath(__file__)
 SCRIPT_PATH, _ = os.path.split(FILE_PATH)
@@ -81,18 +83,26 @@ if __name__ == "__main__":
 
         os.path.join(load.NAS2_DIR_LH, "210719", "fly1"),  # sucr
         os.path.join(load.NAS2_DIR_LH, "210719", "fly2"),  # starv
-        os.path.join(load.NAS2_DIR_LH, "210719", "fly4")   # sucr
+        os.path.join(load.NAS2_DIR_LH, "210719", "fly4"),  # sucr
+        os.path.join(load.NAS2_DIR_LH, "210802", "fly1"),  # lowcaff
+        os.path.join(load.NAS2_DIR_LH, "210804", "fly1"),  # low caff
+        
+        os.path.join(load.NAS2_DIR_LH, "210804", "fly2")   # low caff
         ]
     all_selected_trials = [
-        [1,4,5,8,10,12],
-        [1,4,5,8,10,12],
-        [1,4,5,8,10,12],
-        [1,5,6,9,11,12],
+        [1,3,4,5,6,7,8,9,10,11,12,13],
+        [1,3,4,5,6,7,8,9,10,11,12],
+        [1,3,4,5,6,8,9,10,11,12],
+        [1,3,5,6,7,8,9,10,11,12,13,14],
         [2,4,5,7],
 
         [2,4,5,7,8],
         [2,4,5,7],
-        [2,4,5,7]
+        [2,4,5,7],
+        [1,3,4,5,6,7,8,9,11,12],  # 10 exlcuded because CC out of center
+
+        [1,3,4,5,6,7,8,9,10,11,12],
+        [1,3,5,6,7,8,9,10,11,12]  # 4 excluded for now, because processing not yet ready
         ]
 
     conditions = [
@@ -105,9 +115,19 @@ if __name__ == "__main__":
         "210719 fly 1 sucr",
         "210719 fly 2 starv",
         "210719 fly 4 sucr",
+        "210802 fly 1 low caff",
+        "210804 fly 1 low caff",
+
+        "210804 fly 2 low caff",
         ]
 
-    to_run = [5, 6, 7]
+    to_run = [1,2,3]  # 8, 9, 10
+
+    SLEEP = 0  # 7200  # seconds before starting
+    STEPSIZE = 30
+    start_time = time()
+    for t in tqdm(range(0, SLEEP, STEPSIZE)):
+        sleep(STEPSIZE)
 
     params_copy = deepcopy(params)
 
@@ -124,7 +144,16 @@ if __name__ == "__main__":
 
         # warp, denoise, compute denoised dff, compute summary stats
         preprocess.params.make_dff_videos = False
-        preprocess.run_all_trials()
+        if i_fly < 4:
+            preprocess.params.use_dff = False
+            preprocess.params.make_summary_stats = False
+            preprocess.run_all_trials()
+
+            preprocess.params.overwrite = True
+            preprocess._compute_dff_alltrials()
+            preprocess._compute_summary_stats()
+        else:
+            preprocess.run_all_trials()
 
         # currently don't make videos
         if False:
@@ -145,6 +174,8 @@ if __name__ == "__main__":
 
             # preprocess.extract_rois()
 
-            preprocess.prepare_pca_analysis(condition=condition, load_df=False, load_pixels=True)
+            # preprocess.prepare_pca_analysis(condition=condition, load_df=False, load_pixels=True)
+        except KeyboardInterrupt:
+                raise KeyError
         except:
-            pass
+            print(f"Could not prepare for PCA analysis for fly {fly_dir}")
