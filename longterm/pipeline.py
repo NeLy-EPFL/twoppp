@@ -486,26 +486,36 @@ class PreProcessFly:
             print(time.ctime(time.time()), "Start denoising by training on one trial: {}".format(self.params.denoise_train_trial))
             input_datas = []
             tmp_data_dirs = []
-            if all([os.path.isfile(join(processed_dir, self.params.green_denoised)) 
-                    for processed_dir in self.trial_processed_dirs]) and not self.params.overwrite:
-                return
-                
-            input_datas = [join(processed_dir, self.params.green_com_warped) 
-                            for processed_dir in self.trial_processed_dirs]
-            tmp_data_dirs = [join(self.params.denoise_tmp_data_dir, 
-                                  self.params.denoise_tmp_data_name(processed_dir)) 
-                             for processed_dir in self.trial_processed_dirs]
-            denoise.prepare_data(train_data_tifs=input_datas, 
-                                out_data_tifs=tmp_data_dirs,
-                                offset=self.params.denoise_crop_offset,
-                                size=self.params.denoise_crop_size)
             if os.path.isdir(join(self.fly_processed_dir, self.params.denoise_final_dir)) and not self.params.overwrite:
                 tmp_run_dir = join(self.fly_processed_dir, self.params.denoise_final_dir)
                 already_trained = True
                 print("Using already trained model.")
             else:
                 already_trained = False
-                training_processed_dir = self.trial_processed_dirs[self.params.denoise_train_trial]
+
+            already_denoised_trials = [os.path.isfile(join(processed_dir, self.params.green_denoised)) 
+                                       for processed_dir in self.trial_processed_dirs]
+            if all(already_denoised_trials) and not self.params.overwrite:
+                return
+            elif any(already_denoised_trials) and already_trained and not self.params.overwrite:
+                todo_trial_processed_dirs = [processed_dir for processed_dir, already_denoised
+                                             in zip(self.trial_processed_dirs, already_denoised_trials) 
+                                             if not already_denoised]
+            else:
+                todo_trial_processed_dirs = self.trial_processed_dirs
+
+            input_datas = [join(processed_dir, self.params.green_com_warped) 
+                            for processed_dir in todo_trial_processed_dirs]
+            tmp_data_dirs = [join(self.params.denoise_tmp_data_dir, 
+                                self.params.denoise_tmp_data_name(processed_dir)) 
+                            for processed_dir in todo_trial_processed_dirs]
+            denoise.prepare_data(train_data_tifs=input_datas, 
+                                out_data_tifs=tmp_data_dirs,
+                                offset=self.params.denoise_crop_offset,
+                                size=self.params.denoise_crop_size)
+
+            if not already_trained:
+                training_processed_dir = todo_trial_processed_dirs[self.params.denoise_train_trial]
                 training_input_data = input_datas[self.params.denoise_train_trial]
                 training_tmp_data_dir = tmp_data_dirs[self.params.denoise_train_trial]
                 tmp_run_dir = denoise.train(train_data_tifs=training_tmp_data_dir, 
@@ -513,7 +523,7 @@ class PreProcessFly:
                                             run_identifier=self.params.denoise_runid(training_processed_dir),
                                             params=self.params.denoise_params)
 
-            tif_out_dirs = [join(processed_dir, self.params.green_denoised) for processed_dir in self.trial_processed_dirs]
+            tif_out_dirs = [join(processed_dir, self.params.green_denoised) for processed_dir in todo_trial_processed_dirs]
             denoise.inference(data_tifs=tmp_data_dirs,
                               run_dir=tmp_run_dir,
                               tif_out_dirs=tif_out_dirs,
@@ -875,6 +885,8 @@ class PreProcessFly:
                                                         thres_rest=self.params.thres_rest,
                                                         thres_walk=self.params.thres_walk)
                 print("walking, resting: ", frac_walk_rest)
+            except KeyboardInterrupt:
+                raise KeyError
             except:
                 print("Error while getting dfs and computing optic flow in trial: " + trial_dir)
     
