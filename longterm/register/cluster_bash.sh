@@ -1,6 +1,7 @@
 #!/bin/bash
 time="50:00:00"
 partition="debug"  # "parallel"
+output="./outputs/slurm-%j.out"
     
 convert_to_fidis_dir () {
     fidis_dir=${1//mnt\/NAS\/JB/scratch\/jbraun}
@@ -23,7 +24,7 @@ for dir in $(find /scratch/jbraun/**/**/**/processed -type d); do
         ref_frame="${folder}/../../processed/ref_frame_com.tif"
         echo ${folder}
         echo ${ref_frame}
-        echo sbatch --nodes 1 --ntasks 1 --cpus-per-task 28 --time "${time}" --mem 128G --partition ${partition} "registration_commands.sh" ${folder} ${ref_frame}
+        echo sbatch --nodes 1 --ntasks 1 --cpus-per-task 28 --time "${time}" --mem 128G --partition ${partition} --output "${output}" "registration_commands.sh" ${folder} ${ref_frame}
     fi
 done
 # done <trials_to_warp.txt

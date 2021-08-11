@@ -3,6 +3,8 @@
 import sys
 import os.path
 import glob
+import tempfile
+import shutil
 
 from skimage import io
 import numpy as np
@@ -34,13 +36,22 @@ def reassamble_vector_fields(folder):
     vector_field = np.concatenate(vector_fields, axis=0)
     np.save(os.path.join(folder, f"w.npy"), vector_field)
 
+def copy_read_delete_img(stack_file):
+    tmp = tempfile.NamedTemporaryFile(delete=True)
+    shutil.copy2(stack_file, tmp.name)
+    stack = io.imread(tmp.name)
+    if os.path.isfile(tmp.name):
+        os.remove(tmp.name)
+    return stack
+
 #folder = "/scratch/aymanns/200901_G23xU1/Fly1/001_coronal"
 #ref_frame = io.imread("/scratch/aymanns/200901_G23xU1/Fly1/ref_frame.tif")
 folder = sys.argv[1]
 ref_frame = sys.argv[2]
 print("Folder:", folder)
 print("Reference frame:", ref_frame)
-ref_frame = io.imread(ref_frame)
+# ref_frame = io.imread(ref_frame)
+ref_frame = copy_read_delete_img(ref_frame)
 
 param = default_parameters()
 #param["lmbd"] = 4000

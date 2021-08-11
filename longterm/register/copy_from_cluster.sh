@@ -48,8 +48,12 @@ convert_to_NAS2_dir () {
 copy_dir_reverse () {
     fidis_dir=${1}
     NAS2_dir=$(convert_to_NAS2_dir ${1})
-    echo COPYING "${fidis_dir}" TO "${NAS2_dir}"
-    cp "${fidis_dir}" "${NAS2_dir}" 
+    if test -f "${NAS2_dir}"; then
+        echo FILE "${NAS2_dir}" ALREADY EXISTS
+    else
+        echo COPYING "${fidis_dir}" TO "${NAS2_dir}"
+        cp "${fidis_dir}" "${NAS2_dir}" 
+    fi
     # rsync -az --rsync-path="mkdir -p ${fidis_base_dir} && rsync" ${1} jbraun@fdata1.epfl.ch:"$fidis_dir"
 }
 # echo FLY_DIR: "${fly_dir}"
