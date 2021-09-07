@@ -5,19 +5,20 @@
 import os.path, sys
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import colors
 import math
 import cv2
 import json
 import pandas as pd
 from scipy.ndimage.filters import gaussian_filter
-
+import pickle
 # from torch import from_numpy
 
 import utils2p
 import utils2p.synchronization
 import utils_video.generators
-from utils_video import make_video
-from utils_video.utils import resize_shape, colorbar, add_colorbar
+# from utils_video import make_video
+from utils_video.utils import resize_shape, colorbar, add_colorbar, rgb, process_2p_rgb, get_generator_shape
 from deepfly.CameraNetwork import CameraNetwork
 
 FILE_PATH = os.path.realpath(__file__)
@@ -30,12 +31,14 @@ from longterm.utils import get_stack, find_file, crop_img, crop_stack
 from longterm import load
 from longterm.register.warping import apply_motion_field, apply_offset
 
-def make_video(video_path, frame_generator, fps, output_shape=(-1, 2880), n_frames=-1):
+def make_video(video_path, frame_generator, fps, output_shape=(-1, 1920), n_frames=-1):
+    print(f"Making video with {n_frames} frames.")
     if np.log2(fps) % 1 == 0:
         fps += 0.01
     utils_video.make_video(video_path, frame_generator, fps, output_shape=output_shape, n_frames=n_frames)
 
-def make_video_2p(green, out_dir, video_name, red=None, percentiles=(5,99), frames=None, frame_rate=None, trial_dir=None):
+def make_video_2p(green, out_dir, video_name, red=None, percentiles=(5,99), 
+                  frames=None, frame_rate=None, trial_dir=None):
     green = get_stack(green)
     if frames is None:
         frames = np.arange(green.shape[0])
@@ -61,8 +64,42 @@ def make_video_2p(green, out_dir, video_name, red=None, percentiles=(5,99), fram
     generator = utils_video.generators.frames_2p(red, green, percentiles=percentiles)
     make_video(os.path.join(out_dir, video_name), generator, frame_rate)
     
+def generator_frames_2p(red_stack, green_stack, percentiles=(5, 95), red_vlim=None, green_vlim=None):
+    channels = []
+    v_max = []
+    v_min = []
+    if red_stack is not None:
+        channels.append("r")
+        if red_vlim is None:
+            v_max.append(np.percentile(red_stack, percentiles[1]))
+            v_min.append(np.percentile(red_stack, percentiles[0]))
+        else:
+            v_max.append(red_vlim[1])
+            v_min.append(red_vlim[0])
+    else:
+        red_stack = [None for i in range(len(green_stack))]
+    if green_stack is not None:
+        channels.append("g")
+        if green_vlim is None:
+            v_max.append(np.percentile(green_stack, percentiles[1]))
+            v_min.append(np.percentile(green_stack, percentiles[0]))
+        else:
+            v_max.append(green_vlim[1])
+            v_min.append(green_vlim[0])
+        channels.append("b")
+        v_max.append(v_max[-1])
+        v_min.append(v_min[-1])
+    else:
+        green_stack = [None for i in range(len(red_stack))]
+
+    for red_frame, green_frame in zip(red_stack, green_stack):
+        frame = rgb(red_frame, green_frame, green_frame, None)
+        frame = process_2p_rgb(frame, channels, v_max, v_min)
+        frame = frame.astype(np.uint8)
+        yield frame
+
 def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None, vmax=None, 
-                  blur=0, mask=None, crop=None,
+                  blur=0, mask=None, crop=None, log_lim=False,
                   text=None):                           
     if mask is not None:
         mask = np.invert(mask)  # invert only once
@@ -75,7 +112,10 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
 
     vmin = np.percentile(stack, pmin) if vmin is None else vmin
     vmax = np.percentile(stack, pmax)if vmax is None else vmax
-    norm = plt.Normalize(vmin, vmax)
+    if log_lim:
+        norm = colors.LogNorm(vmin=np.maximum(0.1,vmin), vmax=vmax)
+    else:
+        norm = plt.Normalize(vmin, vmax)
     cmap = plt.cm.jet
 
     if size is None:
@@ -156,9 +196,10 @@ def make_multiple_video_2p(greens, out_dir, video_name, reds=None, percentiles=(
     if not video_name.endswith(".mp4"):
         video_name = video_name + ".mp4"
 
+    N_frames = np.max([len(green) for green in greens])
     generators = [utils_video.generators.frames_2p(red, green, percentiles=percentiles) for green, red in zip(greens, reds)]
-    generator = utils_video.generators.stack(generators, axis=1)
-    make_video(os.path.join(out_dir, video_name), generator, frame_rate)
+    generator = utils_video.generators.stack(generators, axis=1, allow_different_length=True)
+    make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=N_frames)
 
 def make_multiple_video_dff(dffs, out_dir, video_name, frames=None, frame_rate=None, trial_dir=None,
                             vmin=0, vmax=None, pmin=1, pmax=99, share_lim=True, blur=0, crop=None, 
@@ -218,13 +259,15 @@ def make_multiple_video_dff(dffs, out_dir, video_name, frames=None, frame_rate=N
 
     if not video_name.endswith(".mp4"):
         video_name = video_name + ".mp4"
-    generators = [[generator_dff(dff, vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax, 
-                                 blur=blur, crop=crop, mask=None, text=t) 
-                   for dff, t in zip(dffs_, text_)] 
+    N_frames = np.max([[len(dff) for dff in dff_] for dff_ in dffs])
+    generators = [[generator_dff(dff, vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax,
+                                 blur=blur, crop=crop, mask=None, text=t)
+                   for dff, t in zip(dffs_, text_)]
                   for dffs_, text_ in zip(dffs, text)]
-    generator_rows = [utils_video.generators.stack(generator_row, axis=1) for generator_row in generators]
-    generator = utils_video.generators.stack(generator_rows, axis=0)
-    make_video(os.path.join(out_dir, video_name), generator, frame_rate)
+    generator_rows = [utils_video.generators.stack(generator_row, axis=1, allow_different_length=True)
+                      for generator_row in generators]
+    generator = utils_video.generators.stack(generator_rows, axis=0, allow_different_length=True)
+    make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=N_frames)
 
 def generator_motion_field_grid(motion_fields, line_distance=5, warping="dnn"):
     N_frames, N_y, N_x, _ = motion_fields.shape
@@ -424,22 +467,55 @@ def downsample_generator(generator, factor):
         else:
             i_frame = 0
             yield frame
+
 def selected_frames_generator(generator, select_frames):
     i_frame = 0
     except_frame = None
     frames = []
+    saved_i_frames = []
     first_except = True
+    unique_frames, counts = np.unique(select_frames, return_counts=True)
+    def frame_reused(i_frame):
+        i_unique = np.where(unique_frames==i_frame)[0][0]
+        count = counts[i_unique]
+        return count > 1
+    i_select_frame = 0
+    in_repeat = False
+    i_repeat = 0
     while 1:
         try:
-            frame = next(generator)
-            if i_frame == 0:
-                except_frame = np.zeros_like(frame)
-            if i_frame not in select_frames:
-                i_frame += 1
-                continue
-            else:
-                i_frame += 1
-                frames.append(frame)
+            if not in_repeat:
+                # first cycle through the frames of the generator
+                frame = next(generator)
+                if i_frame == 0:
+                    except_frame = np.zeros_like(frame)
+                if i_frame != select_frames[i_select_frame] and not i_frame > unique_frames[-1]:
+                    # the current frame is not the next frame
+                    if i_frame in select_frames:
+                        # frame is not the right frame right now, but might be used later
+                        saved_i_frames.append(i_frame)
+                        frames.append(frame)
+                    i_frame += 1
+                    continue
+                elif i_frame > unique_frames[-1]:
+                    # end of first cycle. switch to looking at stored frames
+                    in_repeat = True
+                    saved_i_frames = np.array(saved_i_frames)
+                    continue
+                else:
+                    # this is the right frame
+                    # store it for later in case it's needed
+                    # yield it
+                    if frame_reused(i_frame):
+                        saved_i_frames.append(i_frame)
+                        frames.append(frame)
+                    i_frame += 1
+                    i_select_frame += 1
+                    yield frame
+            elif in_repeat:
+                store_ind = np.where(saved_i_frames==select_frames[i_select_frame])[0][0]
+                frame = frames[store_ind]
+                i_select_frame += 1
                 yield frame
         except:
             # yield except_frame
@@ -453,16 +529,57 @@ def selected_frames_generator(generator, select_frames):
             frame = frames[i_frame]
             i_frame += 1
             yield frame
-            
 
-
-
-
-
-def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sync_dir=None, 
+def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sync_dir=None,
                            camera=6, stack_axis=0, green=None, red=None,
-                           vmin=0, vmax=None, pmin=1, pmax=99, blur=0, mask=None, crop=None, 
+                           vmin=0, vmax=None, pmin=1, pmax=99, blur=0, mask=None, crop=None, log_lim=False,
                            text=None, asgenerator=False, downsample=None, select_frames=None, max_length=None):
+
+    if isinstance(select_frames, list) or isinstance(select_frames, np.ndarray) \
+        and len(select_frames) == 0 and asgenerator:
+        # deal with the case that no frames are selected
+        try:
+            shape1 = dff.shape[1:]
+        except:
+            try:
+                shape1 = mask.shape
+            except:
+                dff = get_stack(dff)
+                shape1 = dff.shape[1:]
+                del dff
+        if green is not None:
+            try:
+                shape2 = green.shape[1:]
+            except:
+                try:
+                    green = get_stack(green)
+                    shape2 = green.shape[1:]
+                except:
+                    shape2=shape1
+        else:
+            shape2 = (0,0)
+        seven_camera_metadata_file = utils2p.find_seven_camera_metadata_file(beh_dir)
+        images_dir, _ = os.path.split(seven_camera_metadata_file)
+        beh_video_dir = find_file(images_dir, "camera_{}*.mp4".format(camera))
+        beh_generator = generator_video(beh_video_dir)
+        shape3, beh_generator = get_generator_shape(beh_generator)
+        del beh_generator
+
+        black_image1 = np.zeros((shape1[0], shape1[1], 4), dtype=np.uint8)
+        black_image3 = np.zeros(shape3, dtype=np.uint8)
+        black_frame_generator1 = utils_video.generators.static_image(black_image1, n_frames=max_length)
+        black_frame_generator3 = utils_video.generators.static_image(black_image3, n_frames=max_length)
+        if shape2 != (0,0):
+            black_image2 = np.zeros((shape2[0], shape2[1], 4), dtype=np.uint8)
+            black_frame_generator2 = utils_video.generators.static_image(black_image2, n_frames=max_length)
+            generator = utils_video.generators.stack([black_frame_generator3, black_frame_generator1, black_frame_generator2], 
+                                                 axis=stack_axis, allow_different_length=True)
+        else:
+            generator = utils_video.generators.stack([black_frame_generator3, black_frame_generator1], 
+                                                 axis=stack_axis, allow_different_length=True)
+        return generator, np.nan, np.nan
+
+
     beh_dir = trial_dir if beh_dir is None else beh_dir
     sync_dir = trial_dir if sync_dir is None else sync_dir
     sync_file = utils2p.find_sync_file(sync_dir)
@@ -518,8 +635,8 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
             factor = np.ceil(max_length/len(select_frames))
             select_frames = np.repeat(np.expand_dims(select_frames, axis=0),factor, axis=0).flatten()[:max_length]
 
-    dff_generator = generator_dff(dff, vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax, 
-                                  blur=blur, mask=mask, crop=crop, text=text)
+    dff_generator = generator_dff(dff, vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax,
+                                  blur=blur, mask=mask, crop=crop, text=text, log_lim=log_lim)
 
     images_dir, _ = os.path.split(seven_camera_metadata_file)
     # beh_video_dir = os.path.join(images_dir, "camera_{}.mp4".format(camera))
@@ -540,33 +657,37 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
     dff_generator = utils_video.generators.resample(dff_generator, indices)
     """
     if twop_generator is None:
-        generator = utils_video.generators.stack([beh_generator, dff_generator], axis=stack_axis)
+        generator = utils_video.generators.stack([beh_generator, dff_generator], 
+                                                 axis=stack_axis, allow_different_length=True)
     else:
         # twop_generator = utils_video.generators.resample(twop_generator, indices)
-        generator = utils_video.generators.stack([beh_generator, dff_generator, twop_generator], axis=stack_axis)
+        generator = utils_video.generators.stack([beh_generator, dff_generator, twop_generator], 
+                                                 axis=stack_axis, allow_different_length=True)
     
     if select_frames is not None:
         generator = selected_frames_generator(generator, select_frames)
     if downsample is not None and isinstance(downsample, int) and downsample > 1:
         generator = downsample_generator(generator, downsample)
-        N_frames = len(frame_times_beh) // downsample - 1
+        # N_frames = len(frame_times_beh) // downsample - 1
+        N_frames = len(edges) // downsample - 1
         frame_rate = frame_rate / downsample
         if select_frames is not None:
             N_frames = max_length // downsample - 1
     else:
-        N_frames = len(frame_times_beh) - 1
+        # N_frames = len(frame_times_beh) - 1
+        N_frames = len(edges) - 1
         if select_frames is not None:
             N_frames = max_length - 1
     if not asgenerator:
         if not video_name.endswith(".mp4"):
             video_name = video_name + ".mp4"
-        make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=N_frames)
+        make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=int(N_frames))
     else:
-        return generator, N_frames, frame_rate
+        return generator, int(N_frames), frame_rate
 
 def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_dirs=None, sync_dirs=None, 
                                     camera=6, stack_axes=[0, 1], greens=None, reds=None,
-                                    vmin=0, vmax=None, pmin=1, pmax=99, share_lim=True, 
+                                    vmin=0, vmax=None, pmin=1, pmax=99, share_lim=True, log_lim=False,
                                     blur=0, mask=None, share_mask=False, crop=None, text=None, 
                                     downsample=None, select_frames=None):
     if not isinstance(dffs, list):
@@ -615,6 +736,9 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
         vmaxs = [np.percentile(dff, pmax) if vmax is None else vmax for dff in dffs]
         vmin = np.mean(vmins)
         vmax = np.mean(vmaxs)
+    if isinstance(log_lim, bool): #TODO: test this
+        log_lim = [log_lim for _ in dffs]
+    assert len(dffs) == len(log_lim)
 
     assert len(dffs) == len(trial_dirs)
     if beh_dirs is not None:
@@ -639,27 +763,169 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
     generators = []
     N_frames = []
     frame_rates = []
-    for i_gen, (dff, trial_dir, beh_dir, sync_dir, this_text, this_mask, green, red, frames) \
-        in enumerate(zip(dffs, trial_dirs, beh_dirs, sync_dirs, text, mask, greens, reds, select_frames)):
+    for i_gen, (dff, trial_dir, beh_dir, sync_dir, this_text, this_mask, green, red, frames, this_log_lim) \
+        in enumerate(zip(dffs, trial_dirs, beh_dirs, sync_dirs, text, mask, greens, reds, select_frames, log_lim)):
         this_generator, this_N_frames, frame_rate = make_video_raw_dff_beh(dff=dff, trial_dir=trial_dir, out_dir=None, video_name=None,
                                                                   beh_dir=beh_dir, sync_dir=sync_dir, camera=camera, stack_axis=stack_axes[0],
                                                                   green=green, red=red,
                                                                   vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax, blur=blur, mask=this_mask,
-                                                                  crop=crop, text=this_text, 
+                                                                  crop=crop, text=this_text, log_lim = this_log_lim,
                                                                   asgenerator=True, downsample=downsample, max_length=max_length, select_frames=frames)
         generators.append(this_generator)
         N_frames.append(this_N_frames)
         frame_rates.append(frame_rate)
     if not len(np.unique(frame_rates)) == 1:
         print("Frame rates are: ", frame_rates)
-        frame_rate = np.mean(frame_rates)
-    N_frames = np.min(N_frames)
-    generator = utils_video.generators.stack(generators, axis=stack_axes[1])
+        frame_rate = np.nanmean(frame_rates)
+    N_frames = int(np.nanmin(N_frames))
+    generator = utils_video.generators.stack(generators, axis=stack_axes[1], allow_different_length=True)
+    if not video_name.endswith(".mp4"):
+        video_name = video_name + ".mp4"
+    make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=N_frames)
+
+def stimulus_dot_generator(generator, start_stim, stop_stim):
+    if not isinstance(start_stim, list) and not isinstance(start_stim, tuple):
+        start_stim = [start_stim]
+    if not isinstance(stop_stim, list) and not isinstance(stop_stim, tuple):
+        stop_stim = [stop_stim]
+    stim_status = False
+    for i_frame, frame in enumerate(generator):
+        if i_frame in start_stim:
+            stim_status = True
+        elif i_frame in stop_stim:
+            stim_status = False
+        if stim_status:
+            im_size = frame.shape[0]
+            factor = im_size / 480
+            cv2.circle(frame, (int(50*factor),int(50*factor)), int(40*factor), (255,0,0), -1)
+        yield frame
+
+def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, out_dir, video_name, frame_rate=None, size=None):
+    # video_dirs = [fly1, fly2]
+    # start_frames = [[ind1, ind2], [ind3, ind4]]
+    # N_frames = 100*20
+    # stim_range = [500,1500]
+    assert all(np.array(stim_range) < N_frames)
+    generators = []
+    frame_rates = []
+    for i_fly, (video_dir, start_frames_list) in enumerate(zip(video_dirs, start_frames)):
+        metadata_dir = utils2p.find_seven_camera_metadata_file(os.path.dirname(video_dir))
+        with open(metadata_dir, "r") as f:
+            metadata = json.load(f)
+        frame_rates.append(metadata["FPS"])
+        del metadata
+
+        for start_frame in start_frames_list:
+            this_generator = generator_video(video_dir, start=start_frame, stop=start_frame+N_frames, size=size)
+            this_generator = stimulus_dot_generator(this_generator, stim_range[0], stim_range[1])
+            generators.append(this_generator)
+
+    mean_frame_rate = np.mean(frame_rates)
+    if frame_rate is None:
+        frame_rate = mean_frame_rate
+    elif not np.isclose(frame_rate, mean_frame_rate):
+        print(f"Selected frame rate {frame_rate} is not close to average frame rate of videos {mean_frame_rate}.")
+
+    generator = utils_video.generators.grid(generators)
     if not video_name.endswith(".mp4"):
             video_name = video_name + ".mp4"
     make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=N_frames)
 
+def make_all_odour_condition_videos(video_dirs, paradigm_dirs, out_dir, video_name, frame_range=[-500,1500], stim_length=1000, frame_rate=None, size=None):
+    assert len(video_dirs) == len(paradigm_dirs)
+    if video_name.endswith(".mp4"):
+        video_name = video_name[:-4]
+    unique_conditions = []
+    all_conditions = []
+    all_starts = []
+    for paradigm_dir in paradigm_dirs:
+        with open(paradigm_dir, "rb") as f:
+            paradigm = pickle.load(f)
+        trial_conditions = paradigm["condition_list"]
+        trial_starts = paradigm["start_cam_frames"]
+        all_conditions.append(trial_conditions)
+        all_starts.append(trial_starts)
+        this_conditions = np.unique(trial_conditions)
+        unique_conditions = np.concatenate((unique_conditions, this_conditions))
+    unique_conditions = np.unique(unique_conditions)
+    
+    for condition in unique_conditions:
+        start_frames = []
+        for trial_conditions, trial_starts in zip(all_conditions, all_starts):
+            trial_start_frames = []
+            for this_condition, this_start in zip(trial_conditions, trial_starts):
+                if this_condition == condition:
+                    trial_start_frames.append(this_start+frame_range[0])
+            start_frames.append(trial_start_frames)
 
+        this_video_name = video_name + "_" + condition
+        make_behaviour_grid_video(video_dirs, start_frames=start_frames, N_frames=frame_range[1]-frame_range[0],
+                                  stim_range=[-frame_range[0], -frame_range[0]+stim_length], size=size,
+                                  out_dir=out_dir, video_name=this_video_name, frame_rate=frame_rate)
+
+def make_2p_grid_video(greens, reds, out_dir, video_name, percentiles=(5,99), frame_rate=None, trial_dir=None, texts=None, force_N_frames=None):
+    assert len(greens) == len(reds)
+    greens = [get_stack(green) for green in greens]
+    reds = [get_stack(red) for red in reds]
+    lens_green = [len(green) if green is not None else 0 for green in greens]
+    lens_red = [len(red) if red is not None else 0 for red in reds]
+    lens_unique = np.unique([lens_green, lens_red])
+    N_frames = lens_unique[0] if lens_unique[0] != 0 else lens_unique[1]
+    size = greens[0].shape[1:]
+    green_perc_low = []
+    green_perc_high = []
+    red_perc_low = []
+    red_perc_high = []
+    for i_vid, (green, red) in enumerate(zip(greens, reds)):
+        if green is None:
+            greens[i_vid] = np.zeros((N_frames, size[0], size[1]))
+        elif len(green) > N_frames:
+            diff = len(green) - N_frames
+            print(f"Difference in frame length of {diff}. Will cut half of it at the front and half of it at the back.")
+            shift = diff // 2
+            greens[i_vid] = green[shift:shift+N_frames, :, :]
+        if green is not None:
+            green_perc_low.append(np.percentile(greens[i_vid], percentiles[0]))
+            green_perc_high.append(np.percentile(greens[i_vid], percentiles[1]))
+        if red is None:
+            reds[i_vid] = np.zeros((N_frames, size[0], size[1]))
+        elif len(red) > N_frames:
+            diff = len(red) - N_frames
+            print(f"Difference in frame length of {diff}. Will cut half of it at the front and half of it at the back.")
+            shift = diff // 2
+            reds[i_vid] = red[shift:shift+N_frames, :, :]
+        if red is not None:
+            red_perc_low.append(np.percentile(reds[i_vid], percentiles[0]))
+            red_perc_high.append(np.percentile(reds[i_vid], percentiles[1]))
+    green_perc_low = np.maximum(0, np.mean(green_perc_low))
+    green_perc_high = np.maximum(0, np.mean(green_perc_high))
+    red_perc_low = np.maximum(0, np.mean(red_perc_low))
+    red_perc_high = np.maximum(0, np.mean(red_perc_high))
+
+    generators = []
+    for i_vid, (green, red) in enumerate(zip(greens, reds)):
+        generator = generator_frames_2p(red_stack=red, green_stack=green, 
+                                        red_vlim=(red_perc_low, red_perc_high), 
+                                        green_vlim=(green_perc_low, green_perc_high))
+        generators.append(generator)
+    generators_text = []
+    if texts is not None and len(texts) == len(generators):
+        for i_vid, (text, generator) in enumerate(zip(texts, generators)):
+            generators_text.append(utils_video.generators.add_text(generator, text=text, pos=(10,50)))
+
+    generator = utils_video.generators.grid(generators_text)
+
+    if frame_rate is None and not trial_dir is None:
+        meta_data = utils2p.Metadata(utils2p.find_metadata_file(trial_dir))
+        frame_rate = meta_data.get_frame_rate()
+    elif frame_rate is None:
+        raise NotImplementedError("You have to supply either a valid trial_dir or specify the frame_rate.")
+
+    
+    if not video_name.endswith(".mp4"):
+            video_name = video_name + ".mp4"
+    make_video(os.path.join(out_dir, video_name), generator, frame_rate, 
+               n_frames=N_frames if force_N_frames is None else force_N_frames)
 
 if __name__ == "__main__":
 
