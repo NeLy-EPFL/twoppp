@@ -81,11 +81,24 @@ def reduce_mean(values):
     return np.mean(values, axis=0)
 def reduce_std(values):
     return np.std(values, axis=0)
-def reduce_behaviour(values):
+def reduce_min(values):
+    return np.min(values, axis=0)
+def reduce_max(values):
+    return np.max(values, axis=0)
+def reduce_bin_p(values, thres):
+    return np.mean(values, axis=0) > thres
+def reduce_bin_50p(values):
+    return reduce_bin_p(values, 0.5)
+def reduce_bin_75p(values):
+    return reduce_bin_p(values, 0.75)
+def reduce_bin_90p(values):
+    return reduce_bin_p(values, 0.9)
+
+def reduce_behaviour(values, thres=0.75, default=""):
     unique_values, N_per_unique = np.unique(values, return_counts=True)
     i_max = np.argmax(N_per_unique)
-    if N_per_unique[i_max] < 0.75 * len(values):
-        return ""
+    if N_per_unique[i_max] < thres * len(values):
+        return default
     else:
         return unique_values[i_max]
 
