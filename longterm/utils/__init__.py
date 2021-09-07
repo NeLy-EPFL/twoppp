@@ -7,6 +7,7 @@ import os.path
 from pathlib import Path
 from skimage.transform import resize
 from copy import deepcopy
+import scipy.stats
 
 from utils2p import load_img, save_img
 
@@ -72,9 +73,9 @@ def crop_img(img, crop):
         raise NotImplementedError("crop should be either of length 2 or 4, or be None")
     return img
 
-def makedirs_safe(dir):
-    if not os.path.exists(dir):
-        os.makedirs(dir)
+def makedirs_safe(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 def find_file(directory, name, file_type=""):
     """
@@ -130,4 +131,25 @@ def list_join(lst, strs):
     for s in strs:
         out_lst = [os.path.join(this_dir, s) for this_dir in out_lst]
     return out_lst
+
+def sem(array, axis=None):
+    """
+    compute the standard error of the mean based on sem = std/sqrt(N)
+    """
+    array = np.array(array)
+    if axis is None:
+        N = np.prod(array.shape)
+    else:
+        if not isinstance(axis, tuple):
+            axis = axis,
+        N = np.prod([array.shape[i] for i in axis])
+    return np.std(array, axis) / np.sqrt(N)
+
+def conf_int(array, axis=None):
+    """
+    compute the 95% confidence interval of the mean based on Gaussian assumption:
+    CI = 1.96 * SEM
+    """
+    const = scipy.stats.norm.ppf(0.975)
+    return const * sem(array, axis=axis)
 
