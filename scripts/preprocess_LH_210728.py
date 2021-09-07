@@ -1,16 +1,22 @@
 import os, sys
+import numpy as np
 from copy import deepcopy
 from time import time, sleep
 from tqdm import tqdm
+import gc
+
+import matplotlib
+matplotlib.use('agg')  # use non-interactive backend for PNG plotting
 
 FILE_PATH = os.path.realpath(__file__)
 SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
+from longterm import fly_dirs, all_selected_trials, conditions
 from longterm import load, utils
-from longterm.dff import find_dff_mask
-from longterm.plot.videos import make_video_dff, make_multiple_video_dff
+# from longterm.dff import find_dff_mask
+# from longterm.plot.videos import make_video_dff, make_multiple_video_dff
 from longterm.pipeline import PreProcessFly, PreProcessParams
 
 if __name__ == "__main__":
@@ -32,12 +38,12 @@ if __name__ == "__main__":
     params.make_dff_videos = True
     params.make_summary_stats = True
 
-    params.green_denoised = "green_denoised_t1.tif"
-    params.dff = "dff_denoised_t1.tif"
-    params.dff_baseline = "dff_baseline_denoised_t1.tif"
-    params.dff_mask = "dff_mask_denoised_t1.tif"
-    params.dff_video_name = "dff_denoised_t1"
-    params.dff_beh_video_name = "dff_beh"
+    params.green_denoised = "green_denoised_t1_corr.tif"  # "green_denoised_t1.tif"
+    params.dff = "dff_denoised_t1_corr.tif"  # "dff_denoised_t1.tif"
+    params.dff_baseline = "dff_baseline_denoised_t1_corr.tif"  # "dff_baseline_denoised_t1.tif"
+    params.dff_mask = "dff_mask_denoised_t1_corr.tif"  # "dff_mask_denoised_t1.tif"
+    params.dff_video_name = "dff_denoised_t1_corr"  # "dff_denoised_t1"
+    params.dff_beh_video_name = "dff_beh_corr"  # "dff_beh"
 
     params.i_ref_trial = 0
     params.i_ref_frame = 0
@@ -51,6 +57,8 @@ if __name__ == "__main__":
     params.denoise_crop_size = (352, 576)
     params.denoise_train_each_trial = False
     params.denoise_train_trial = 0
+    params.denoise_correct_illumination_leftright = True
+    params.denoise_final_dir = "denoising_run_correct"
 
     # dff params
 
@@ -74,54 +82,7 @@ if __name__ == "__main__":
     params.dff_video_share_lim = True
     params.default_video_camera = 6
 
-    fly_dirs = [
-        os.path.join(load.NAS2_DIR_LH, "210722", "fly3"),  # high caff
-        os.path.join(load.NAS2_DIR_LH, "210721", "fly3"),  # high caff
-        os.path.join(load.NAS2_DIR_LH, "210723", "fly1"),  # low caff
-        os.path.join(load.NAS2_DIR_LH, "210723", "fly2"),  # high caff
-        os.path.join(load.NAS2_DIR_LH, "210718", "fly2"),  # starv
-
-        os.path.join(load.NAS2_DIR_LH, "210719", "fly1"),  # sucr
-        os.path.join(load.NAS2_DIR_LH, "210719", "fly2"),  # starv
-        os.path.join(load.NAS2_DIR_LH, "210719", "fly4"),  # sucr
-        os.path.join(load.NAS2_DIR_LH, "210802", "fly1"),  # lowcaff
-        os.path.join(load.NAS2_DIR_LH, "210804", "fly1"),  # low caff
-        
-        os.path.join(load.NAS2_DIR_LH, "210804", "fly2")   # low caff
-        ]
-    all_selected_trials = [
-        [1,3,4,5,6,7,8,9,10,11,12,13],
-        [1,3,4,5,6,7,8,9,10,11,12],
-        [1,3,4,5,6,8,9,10,11,12],
-        [1,3,5,6,7,8,9,10,11,12,13,14],
-        [2,4,5,7],
-
-        [2,4,5,7,8],
-        [2,4,5,7],
-        [2,4,5,7],
-        [1,3,4,5,6,7,8,9,11,12],  # 10 exlcuded because CC out of center
-
-        [1,3,4,5,6,7,8,9,10,11,12],
-        [1,3,5,6,7,8,9,10,11,12]  # 4 excluded for now, because processing not yet ready
-        ]
-
-    conditions = [
-        "210722 fly 3 high caff",
-        "210721 fly 3 high caff",
-        "210723 fly 1 low caff",
-        "210723 fly 2 high caff",
-        "210718 fly 2 starv",
-
-        "210719 fly 1 sucr",
-        "210719 fly 2 starv",
-        "210719 fly 4 sucr",
-        "210802 fly 1 low caff",
-        "210804 fly 1 low caff",
-
-        "210804 fly 2 low caff",
-        ]
-
-    to_run = [1,2,3]  # 8, 9, 10
+    to_run = range(18)  # 8, 9, 10, 11,12
 
     SLEEP = 0  # 7200  # seconds before starting
     STEPSIZE = 30
@@ -130,6 +91,7 @@ if __name__ == "__main__":
         sleep(STEPSIZE)
 
     params_copy = deepcopy(params)
+    LOG_LIM_WORKS = True
 
     for i_fly, (fly_dir, selected_trials, condition) in \
         enumerate(zip(fly_dirs, all_selected_trials, conditions)):
@@ -138,44 +100,113 @@ if __name__ == "__main__":
             continue
 
         print("Starting preprocessing of fly \n" + fly_dir)
-        preprocess = PreProcessFly(fly_dir=fly_dir, params=params, trial_dirs="fromfile", 
+        preprocess = PreProcessFly(fly_dir=fly_dir, params=params, trial_dirs="fromfile",
                                    selected_trials=selected_trials,
                                    beh_trial_dirs="fromfile", sync_trial_dirs="fromfile")
 
         # warp, denoise, compute denoised dff, compute summary stats
         preprocess.params.make_dff_videos = False
-        if i_fly < 4:
-            preprocess.params.use_dff = False
-            preprocess.params.make_summary_stats = False
-            preprocess.run_all_trials()
+        preprocess.params.make_summary_stats = True  #TODO
+        preprocess.run_all_trials()  #TODO
 
-            preprocess.params.overwrite = True
-            preprocess._compute_dff_alltrials()
-            preprocess._compute_summary_stats()
-        else:
-            preprocess.run_all_trials()
+        # making videos
+        if False:  # False:
+            try:
+                # baseline = utils.get_stack(os.path.join(preprocess.fly_processed_dir, preprocess.params.dff_baseline))
+                # thresholds for denoised dff videos:
+                # threshold = 0
+                # mask = baseline > threshold
+                mask = utils.get_stack(os.path.join(preprocess.fly_processed_dir, "dff_mask_raw.tif")).astype(bool)  # preprocess.params.dff_mask
 
-        # currently don't make videos
-        if False:
-            baseline = utils.get_stack(os.path.join(preprocess.fly_processed_dir, preprocess.params.dff_baseline))
-            # thresholds for denoised dff videos:
-            threshold = 0
-            mask = baseline > threshold
+                # utils.save_stack(os.path.join(preprocess.fly_processed_dir, preprocess.params.dff_mask), mask)
+                # preprocess._make_dff_videos(mask=mask) #TODO
+                preprocess.params.dff_beh_video_name = "dff_beh_2p_corr"
+                if "caff" in condition:
+                    preprocess.params.dff_video_share_lim = False
+                    preprocess.params.dff_video_log_lim = [False, False, False, True]
+                    last_trial = np.where(["007" in trial for trial in preprocess.trial_dirs])[0]
+                    if not last_trial.size:
+                        last_trial = np.where(["006" in trial for trial in preprocess.trial_dirs])[0]
+                    if not last_trial.size:
+                        last_trial = [-1]
+                    last_trial = last_trial[0]
+                    i_trials = [0,2,3,last_trial]
+                    if "210723 fly 2" in condition:
+                        i_trials = [1,2,3,last_trial]
+                else:
+                    preprocess.params.dff_video_share_lim = True
+                    preprocess.params.dff_video_log_lim = False
+                    i_trials = [0,1,2,-1]
+                # preprocess.params.overwrite = True
+                if LOG_LIM_WORKS:
+                    try:
+                        preprocess._make_dff_behaviour_video_multiple_trials(mask=mask, include_2p=True, i_trials=i_trials)
+                    except:
+                        # LOG_LIM_WORKS = False
+                        preprocess.params.dff_video_log_lim = False
+                        preprocess._make_dff_behaviour_video_multiple_trials(mask=mask, include_2p=True, i_trials=i_trials)
+                else:
+                    preprocess.params.dff_video_log_lim = False
+                    preprocess._make_dff_behaviour_video_multiple_trials(mask=mask, include_2p=True, i_trials=i_trials)
 
-            utils.save_stack(os.path.join(preprocess.fly_processed_dir, preprocess.params.dff_mask), mask)
-            preprocess._make_dff_videos(mask=mask)
-            preprocess.params.dff_beh_video_name = "dff_beh_2p"
-            preprocess.params.dff_video_share_lim = False
-            preprocess._make_dff_behaviour_video_multiple_trials(mask=mask, include_2p=True, i_trials=[0,1,2,-1])
+                # preprocess.params.overwrite = False
+            except:
+                print("Error while making video for fly", fly_dir)
 
+        
         # further pre-processing steps
-        try:
-            preprocess.get_dfs()
+        if False:
+            try:
+                preprocess.get_dfs()
 
-            # preprocess.extract_rois()
+                # preprocess.extract_rois()
+                if "caff" in condition:
+                    i_trials = [trial for i_t, trial in enumerate(selected_trials) if i_t != 2]
+                    zscore_trials = [0,1]
+                else:
+                    i_trials = [trial for i_t, trial in enumerate(selected_trials) if i_t != 1]
+                    zscore_trials = [0]
+                preprocess.prepare_pca_analysis(condition=condition, load_df=False, load_pixels=True,
+                                                i_trials=i_trials,
+                                                sigma=0, zscore_trials=zscore_trials)
+                
+            except KeyboardInterrupt as e:
+                raise e
+            except:
+                print(f"Could not prepare for PCA analysis for fly {fly_dir}")
 
-            # preprocess.prepare_pca_analysis(condition=condition, load_df=False, load_pixels=True)
-        except KeyboardInterrupt:
-                raise KeyError
-        except:
-            print(f"Could not prepare for PCA analysis for fly {fly_dir}")
+        # raw dff and raw dff videos
+        if False:
+            preprocess.params.dff_baseline = "dff_baseline_raw.tif"
+            preprocess.params.green_denoised = "green_com_warped.tif"
+            preprocess.params.dff = "dff_raw.tif"
+            preprocess.params.dff_mask = "dff_mask_raw.tif"
+            preprocess._compute_dff_alltrials()
+            mask = utils.get_stack(os.path.join(preprocess.fly_processed_dir, preprocess.params.dff_mask)).astype(bool)
+
+            preprocess.params.dff_beh_video_name = "dff_beh_2p_raw"
+            if "caff" in condition:
+                preprocess.params.dff_video_share_lim = False
+                preprocess.params.dff_video_log_lim = [False, False, False, True]
+                last_trial = np.where(["007" in trial for trial in preprocess.trial_dirs])[0]
+                if not last_trial.size:
+                    last_trial = np.where(["006" in trial for trial in preprocess.trial_dirs])[0]
+                if not last_trial.size:
+                    last_trial = [-1]
+                last_trial = last_trial[0]
+                i_trials = [0,2,3,last_trial]
+                if "210723 fly 2" in condition:
+                    i_trials = [1,2,3,last_trial]
+            else:
+                preprocess.params.dff_video_share_lim = True
+                preprocess.params.dff_video_log_lim = False
+                i_trials = [0,1,2,-1]
+            preprocess.params.overwrite = True
+            preprocess._make_dff_behaviour_video_multiple_trials(mask=mask, include_2p=True, i_trials=i_trials)
+            preprocess.params.overwrite = False
+            gc.collect()
+
+
+        # make behavioural video snippets
+        if False:
+            pass
