@@ -142,3 +142,26 @@ def shade_walk_rest(walk, rest, x=None, ax=None, alpha=0.2, colors=["red", "blue
     for i_stim in range(N_rest):    
         ax.axvspan(x[rest_diff_start[i_stim]], x[rest_diff_end[i_stim]], 
                    alpha=alpha, color=colors[1], ec=None, label="rest" if i_stim==0 else None)
+
+def plot_mu_sem(mu, err, x=None, label="", alpha=0.3, color=None, ax=None):
+    """
+    plot mean and standard deviation, e.g. when plotting mean of predictability across neurons over lag
+    :param mu: mean, shape [N_samples, N_lines] or [N_samples]
+    :param err: error to be plotted, e.g. standard error of the mean, shape [N_samples, N_lines] or [N_samples]
+    :param x: shape [N_samples]. If not specified will be np.arange(mu.shape[0])
+    :param label: the label for each line either a string if only one line or list of strings if multiple lines
+    :param alpha: transparency of the shaded area. default 0.3
+    :param color: pre-specify colour. if None, use Python default colour cycle
+    :param ax: axis to be plotted on, otherwise it will get the current axis with plt.gca()
+    :return:
+    """
+    if ax is None:
+        ax = plt.gca()
+    if x is None:
+        x = np.arange(mu.shape[0])
+    p = ax.plot(x, mu, lw=1, label=label, color=color)
+    if len(mu.shape) is 1:
+        ax.fill_between(x, mu - err, mu + err, alpha=alpha, color=p[0].get_color())
+    else:
+        for i in np.arange(mu.shape[1]):
+            ax.fill_between(x, mu[:, i] - err[:, i], mu[:, i] + err[:, i], alpha=alpha, color=p[i].get_color())
