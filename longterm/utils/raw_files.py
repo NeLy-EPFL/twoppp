@@ -50,7 +50,7 @@ class FrameFromRaw:
                        )
         else:
             for c in range(self.n_channels):
-                out += (np.array(a[c * image_size : (c + 1) * image_size]
+                out += (np.array(a[c * self.image_size : (c + 1) * self.image_size]
                                 ).reshape((height, width)),
                        )
         return out
