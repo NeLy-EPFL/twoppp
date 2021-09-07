@@ -6,7 +6,7 @@ import sys, os.path
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import gaussian_filter1d, convolve1d
-from scipy.signal import medfilt
+from scipy.signal import medfilt, convolve
 from skimage.filters import threshold_otsu
 from skimage.morphology import binary_opening, binary_closing
 from scipy.ndimage.filters import median_filter
@@ -119,6 +119,10 @@ def _quantile_baseline(stack, quantile):
             baseline_img[i, j] = np.quantile(stack[:, i, j], quantile)
     return baseline_img
 
+def _quantile_filt_baseline(stack, quantile, n=10):
+    stack_filt = convolve(stack, np.expand_dims(np.ones(n), axis=(1,2)), mode="valid")
+    return np.quantile(stack_filt, q=quantile, axis=0)
+
 def find_dff_mask(baseline, otsu_frac=0.4, kernel=np.ones((20,20)), sigma=0, crop=None):  # 0.4, 30, 30, 10
     baseline = get_stack(baseline)
     baseline_filt = gaussian_filter(baseline, sigma=(sigma, sigma))
@@ -193,7 +197,8 @@ def find_dff_baseline(stack, baseline_blur=10, baseline_med_filt=1, blur_pre=Tru
     if baseline_mode == "convolve":
         dff_baseline = _find_pixel_wise_baseline(stack_blurred, n=baseline_length)
     elif baseline_mode == "quantile":
-        dff_baseline = _quantile_baseline(stack_blurred, baseline_quantile)
+        # dff_baseline = _quantile_baseline(stack_blurred, baseline_quantile)
+        dff_baseline = _quantile_filt_baseline(stack_blurred, baseline_quantile, baseline_length)
     elif isinstance(baseline_mode, np.ndarray) and baseline_mode.shape == (N_y, N_x):
         dff_baseline = baseline_mode
     elif baseline_mode == "fromfile":
@@ -235,7 +240,8 @@ def find_dff_baseline_multi_stack(stacks, baseline_blur=10, baseline_med_filt=1,
         if not return_multiple_baselines:
             dff_baseline = np.min(dff_baseline, axis=0)
     elif baseline_mode == "quantile":
-        dff_baseline = np.array([_quantile_baseline(stack, baseline_quantile) for stack in stacks_blurred])
+        # dff_baseline = np.array([_quantile_baseline(stack, baseline_quantile) for stack in stacks_blurred])
+        dff_baseline = np.array([_quantile_filt_baseline(stack, baseline_quantile, baseline_length) for stack in stacks_blurred])
         if not return_multiple_baselines:
             dff_baseline = np.min(dff_baseline, axis=0)
     elif isinstance(baseline_mode, np.ndarray) and baseline_mode.shape == (N_y, N_x):
