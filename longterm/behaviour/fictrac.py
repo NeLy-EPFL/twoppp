@@ -50,7 +50,7 @@ col_names = ["Frame_counter",
 f_s = 100
 r_ball = 5
 
-def get_mean_image(video_file, skip_existing=True, output_name="camera_3_mean.jpg"):
+def get_mean_image(video_file, skip_existing=True, output_name="camera_3_mean_image.jpg"):
     """compute the mean image of a video and save it as a file.
     partially copied and modified from Florian Aymann's
     https://github.com/NeLy-EPFL/ABO_data_processing/blob/master/add_fictrac_config.py
@@ -62,7 +62,7 @@ def get_mean_image(video_file, skip_existing=True, output_name="camera_3_mean.jp
     skip_existing : bool, optional
         if already computed, read the image and return it, by default True
     output_name : string, optional
-        file name of the resulting mean image, by default "camera_3_mean.jpg"
+        file name of the resulting mean image, by default "_camera_3_mean_image.jpg"
 
     Returns
     -------

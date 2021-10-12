@@ -12,7 +12,7 @@ ENVS=$(conda env list | cut -d' ' -f 1 )
 if [[ $ENVS = *"$TARGET"* ]]; then
    echo "Found environment. Will activate it."
    echo "previous environment: $CONDA_DEFAULT_ENV"
-   conda activate $1
+   conda activate $TARGET
    echo "switched to: $CONDA_DEFAULT_ENV"
 else 
    echo "Please create a conda environment called deepfly and install deepfly3d as specified here:"
@@ -36,10 +36,10 @@ do
             done
 
             # run df3d
-	        CUDA_VISIBLE_DEVICES=1 df3d-cli -vv -o $folder --output-folder df3d  --camera-ids 6 5 4 3 2 1 0
+	        CUDA_VISIBLE_DEVICES=1 df3d-cli -vv -o $folder --output-folder df3d  # --camera-ids 6 5 4 3 2 1 0
             # for first scope: camera order 0, 6, 5, 4, 3, 2, 1
 
-            # delete images
+            delete images
             for ((i=0; i<7; i++)); do
                 find "$folder" -name "*.jpg" -maxdepth 1  -delete
             done
