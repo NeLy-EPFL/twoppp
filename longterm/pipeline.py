@@ -26,11 +26,13 @@ OUTPUT_PATH = os.path.join(MODULE_PATH, "outputs")
 from longterm import load, dff
 from longterm.utils import makedirs_safe, get_stack, save_stack, readlines_tolist
 from longterm.register import warping
+from longterm.denoise import prepare_corrected_data
 from longterm.behaviour import df3d
 from longterm.plot.videos import make_video_dff, make_multiple_video_dff, make_video_raw_dff_beh, make_multiple_video_raw_dff_beh
 from longterm.rois import local_correlations, get_roi_signals_df
 from longterm.behaviour.synchronisation import get_synchronised_trial_dataframes
 from longterm.behaviour.optic_flow import get_opflow_df
+from longterm.behaviour.fictrac import get_fictrac_df
 from longterm.analysis import InterPCAAnalysis
 
 class PreProcessParams:
@@ -90,6 +92,7 @@ class PreProcessParams:
         self.cleanup_files = False
         self.make_dff_videos = False
         self.make_summary_stats = True
+        self.ball_tracking = "opflow"  # "opflow", "fictrac", or None
 
         # ofco params
         self.i_ref_trial = 0
@@ -139,6 +142,7 @@ class PreProcessParams:
         self.dff_video_vmax = None
         self.dff_video_share_lim = True
         self.dff_video_log_lim = False
+        self.dff_video_downsample = 2
         self.default_video_camera = 6
 
         # deepfly3d params
@@ -476,74 +480,30 @@ class PreProcessFly:
             else:
                 already_trained = False
 
-            already_denoised_trials = [os.path.isfile(join(processed_dir, self.params.green_denoised)) 
+            already_denoised_trials = [os.path.isfile(join(processed_dir, self.params.green_denoised))
                                        for processed_dir in self.trial_processed_dirs]
             if all(already_denoised_trials) and not self.params.overwrite:
                 return
             elif any(already_denoised_trials) and already_trained and not self.params.overwrite:
                 todo_trial_processed_dirs = [processed_dir for processed_dir, already_denoised
-                                             in zip(self.trial_processed_dirs, already_denoised_trials) 
+                                             in zip(self.trial_processed_dirs, already_denoised_trials)
                                              if not already_denoised]
             else:
                 todo_trial_processed_dirs = self.trial_processed_dirs
 
-            input_datas = [join(processed_dir, self.params.green_com_warped) 
+            input_datas = [join(processed_dir, self.params.green_com_warped)
                             for processed_dir in todo_trial_processed_dirs]
-            tmp_data_dirs = [join(self.params.denoise_tmp_data_dir, 
-                                self.params.denoise_tmp_data_name(processed_dir)) 
+            tmp_data_dirs = [join(self.params.denoise_tmp_data_dir,
+                                self.params.denoise_tmp_data_name(processed_dir))
                             for processed_dir in todo_trial_processed_dirs]
 
             if self.params.denoise_correct_illumination_leftright:
                 self._compute_summary_stats(raw_only=True, force_overwrite=True)
 
-                def get_illumination_correction(fly_dir):
-                    pkl_dir = os.path.join(fly_dir, "processed", "compare_trials.pkl")
-                    with open(pkl_dir, "rb") as f:
-                        summary_dict = pickle.load(f)
-                    greens = summary_dict["green_means_raw"]
-                    del summary_dict
-                    green = np.mean(greens, axis=0)
-                    green_med_filt = medfilt(green, kernel_size=(71,91))
-                    green_filt = gaussian_filter(green_med_filt, sigma=3)
-
-                    # select the area +-100 pixels from the center
-                    y_mean = np.mean(green_filt, axis=0)
-                    norm_range = [len(y_mean) // 2 - 100, len(y_mean) // 2 + 100]
-
-                    # perform linear regression in that range
-                    y_target = y_mean[norm_range[0]:norm_range[1]]
-                    x_target = np.arange(norm_range[0], norm_range[1])
-                    # model: y = b[0]x + b[1]
-                    X = np.hstack((np.expand_dims(x_target, axis=1), np.ones((len(x_target),1))))
-                    b = np.linalg.pinv(X.T).T.dot(y_target)
-                    print(f"{fly_dir}\nFound correction parameters: offset={b[1]}, slope={b[0]}")
-                    correction = 1/(1 +  b[0]/b[1]*np.arange(len(y_mean)))
-                    return correction
-
-                def correct_illumination(stack, correction):
-                    return stack*correction
-
-                def prepare_corrected_data(train_data_tifs, out_data_tifs, fly_dir):
-                    if not isinstance(train_data_tifs, list):
-                        train_data_tifs = [train_data_tifs]
-                    if not isinstance(out_data_tifs, list):
-                        out_data_tifs = [out_data_tifs]
-                    assert len(train_data_tifs) == len(out_data_tifs)
-
-                    stacks = [get_stack(path) for path in train_data_tifs]
-
-                    correction = get_illumination_correction(fly_dir)
-                    stacks_corrected = [correct_illumination(stack, correction) for stack in stacks]
-                    for out_path, stack in zip(out_data_tifs, stacks_corrected):
-                        path, _ = os.path.split(out_path)
-                        if not os.path.isdir(path):
-                            os.makedirs(path)
-                        save_stack(out_path, stack)
                 prepare_corrected_data(train_data_tifs=input_datas,
                                        out_data_tifs=tmp_data_dirs,
-                                       fly_dir=self.fly_dir)
-                #TODO: make this part nicer, i.e., move it somewhere else
-                
+                                       fly_dir=self.fly_dir,
+                                       summary_dict_pickle=join(self.fly_processed_dir, self.summary_stats))
             else:
                 denoise.prepare_data(train_data_tifs=input_datas,
                                     out_data_tifs=tmp_data_dirs,
@@ -553,9 +513,10 @@ class PreProcessFly:
             if not already_trained:
                 training_processed_dir = todo_trial_processed_dirs[self.params.denoise_train_trial]
                 training_tmp_data_dir = tmp_data_dirs[self.params.denoise_train_trial]
-                
+
                 with mp.Manager() as manager:
-                    print(time.ctime(time.time()), "Starting separate process to train denoising model.")
+                    print(time.ctime(time.time()),
+                          "Starting separate process to train denoising model.")
                     share_dict = manager.dict()
                     kwargs = {
                         "train_data_tifs": training_tmp_data_dir,
@@ -568,14 +529,9 @@ class PreProcessFly:
                     p.start()
                     p.join()
                     tmp_run_dir = share_dict[0]
-                """
-                tmp_run_dir = denoise.train(train_data_tifs=training_tmp_data_dir,
-                                            run_base_dir=self.params.denoise_tmp_run_dir,
-                                            run_identifier=self.params.denoise_runid(training_processed_dir),
-                                            params=self.params.denoise_params)
-                """
 
-            tif_out_dirs = [join(processed_dir, self.params.green_denoised) for processed_dir in todo_trial_processed_dirs]
+            tif_out_dirs = [join(processed_dir, self.params.green_denoised)
+                            for processed_dir in todo_trial_processed_dirs]
             kwargs = {
                 "data_tifs": tmp_data_dirs,
                 "run_dir": tmp_run_dir,
@@ -586,15 +542,9 @@ class PreProcessFly:
             p = mp.Process(target=denoise.inference, kwargs=kwargs)
             p.start()
             p.join()
-            """
-            denoise.inference(data_tifs=tmp_data_dirs,
-                              run_dir=tmp_run_dir,
-                              tif_out_dirs=tif_out_dirs,
-                              params=self.params.denoise_params)
-            """
             denoise.clean_up(tmp_run_dir, tmp_data_dirs)
             if not already_trained:
-                denoise.copy_run_dir(tmp_run_dir, 
+                denoise.copy_run_dir(tmp_run_dir,
                                     join(self.fly_processed_dir, self.params.denoise_final_dir),
                                     delete_tmp=self.params.denoise_delete_tmp_run_dir)
             gc.collect()
@@ -794,7 +744,7 @@ class PreProcessFly:
                             blur=0, mask=mask, crop=None, text=trial_name,
                             asgenerator=False, downsample=10)
 
-    def _make_dff_behaviour_video_multiple_trials(self, i_trials=None, mask=None, include_2p=False):
+    def _make_dff_behaviour_video_multiple_trials(self, i_trials=None, mask=None, include_2p=False, select_frames=None):
         if not isinstance(mask, np.ndarray):
             if (isinstance(mask, bool) and mask == True) \
                 or mask == "fromfile" or mask == "compute":
@@ -835,16 +785,17 @@ class PreProcessFly:
                                         stack_axes=[0, 1],
                                         greens=green_dirs,
                                         reds=red_dirs,
-                                        vmin=self.params.dff_video_vmin, 
-                                        vmax=self.params.dff_video_vmax, 
-                                        pmin=self.params.dff_video_pmin, 
-                                        pmax=self.params.dff_video_pmax, 
-                                        share_lim=self.params.dff_video_share_lim, 
+                                        vmin=self.params.dff_video_vmin,
+                                        vmax=self.params.dff_video_vmax,
+                                        pmin=self.params.dff_video_pmin,
+                                        pmax=self.params.dff_video_pmax,
+                                        share_lim=self.params.dff_video_share_lim,
                                         log_lim=self.params.dff_video_log_lim,
                                         share_mask=True,
                                         blur=0, mask=mask, crop=None,
                                         text=text,
-                                        downsample=2)  # 10)
+                                        select_frames=select_frames,
+                                        downsample=self.params.dff_video_downsample)  # 10)
 
     def _compute_summary_stats(self, i_trials=None, raw_only=False, force_overwrite=False):
         output = join(self.fly_processed_dir, self.params.summary_stats)
@@ -969,7 +920,7 @@ class PreProcessFly:
         for i_trial, (trial_dir, processed_dir, trial_name) \
             in enumerate(zip(self.trial_dirs, self.trial_processed_dirs, self.trial_names)):
             print(time.ctime(time.time()), " creating data frames: " + trial_dir)
-            
+
             trial_info = {"Date": self.date,
                         "Genotype": self.genotpye,
                         "Fly": self.fly,
@@ -984,31 +935,37 @@ class PreProcessFly:
             # if not os.path.isfile(opflow_out_dir) or not os.path.isfile(df3d_out_dir) \
             #     or not os.path.isfile(twop_out_dir) or self.params.overwrite:
             try:
-                _1, _2, _3 = get_synchronised_trial_dataframes(trial_dir, 
-                                                                crop_2p_start_end=self.params.denoise_params.pre_post_frame, 
-                                                                beh_trial_dir=self.beh_trial_dirs[i_trial], 
-                                                                sync_trial_dir=self.sync_trial_dirs[i_trial], 
-                                                                trial_info=trial_info,
-                                                                opflow=True, 
-                                                                df3d=True, 
-                                                                opflow_out_dir=opflow_out_dir, 
-                                                                df3d_out_dir=df3d_out_dir, 
-                                                                twop_out_dir=twop_out_dir)
-                
-                _1, frac_walk_rest = get_opflow_df(self.beh_trial_dirs[i_trial], 
-                                                        index_df=opflow_out_dir, 
-                                                        df_out_dir=opflow_out_dir, 
-                                                        block_error=True, 
-                                                        return_walk_rest=True, 
-                                                        winsize=self.params.opflow_win_size,
-                                                        thres_rest=self.params.thres_rest,
-                                                        thres_walk=self.params.thres_walk)
-                print("walking, resting: ", frac_walk_rest)
+                _1, _2, _3 = get_synchronised_trial_dataframes(
+                    trial_dir,
+                    crop_2p_start_end=self.params.denoise_params.pre_post_frame,
+                    beh_trial_dir=self.beh_trial_dirs[i_trial],
+                    sync_trial_dir=self.sync_trial_dirs[i_trial],
+                    trial_info=trial_info,
+                    opflow=True if self.params.ball_tracking == "opflow" else False,
+                    df3d=True,
+                    opflow_out_dir=opflow_out_dir,
+                    df3d_out_dir=df3d_out_dir,
+                    twop_out_dir=twop_out_dir
+                )
+                if self.params.ball_tracking == "opflow":
+                    _1, frac_walk_rest = get_opflow_df(self.beh_trial_dirs[i_trial],
+                                                            index_df=opflow_out_dir,
+                                                            df_out_dir=opflow_out_dir,
+                                                            block_error=True,
+                                                            return_walk_rest=True,
+                                                            winsize=self.params.opflow_win_size,
+                                                            thres_rest=self.params.thres_rest,
+                                                            thres_walk=self.params.thres_walk)
+                    print("walking, resting: ", frac_walk_rest)
+                elif self.params.ball_tracking == "fictrac":
+                    _ = get_fictrac_df(self.beh_trial_dirs[i_trial],
+                                       index_df=df3d_out_dir,
+                                       df_out_dir=df3d_out_dir)
             except KeyboardInterrupt:
                 raise KeyError
             except:
                 print("Error while getting dfs and computing optic flow in trial: " + trial_dir)
-    
+
     def extract_rois(self):
         roi_file = os.path.join(self.fly_processed_dir, "ROI_centers.txt")
         mask_out_dir = os.path.join(self.fly_processed_dir, "ROI_mask.tif")
@@ -1017,8 +974,8 @@ class PreProcessFly:
             twop_out_dir = os.path.join(processed_dir, self.params.twop_df_out_dir)
             stack = os.path.join(processed_dir, self.params.green_denoised)
             _ = get_roi_signals_df(stack, roi_file,
-                                    size=self.params.roi_size, pattern=self.params.roi_pattern, 
-                                    index_df=twop_out_dir, df_out_dir=twop_out_dir, 
+                                    size=self.params.roi_size, pattern=self.params.roi_pattern,
+                                    index_df=twop_out_dir, df_out_dir=twop_out_dir,
                                     mask_out_dir=mask_out_dir)
 
     def prepare_pca_analysis(self, condition, i_trials=None, compare_trials=None, load_df=True, load_pixels=True, 
@@ -1027,15 +984,15 @@ class PreProcessFly:
         i_trials = self.selected_trials if i_trials is None else i_trials
         trial_names = [trial_name for i_trial, trial_name in zip(self.selected_trials, self.trial_names)
                        if i_trial in i_trials]
-        pcan = InterPCAAnalysis(fly_dir=self.fly_dir, 
-                        i_trials=i_trials, 
-                        condition=condition, 
-                        compare_i_trials=i_trials if compare_trials is None else compare_trials, 
-                        thres_walk=self.params.thres_walk, 
+        pcan = InterPCAAnalysis(fly_dir=self.fly_dir,
+                        i_trials=i_trials,
+                        condition=condition,
+                        compare_i_trials=i_trials if compare_trials is None else compare_trials,
+                        thres_walk=self.params.thres_walk,
                         thres_rest=self.params.thres_rest,
-                        load_df=load_df, 
-                        load_pixels=load_pixels, 
-                        pixel_shape=pixel_shape, 
+                        load_df=load_df,
+                        load_pixels=load_pixels,
+                        pixel_shape=pixel_shape,
                         sigma=sigma,
                         trial_names=trial_names,
                         zscore_trials=zscore_trials)
@@ -1048,7 +1005,7 @@ class PreProcessFly:
         out_file = os.path.join(self.fly_processed_dir, self.params.pca_analysis_file)
         print(time.ctime(time.time()), " pickling PCA analysis: " + self.fly_dir)
         pcan.pickle_self(out_file)
-        
+
 
 
 
