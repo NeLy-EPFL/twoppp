@@ -14,6 +14,20 @@ from longterm.utils import get_stack, save_stack
 
 
 def get_illumination_correction(green_mean):
+    """assuming an occlusion on one side (along the x axis),
+    compute a linear fit to the mean across y,
+    return the inverse of the fit as correction
+
+    Parameters
+    ----------
+    green_mean : numpy array
+        mean of green channel across time
+
+    Returns
+    -------
+    correction: numpy array
+        to be applied with correct_illumination()
+    """
     green_med_filt = medfilt(green_mean, kernel_size=(71,91))
     green_filt = gaussian_filter(green_med_filt, sigma=3)
 
@@ -32,9 +46,39 @@ def get_illumination_correction(green_mean):
     return correction
 
 def correct_illumination(stack, correction):
+    """apply illumination correction in x direction
+    previously computed with get_illumination_correction()
+
+    Parameters
+    ----------
+    stack : numpy array
+        imaging stack
+    correction : numpy array
+        computed using get_illumination_correction()
+
+    Returns
+    -------
+    corrected: numpy array
+    """
     return stack*correction
 
 def prepare_corrected_data(train_data_tifs, out_data_tifs, fly_dir, summary_dict_pickle):
+    """prepare illumination corrected data for denoising with DeepInterpolation.
+    Fit straight line to decay in average brightness across the x direction
+    and apply the inverse of it as correction.
+
+    Parameters
+    ----------
+    train_data_tifs : list of (numpy array of str)
+        stacks to be used for training
+    out_data_tifs : list of str
+        where to save the corrected data to
+    fly_dir : str
+        not used
+    summary_dict_pickle : str
+        path to a pickled file containing a dictionary with entry "green_means_raw"
+        This will be used to fit the correction
+    """
     if not isinstance(train_data_tifs, list):
         train_data_tifs = [train_data_tifs]
     if not isinstance(out_data_tifs, list):
