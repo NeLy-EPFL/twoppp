@@ -27,3 +27,20 @@ def get_multi_index_fly_df(trial_dfs=None):
         for trial_df in trial_dfs:
             df.append(trial_df)
     return df
+
+def get_norm_dfs(dfs, perc=0.99):
+    mins = []
+    maxs = []
+    for df in dfs:
+        signals = df.filter(regex="neuron").values
+        maxs.append(np.quantile(signals, (1+perc)/2, axis=0))
+        mins.append(np.quantile(signals, (1-perc)/2, axis=0))
+    signal_min = np.mean(mins, axis=0)
+    signal_max = np.mean(maxs, axis=0)
+    for df in dfs:
+        signals = df.filter(regex="neuron").values
+        normed_signal = (signals - signal_min) / (signal_max - signal_min)
+        N_neurons = normed_signal.shape[1]
+        for i_neuron in range(N_neurons):
+            df[f"norm_{i_neuron}"] = normed_signal[:,i_neuron]
+    return dfs
