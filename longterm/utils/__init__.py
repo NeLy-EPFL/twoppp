@@ -8,6 +8,9 @@ from pathlib import Path
 from skimage.transform import resize
 from copy import deepcopy
 import scipy.stats
+import types
+import subprocess
+import signal
 
 from utils2p import load_img, save_img
 
@@ -153,3 +156,19 @@ def conf_int(array, axis=None):
     const = scipy.stats.norm.ppf(0.975)
     return const * sem(array, axis=axis)
 
+def run_shell_command(command, allow_ctrl_c=True, suppress_output=False):
+    if allow_ctrl_c:
+        try:
+            if suppress_output:
+                process = subprocess.Popen(command, shell=True, stdout=subprocess.DEVNULL)
+            else:
+                process = subprocess.Popen(command, shell=True)
+            process.communicate()
+        except KeyboardInterrupt:
+            process.send_signal(signal.SIGINT)
+    else:
+        if suppress_output:
+            process = subprocess.Popen(command, shell=True, stdout=subprocess.DEVNULL)
+        else:
+            process = subprocess.Popen(command, shell=True)
+        process.communicate()
