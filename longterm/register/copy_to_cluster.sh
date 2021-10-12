@@ -9,30 +9,30 @@ warped='red_com_warped.tif'
 convert_to_fidis_dir () {
     replace="scratch/jbraun"
     fidis_dir=${1/mnt\/NAS\/JB/$replace}
-    fidis_dir=${1/mnt\/NAS2\/JB/$replace}
-    fidis_dir=${1/mnt\/NAS\/LH/$replace}
-    fidis_dir=${1/mnt\/NAS2\/LH/$replace}
-    fidis_dir=${1/mnt\/data\/JB/$replace}
-    fidis_dir=${1/mnt\/data2\/JB/$replace}
-    fidis_dir=${1/mnt\/data\/LH/$replace}
-    fidis_dir=${1/mnt\/data2\/LH/$replace}
+    fidis_dir=${fidis_dir/mnt\/NAS2\/JB/$replace}
+    fidis_dir=${fidis_dir/mnt\/NAS\/LH/$replace}
+    fidis_dir=${fidis_dir/mnt\/NAS2\/LH/$replace}
+    fidis_dir=${fidis_dir/mnt\/data\/JB/$replace}
+    fidis_dir=${fidis_dir/mnt\/data2\/JB/$replace}
+    fidis_dir=${fidis_dir/mnt\/data\/LH/$replace}
+    fidis_dir=${fidis_dir/mnt\/data2\/LH/$replace}
     echo ${fidis_dir}
 }
 convert_to_fidis_mounted_dir () {
     replace="scratch"
     fidis_dir=${1/NAS\/JB/$replace}
-    fidis_dir=${1/NAS2\/JB/$replace}
-    fidis_dir=${1/NAS\/LH/$replace}
-    fidis_dir=${1/NAS2\/LH/$replace}
-    # fidis_dir=${1/data\/JB/$replace}
-    # fidis_dir=${1/data2\/JB/$replace}
-    # fidis_dir=${1/data\/LH/$replace}
-    # fidis_dir=${1/data2\/LH/$replace}
+    fidis_dir=${fidis_dir/NAS2\/JB/$replace}
+    fidis_dir=${fidis_dir/NAS\/LH/$replace}
+    fidis_dir=${fidis_dir/NAS2\/LH/$replace}
+    fidis_dir=${fidis_dir/data\/JB/$replace}
+    fidis_dir=${fidis_dir/data2\/JB/$replace}
+    fidis_dir=${fidis_dir/data\/LH/$replace}
+    fidis_dir=${fidis_dir/data2\/LH/$replace}
     echo ${fidis_dir}
 }
 
 copy_dir () {
-    fidis_dir=$(convert_to_fidis_dir ${1})
+    # fidis_dir=$(convert_to_fidis_dir ${1})
     fidis_dir=$(convert_to_fidis_mounted_dir ${1})
     fidis_base_dir=$(dirname ${fidis_dir})
     # echo MAKING DIR ${fidis_base_dir}
@@ -49,7 +49,7 @@ copy_dir () {
 # echo FIDIS_DIR: "$(convert_to_fidis_mounted_dir ${fly_dir})"
 base_dir=$(dirname ${fly_dir})
 # echo BASE DIR: "$base_dir"
-if [[ $base_dir == *"fly"* ]]; then
+if [[ $base_dir == *"fly"* ]] || [[ $base_dir == *"Fly"* ]]; then
     echo THIS IS A TRIAL DIR
     for dir in "$fly_dir/processed/$to_warp"; do
         # echo COPYING "${dir}"

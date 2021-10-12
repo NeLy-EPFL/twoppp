@@ -1,5 +1,5 @@
 #!/bin/bash
-time="16:00:00"
+time="40:00:00"
 partition="parallel"
 output="./outputs/slurm-%j.out"    
 

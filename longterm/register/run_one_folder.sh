@@ -7,13 +7,13 @@ output="./outputs/slurm-%j.out"
     
 convert_to_fidis_dir () {
     fidis_dir=${1//mnt\/NAS\/JB/scratch\/jbraun}
-    fidis_dir=${1//mnt\/NAS2\/JB/scratch\/jbraun}
-    fidis_dir=${1//mnt\/NAS\/LH/scratch\/jbraun}
-    fidis_dir=${1//mnt\/NAS2\/LH/scratch\/jbraun}
-    fidis_dir=${1//mnt\/data\/JB/scratch\/jbraun}
-    fidis_dir=${1//mnt\/data2\/JB/scratch\/jbraun}
-    fidis_dir=${1//mnt\/data\/LH/scratch\/jbraun}
-    fidis_dir=${1//mnt\/data2\/LH/scratch\/jbraun}
+    fidis_dir=${fidis_dir//mnt\/NAS2\/JB/scratch\/jbraun}
+    fidis_dir=${fidis_dir//mnt\/NAS\/LH/scratch\/jbraun}
+    fidis_dir=${fidis_dir//mnt\/NAS2\/LH/scratch\/jbraun}
+    fidis_dir=${fidis_dir//mnt\/data\/JB/scratch\/jbraun}
+    fidis_dir=${fidis_dir//mnt\/data2\/JB/scratch\/jbraun}
+    fidis_dir=${fidis_dir//mnt\/data\/LH/scratch\/jbraun}
+    fidis_dir=${fidis_dir//mnt\/data2\/LH/scratch\/jbraun}
     echo ${fidis_dir}
 }
 
