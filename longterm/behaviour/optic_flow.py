@@ -1,4 +1,8 @@
-import os, sys
+"""
+sub-module to analyse data from the optical flow sensors
+"""
+import os
+import sys
 import numpy as np
 import pandas as pd
 
@@ -24,6 +28,16 @@ gains = {"gain0X": gain0X,
 def load_opflow(beh_trial_dir):
     """
     This function opens the optic flow measurements values initially stored in a text file.
+
+    Parameters
+    ----------
+    beh_trial_dir : string
+        absolute path of the folder where the optic flow file "OptFlow.txt" is located
+
+    Returns
+    -------
+    pandas DataFrame
+        raw sensor values of the optic flow sensor
     """
     opflow_file = find_file(beh_trial_dir, 'OptFlow.txt')
     cols = ['sens0X','sens0Y','sens1X','sens1Y','OpflowTime']
@@ -33,6 +47,16 @@ def load_opflow(beh_trial_dir):
 def calibrate_opflow(flow_data, gains=gains):
     """
     This function returns the sensor values times the calibration gain.
+
+    Parameters
+    ----------
+    flow_data : pandas DataFrame
+        dataframe containing the raw sensor values as outputted by load_opflow()
+
+    Returns
+    -------
+    pandas Dataframe
+        same dataframe, but values multiplied with calibration gain
     """
     flow_data["sens0X"] *= gains["gain0X"]
     flow_data["sens0Y"] *= gains["gain0Y"]
@@ -44,6 +68,16 @@ def compute_velocities(flow_data):
     """
     This function computes the AP, ML and Yaw rot/s from the sensor measurements.
     Equations from: https://www.nature.com/articles/nmeth.1468
+    
+    Parameters
+    ----------
+    flow_data : pandas DataFrame
+        dataframe containing optical flow sensor values
+
+    Returns
+    -------
+    pandas Dataframe
+        same dataframe with additional fields velForw, velSide, velTurn
     """
     velForw = -((flow_data["sens0Y"] + flow_data["sens1Y"]) * np.cos(np.deg2rad(45)))
     velSide = (flow_data["sens0Y"] - flow_data["sens1Y"]) * np.sin(np.deg2rad(45))
@@ -58,18 +92,72 @@ def opflow_filter(x, winsize=80):
     return np.convolve(x, np.ones((winsize))/winsize, mode="same")
 
 def filter_velocities(flow_data, winsize=80):
+    """apply moving averag filter to optical flow data inside the same pandas DataFrame
+
+    Parameters
+    ----------
+    flow_data : pandas DataFrame
+        dataframe containing velocities computed from optical flow, e.g. output of compute_velocities()
+    winsize : int, optional
+        window size, by default 80
+
+    Returns
+    -------
+    pandas DataFrame
+        same DataFrame with velocitie fields smoothed
+    """
     flow_data["velForw"] = opflow_filter(flow_data["velForw"], winsize)
     flow_data["velSide"] = opflow_filter(flow_data["velSide"], winsize)
     flow_data["velTurn"] = opflow_filter(flow_data["velTurn"], winsize)
     return flow_data
 
-def forward_walking(flow_data, thres_walk=0.03, winsize=100):  # 4 if downsampled to 16 Hz
+def forward_walking(flow_data, thres_walk=0.03, winsize=100): 
+    """apply a threshold to check whether the fly is forward walking or not.
+    adds field "walk" to the dataframe.
+
+    Parameters
+    ----------
+    flow_data : pandas DataFrame
+        dataframe containing velocities computed from optical flow, e.g. output of compute_velocities()
+        Ideally already filtered using filter_velocities()
+    thres_walk : float, optional
+        threshold to apply on forward walking units (rotations/s), by default 0.03
+    winsize : int, optional
+        behaviour will only be considered walking if  >=75% of the samples within a window centered
+        around the current frame are also above the threshold., by default 100 (at 400 Hz)
+        choose 4 if data is already downsampled to 16 Hz
+
+    Returns
+    -------
+    pandas DataFrame
+        same DataFrame with additional field "walk"
+    """
     walk = flow_data["velForw"] >= thres_walk
     walk = np.logical_and(np.convolve(walk, np.ones(winsize)/winsize, mode="same") >= 0.75, walk)
     flow_data["walk"] = walk
     return flow_data
 
-def resting(flow_data, thres_rest=0.01, winsize=400):  # 16 if downsampled to 16 Hz
+def resting(flow_data, thres_rest=0.01, winsize=400):
+    """apply a threshold to check whether the fly is resting or not.
+    adds field "rest" to the dataframe.
+
+    Parameters
+    ----------
+    flow_data : pandas DataFrame
+        dataframe containing velocities computed from optical flow, e.g. output of compute_velocities()
+        Ideally already filtered using filter_velocities()
+    thres_rest : float, optional
+        threshold to apply on forward walking units (rotations/s), by default 0.03
+    winsize : int, optional
+        behaviour will only be considered resting if  >=75% of the samples within a window centered
+        around the current frame are also above the threshold., by default 400 (at 400 Hz)
+        choose 16 if data is already downsampled to 16 Hz
+
+    Returns
+    -------
+    pandas DataFrame
+        same DataFrame with additional field "rest"
+    """
     rest = np.logical_and.reduce((np.abs(flow_data["velForw"]) <= thres_rest, 
                                   np.abs(flow_data["velSide"]) <= thres_rest, 
                                   np.abs(flow_data["velTurn"]) <= thres_rest))
@@ -77,13 +165,95 @@ def resting(flow_data, thres_rest=0.01, winsize=400):  # 16 if downsampled to 16
     flow_data["rest"] = rest
     return flow_data
 
+def clean_rest(rest, N_clean=16*5):  # for 16 Hz. for full res data 400*5
+    """remove short resting periods and the beginning of resting periods.
+    This is usefull when considering resting in parallel to the GCaMP decay.
+
+    Parameters
+    ----------
+    rest : numpy array
+        binary time signal indicating whether a fly is resting or not
+    N_clean : int, optional
+        how many samples at the beginning of each resting period to cut off, by default 16*5 (at 16 Hz)
+
+    Returns
+    -------
+    numpy array
+        binary array with cleaned resting signal
+    """
+    rest_cleaned = np.zeros_like(rest)
+    i_start = np.where(np.diff(rest.astype(int))==1)[0]
+    if rest[0]:
+        i_start = np.concatenate(([-1], i_start))
+    i_end = np.where(np.diff(rest.astype(int))==-1)[0]
+    if rest[-1]:
+        i_end = np.concatenate((i_end, [len(rest)-1]))
+    for this_start, this_end in zip(i_start, i_end):
+        if this_start + N_clean < this_end:
+            rest_cleaned[this_start+N_clean+1:this_end+1] = True
+    return rest_cleaned
+
 def fractions_walking_resting(flow_data):
+    """compute fractions of walking and resting based on the flow_data DataFrame
+
+    Parameters
+    ----------
+    flow_data : pandas DataFrame
+        dataframe containing "rest" and "walk" fields
+
+    Returns
+    -------
+    float
+        fraction of walking
+    float
+        fraction of resting
+    """
     fraction_walk = np.mean(flow_data.walk)
     fraction_rest = np.mean(flow_data.rest)
     return fraction_walk, fraction_rest
 
-def get_opflow_df(beh_trial_dir, index_df=None, df_out_dir=None, block_error=False, 
+def get_opflow_df(beh_trial_dir, index_df=None, df_out_dir=None, block_error=False,
                   winsize=80, thres_walk=0.03, thres_rest=0.01, return_walk_rest=False):
+    """read the optical flow data from file, load it into a dataframe, pre-process it.
+    If index_df is given, load it into the pre-specified data frame
+
+    Parameters
+    ----------
+    beh_trial_dir : str
+        absolute path of the folder where the optic flow file "OptFlow.txt" is located
+    index_df : pandas Dataframe or str, optional
+        pandas dataframe or path of pickle containing dataframe to which the optic flow result is added.
+        This could, for example, be a dataframe that contains indices for synchronisation with 2p data,
+        by default None
+    df_out_dir : str, optional
+        where to save the dataframe, by default None
+    block_error : bool, optional
+        if True, ignore if optical flow file is not found and return an empty dataframe, by default False
+    winsize : int, optional
+        window size for moving average filter to be applied to raw sensor values, by default 80
+    thres_walk : float, optional
+        threshold to classify forward walking. unit: rotations/s, by default 0.03
+    thres_rest : float, optional
+        threshold to classify resting. unit: rotations/s, by default 0.01
+    return_walk_rest : bool, optional
+        if True, return dataframe, fraction_walking, fraction_resting.
+        Otherwise, just the dataframe, by default False
+
+    Returns
+    -------
+    pandas DataFrame
+        optical flow dataframe with following (additional) fields:
+        sens0X, sens0Y, sens1X, sens1Y, velForw, velSide, velTurn, rest, walk
+
+    Raises
+    ------
+    FileNotFoundError
+        if optical flow file not found and block_error == False
+    SyntaxError
+        Error during reading of the optical flow file and/or replacing it with empty array.
+    ValueError
+        length of index_df and optical flow file are not corresponding to each other by more than 10 samples
+    """
     if isinstance(index_df, str) and os.path.isfile(index_df):
         index_df = pd.read_pickle(index_df)
     elif index_df is not None:
@@ -128,7 +298,7 @@ def get_opflow_df(beh_trial_dir, index_df=None, df_out_dir=None, block_error=Fal
         if len(index_df) != len(flow_data):
             if np.abs(len(index_df) - len(flow_data)) <=10:
                 Warning("Number of Thorsync ticks and length of text file do not match. \n"+\
-                        "Thosync has {} ticks, txt file has {} lines. \n".format(len(index_df), len(flow_data))+\
+                        "Thorsync has {} ticks, txt file has {} lines. \n".format(len(index_df), len(flow_data))+\
                         "Trial: "+beh_trial_dir)
                 print("Difference: {}".format(len(index_df) - len(flow_data)))
                 length = np.minimum(len(index_df), len(flow_data))
@@ -136,7 +306,7 @@ def get_opflow_df(beh_trial_dir, index_df=None, df_out_dir=None, block_error=Fal
                 flow_data = flow_data.iloc[:length, :]
             else:
                 raise ValueError("Number of Thorsync ticks and length of text file do not match. \n"+\
-                        "Thosync has {} ticks, txt file has {} lines. \n".format(len(index_df), len(flow_data))+\
+                        "Thorsync has {} ticks, txt file has {} lines. \n".format(len(index_df), len(flow_data))+\
                         "Trial: "+beh_trial_dir)
         df = index_df
         for key in list(flow_data.keys()):

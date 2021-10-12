@@ -1,6 +1,7 @@
-# Jonas Braun
-# jonas.braun@epfl.ch
-# 18.02.2021
+"""
+sub-module to perfrom center of mass registration 
+and non-affine motion correction using the ofco package.
+"""
 
 import os
 import sys
@@ -21,6 +22,25 @@ sys.path.append(MODULE_PATH)
 from longterm import load, utils
 
 def save_ref_frame(stack, ref_frame_dir, i_frame = 0, com_pre_reg=True, overwrite=False, crop=None):
+    """get reference frame for motion correction.
+    If requested, compute center of mass registration and crop
+
+    Parameters
+    ----------
+    stack : numpy array or str
+        image stack where reference frame is taken from
+    ref_frame_dir : str
+        output path
+    i_frame : int, optional
+        frame index, by default 0
+    com_pre_reg : bool, optional
+        whether to perform center of mass registration on reference frame, by default True
+    overwrite : bool, optional
+        whether to overwrite existing results, by default False
+    crop : list, optional
+        list of length 2 for symmetric cropping (same on both sides),
+        or list of length 4 for assymetric cropping, by default None
+    """
     if os.path.isfile(ref_frame_dir):
         return
     stack = utils.get_stack(stack)
@@ -32,6 +52,37 @@ def save_ref_frame(stack, ref_frame_dir, i_frame = 0, com_pre_reg=True, overwrit
 
 def center_and_crop(stack1, stack2=None, crop=None, stack1_out_dir=None, stack2_out_dir=None, offset_dir=None,
                     overwrite=False, return_stacks=False):
+    """compute and apply center of mass (COM) registration on entire stack and crop.
+    Can also be used with pre-computed shifts. Supply them in offset_dir.
+
+    Parameters
+    ----------
+    stack1 : numpy array or str
+        reference stack of images, based on which the COM offsets will be computed
+    stack2 : numpy array or str, optional
+        stack to which the offset will also be applied, by default None
+    crop : list, optional
+        list of length 2 for symmetric cropping (same on both sides),
+        or list of length 4 for assymetric cropping, by default None
+    stack1_out_dir : str, optional
+        where to save stack1 after COM and crop, by default None
+    stack2_out_dir : str, optional
+         where to save stack2 after COM and crop, by default None
+    offset_dir : str, optional
+        where to save the COM offsets. can also be used to load pre-computed shifts, by default None
+    overwrite : bool, optional
+        whether to overwrite existing results.
+        Currently overwrite only possible on final stack, not if offset_dir already is a file, by default False
+    return_stacks : bool, optional
+        whether to return stacks, by default False
+
+    Returns
+    -------
+    (stack1_shifted: numpy array)
+        only returns if return_stacks == True. Otherwise returns None
+    (stack2_shifted: numpy array)
+        only returns if return_stacks == True. Otherwise returns None
+    """
     if os.path.isfile(stack1_out_dir) and not overwrite:
         if not return_stacks:
             return None, None
@@ -65,6 +116,30 @@ def center_and_crop(stack1, stack2=None, crop=None, stack1_out_dir=None, stack2_
     return stack1_shifted, stack2_shifted if return_stacks else None, None
 
 def center_stack(frames, return_offset=False, sigma_filt=(0, 10, 10), foreground_thres=0.75):
+    """perform center of mass registration on a stack of images.
+    Smoothes and thresholds the stack before computing offset
+    (return stack is not smoothed and thresholded).
+    can return offsets to apply to other (parallely acquired) stack
+
+    Parameters
+    ----------
+    frames : numpy array
+        stack of frames to be centered
+    return_offset : bool, optional
+        whether to return the offset, by default False
+    sigma_filt : tuple, optional
+        smoothing kernel to be applied to the stack before performing COM registration,
+        by default (0, 10, 10)
+    foreground_thres : float, optional
+        quantile threshold applied to the stack before computing shift, by default 0.75
+
+    Returns
+    -------
+    frames_shifted: numpy array
+        COM registered frames
+    (offsets: numpy array)
+        only if return_offset == True
+    """
     N, H, W = frames.shape
     offsets = np.zeros((N,2))
     frames_filt = gaussian_filter(frames, sigma=sigma_filt, truncate=2)
@@ -80,7 +155,20 @@ def center_stack(frames, return_offset=False, sigma_filt=(0, 10, 10), foreground
         return frames_shifted
 
 def apply_offset(frames, offsets):
-    if frames.ndim == 2:  # TODO: test this
+    """apply shifts to a stack of frames, e.g. for center of mass registration.
+
+    Parameters
+    ----------
+    frames : numpy array
+        stack of frames
+    offsets : numpy array
+        array of size N_frames, 2 containing the shifts to be applied
+
+    Returns
+    -------
+    frames_shifted: numpy array
+    """
+    if frames.ndim == 2:
         frames = frames[np.newaxis, :, :]
         squeeze = True
     else:
@@ -103,6 +191,60 @@ def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_di
          com_pre_reg=False, offset_dir=None, return_stacks=False, overwrite=False,
          select_frames=None, parallel=True, verbose=False, w_output=None, initial_w=None, 
          save_motion_field=True, param=None):
+    """use optic flow motion correction (ofco) to perform non-affine registraion.
+    Wrapper around https://github.com/NeLy-EPFL/ofco
+    Will try to use existing w_output and apply it to stack2.
+
+    Parameters
+    ----------
+    stack1 : numpy array or str
+        reference stack
+    stack2 : numpy array or str, optional
+        2nd stack to which motion field will be applied, by default None
+    ref_frame : int, numpy array or str, optional
+        reference frame to register to
+        if int, will be interpreted as frame index.
+        if otherwise, will take array or load .tif from file, by default None
+    stack1_out_dir : str, optional
+        where to save stack1 after registration, by default None
+    stack2_out_dir : [type], optional
+        where to save stack2 after refistration, by default None
+    com_pre_reg : bool, optional
+        whether to perform center of mass registration before ofco, by default False
+    offset_dir : str, optional
+        COM registration offsets. if specified, will load them.
+        if not a file, will save there, by default None
+    return_stacks : bool, optional
+        whether to return the stacks, by default False
+    overwrite : bool, optional
+        whether to overwrite existing results, by default False
+    select_frames : list, optional
+        if specified, only perform motion correction on a selected range of frames, by default None
+    parallel : bool, optional
+        whether to use multiprocessing.pool to parralelise, by default True
+    verbose : bool, optional
+        whether to print intermediate steps, by default False
+    w_output : str, optional
+        location to store the ofco motion fields, by default None
+    initial_w : numpy array, optional
+        weights to prime the optimisation, by default None
+    save_motion_field : bool, optional
+        whether to save the motion fields to file, by default True
+    param : dict, optional
+        parameters for ofco. if not specified, use ofco internal defaults, by default None
+
+    Returns
+    -------
+    (stack1_warped: numpy array)
+        only if return_stacks is selected
+    (stack2_warped: numpy array)
+        only if return_stacks is selected
+
+    Raises
+    ------
+    NotImplementedError
+        if stack1 is not a numpy array or cannot be found
+    """
     param = ofco.utils.default_parameters() if param is None else param
 
     if os.path.isfile(stack1_out_dir) and not overwrite:
@@ -153,11 +295,12 @@ def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_di
     else:
         ref_frame = 0
 
-    stack1_warped, stack2_warped = ofco.motion_compensate(stack1, stack2, 
-                                                          frames=range(N_frames) if select_frames is None else select_frames,
-                                                          param=param, verbose=verbose, parallel=parallel, 
-                                                          w_output=w_output if save_motion_field else None, 
-                                                          initial_w=initial_w, ref_frame=ref_frame)
+    stack1_warped, stack2_warped = ofco.motion_compensate(
+        stack1, stack2,
+        frames=range(N_frames) if select_frames is None else select_frames,
+        param=param, verbose=verbose, parallel=parallel,
+        w_output=w_output if save_motion_field else None,
+        initial_w=initial_w, ref_frame=ref_frame)
 
     if stack1_out_dir is not None:
         utils2p.save_img(stack1_out_dir, stack1_warped)
@@ -166,7 +309,7 @@ def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_di
 
     return stack1_warped, stack2_warped if return_stacks else None, None
 
-def warp_N_parts(stack1, stack1_out_dir, N_parts, stack2=None, stack2_out_dir=None, ref_frame=None, 
+def warp_N_parts(stack1, stack1_out_dir, N_parts, stack2=None, stack2_out_dir=None, ref_frame=None,
          com_pre_reg=False, offset_dir=None, return_stacks=False, overwrite=False,
          select_frames=None, parallel=True, verbose=False, w_output=None, initial_w=None, param=None):
     param = ofco.utils.default_parameters() if param is None else param
@@ -246,6 +389,40 @@ def warp_N_parts(stack1, stack1_out_dir, N_parts, stack2=None, stack2_out_dir=No
 
 def apply_warp(stack, stack_out_dir, w_output, select_frames=None,
                com_pre_reg=False, offset_dir=None, return_stacks=False, overwrite=False):
+    """apply motion field to stack. wraps around apply_motion_field() with data loading/saving.
+
+    Parameters
+    ----------
+    stack : numpy array or str
+        stack to which motion field is applied
+    stack_out_dir : str
+        where to save the stack
+    w_output : str
+        location of .npy weights
+    select_frames : list, optional
+        whether to warp only selected frames,
+        must be consistent with the time the motion field was computed
+        by default None
+    com_pre_reg : bool, optional
+        whether to apply center of mass registration before, by default False
+    offset_dir : str, optional
+        COM registration offsets. if specified, will load them.
+        if not a file, will save there, by default None
+    return_stacks : bool, optional
+        whether to return the stacks, by default False
+    overwrite : bool, optional
+        whether to overwrite existing results, by default False
+
+    Returns
+    -------
+    (stack_warped: numpy array)
+        only returns if return_stacks == True
+
+    Raises
+    ------
+    NotImplementedError
+        if stack is not a numpy array or cannot be found
+    """
     if os.path.isfile(stack_out_dir) and not overwrite:
         if not return_stacks:
             return None
@@ -279,14 +456,27 @@ def apply_warp(stack, stack_out_dir, w_output, select_frames=None,
     return stack_warped if return_stacks else None
 
 def apply_motion_field(stack, motion_field):
+    """apply motion field using bilinearly interpolation.
+
+    Parameters
+    ----------
+    stack : numpy array
+        stack of frames to apply motion field to
+    motion_field : numpy array
+        motion field computed using ofco
+
+    Returns
+    -------
+    stack_warped: numpy array
+    """
     N_frames, N_y, N_x = stack.shape
     assert motion_field.shape == (N_frames, N_y, N_x, 2)
 
     stack_warped = np.zeros_like(stack)
 
     for i_frame in range(N_frames):
-        stack_warped[i_frame, :, :] = ofco.warping.bilinear_interpolate(stack[i_frame, :, :], 
-                                                                        motion_field[i_frame, :, :, 0], 
+        stack_warped[i_frame, :, :] = ofco.warping.bilinear_interpolate(stack[i_frame, :, :],
+                                                                        motion_field[i_frame, :, :, 0],
                                                                         motion_field[i_frame, :, :, 1])
     
     return stack_warped

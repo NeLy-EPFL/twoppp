@@ -1,3 +1,7 @@
+"""
+sub-module adding project-spcific plotting functionality and video functions.
+"""
+
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
@@ -123,6 +127,24 @@ def confidence_ellipse(x, y, ax, color, n_std=2.0, facecolor='none', **kwargs):
     return ax.add_patch(ellipse)
 
 def shade_walk_rest(walk, rest, x=None, ax=None, alpha=0.2, colors=["red", "blue"]):
+    """shade ranges of the x axis in two different colours
+
+    Parameters
+    ----------
+    walk : numpy array
+        binary array indicating whether fly is walking or not
+    rest : numpy array
+        binary array indicating whether fly is resting or not
+    x : numpy array, optional
+        x values that other data on the axes will be/was plotted against.
+        if not specified: x = np.arange(len(walk)), by default None
+    ax : matplotlib.pyplot.Axes, optional
+        axis to be plotted on. if not specified plt.gca(), by default None
+    alpha : float, optional
+        transparency of shaded area, by default 0.2
+    colors : list, optional
+        colors to shade walking and resting in, by default ["red", "blue"]
+    """
     ax = plt.gca() if ax is None else ax
     x = np.arange(len(walk)) if x is None else x
     
@@ -139,20 +161,33 @@ def shade_walk_rest(walk, rest, x=None, ax=None, alpha=0.2, colors=["red", "blue
     for i_stim in range(N_walk):
         ax.axvspan(x[walk_diff_start[i_stim]], x[walk_diff_end[i_stim]], 
                    alpha=alpha, color=colors[0], ec=None, label="walk" if i_stim==0 else None)
-    for i_stim in range(N_rest):    
+    for i_stim in range(N_rest):
         ax.axvspan(x[rest_diff_start[i_stim]], x[rest_diff_end[i_stim]], 
                    alpha=alpha, color=colors[1], ec=None, label="rest" if i_stim==0 else None)
 
 def plot_mu_sem(mu, err, x=None, label="", alpha=0.3, color=None, ax=None):
     """
-    plot mean and standard deviation, e.g. when plotting mean of predictability across neurons over lag
-    :param mu: mean, shape [N_samples, N_lines] or [N_samples]
-    :param err: error to be plotted, e.g. standard error of the mean, shape [N_samples, N_lines] or [N_samples]
-    :param x: shape [N_samples]. If not specified will be np.arange(mu.shape[0])
-    :param label: the label for each line either a string if only one line or list of strings if multiple lines
-    :param alpha: transparency of the shaded area. default 0.3
-    :param color: pre-specify colour. if None, use Python default colour cycle
-    :param ax: axis to be plotted on, otherwise it will get the current axis with plt.gca()
+    plot mean and standard deviation,
+
+    Parameters
+    ----------
+    mu: numpy array
+        mean, shape [N_samples, N_lines] or [N_samples]
+    err: numpy array
+        error to be plotted, e.g. standard error of the mean,
+        shape [N_samples, N_lines] or [N_samples]
+    x: numpy array, optional
+        shape [N_samples]. If not specified will be np.arange(mu.shape[0]),
+        by default None
+    label: str, optional
+        the label for each line either a string if only one line or
+        list of strings if multiple lines, by default ""
+    alpha: float, optional
+        transparency of the shaded area, by default 0.3
+    color: optional
+        pre-specify colour. if None, use Python default colour cycle, by default None
+    ax: matplotlib.pyplot.Axes, optional
+        axis to be plotted on, otherwise it will get the current axis with plt.gca(), by default None
     :return:
     """
     if ax is None:
@@ -164,4 +199,5 @@ def plot_mu_sem(mu, err, x=None, label="", alpha=0.3, color=None, ax=None):
         ax.fill_between(x, mu - err, mu + err, alpha=alpha, color=p[0].get_color())
     else:
         for i in np.arange(mu.shape[1]):
-            ax.fill_between(x, mu[:, i] - err[:, i], mu[:, i] + err[:, i], alpha=alpha, color=p[i].get_color())
+            ax.fill_between(x, mu[:, i] - err[:, i], mu[:, i] + err[:, i], 
+                            alpha=alpha, color=p[i].get_color())
