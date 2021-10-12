@@ -4,8 +4,7 @@ import pandas as pd
 from scipy.ndimage.filters import convolve
 
 FILE_PATH = os.path.realpath(__file__)
-ROIS_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(ROIS_PATH)
+LONGTERM_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
 sys.path.append(MODULE_PATH)
 
@@ -201,7 +200,7 @@ def get_roi_mask(stack, centers, size=(7,11), pattern="default", binary=False, m
         save_stack(mask_out_dir, mask)
     return mask
             
-def get_dff_from_traces(signals, length_baseline=10, return_f0=False, f0_min=None):
+def get_dff_from_traces(signals, length_baseline=10, return_f0=False, f0_min=None, lift_neg_baseline=None):
     """
     Extract traces for individual neurons for a given mask with non overlapping connected components.
     Parameters
@@ -227,13 +226,19 @@ def get_dff_from_traces(signals, length_baseline=10, return_f0=False, f0_min=Non
     dff = np.zeros_like(signals)
     f_0s = np.zeros((signals.shape[-1]))
     for roi_num in range(signals.shape[-1]):
+        signal = signals[:, roi_num]
         convolved = np.convolve(
-            signals[:, roi_num], np.ones(length_baseline), mode="valid"
+            signal, np.ones(length_baseline), mode="valid"
         )
         f_0 = np.min(convolved) / length_baseline
-        f_0 = np.maximum(f_0, f0_min) if f0_min is not None else f_0
-        f_0s[roi_num] = f_0
-        dff[:, roi_num] = (signals[:, roi_num] - f_0) / f_0
+        if lift_neg_baseline is not None and f_0 < lift_neg_baseline:
+            f_0s[roi_num] = f_0
+            signal += (lift_neg_baseline - f_0)
+            f_0 = lift_neg_baseline
+        else:
+            f_0 = np.maximum(f_0, f0_min) if f0_min is not None else f_0
+            f_0s[roi_num] = f_0
+        dff[:, roi_num] = (signal - f_0) / f_0
     return dff if not return_f0 else (dff, f_0s)
 
 def write_roi_center_file(centers, filename):
@@ -270,7 +275,7 @@ def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default
                       "This might be because the denoising algorithm cuts the data to multiples of the batch size.")
                 index_df = index_df.iloc[:N_samples, :]
             else:
-                raise ValueError("Diference between thorsync ticks and two photon data larger than 5 frames")
+                raise ValueError("Difference between thorsync ticks and two photon data larger than 5 frames")
         assert len(index_df) == N_samples
         df = index_df
     else:
