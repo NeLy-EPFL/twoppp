@@ -1,8 +1,11 @@
-# Jonas Braun
-# jonas.braun@epfl.ch
-# 19.02.2021
+"""
+Sub-module including generators for videos and functions to make videos.
+Video generation is based on utils_video:
+https://github.com/NeLy-EPFL/utils_video
+"""
 
-import os.path, sys
+import os.path
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import colors
@@ -12,6 +15,7 @@ import json
 import pandas as pd
 from scipy.ndimage.filters import gaussian_filter
 import pickle
+from glob import glob
 # from torch import from_numpy
 
 import utils2p
@@ -32,12 +36,16 @@ from longterm import load
 from longterm.register.warping import apply_motion_field, apply_offset
 
 def make_video(video_path, frame_generator, fps, output_shape=(-1, 1920), n_frames=-1):
+    """Wrapper around utils_video.make_video() changing the frame rate to be a non-integer value
+    to avoid warning and potential error.
+    """
     print(f"Making video with {n_frames} frames.")
     if np.log2(fps) % 1 == 0:
         fps += 0.01
-    utils_video.make_video(video_path, frame_generator, fps, output_shape=output_shape, n_frames=n_frames)
+    utils_video.make_video(video_path, frame_generator, fps,
+                           output_shape=output_shape, n_frames=n_frames)
 
-def make_video_2p(green, out_dir, video_name, red=None, percentiles=(5,99), 
+def make_video_2p(green, out_dir, video_name, red=None, percentiles=(5,99),
                   frames=None, frame_rate=None, trial_dir=None):
     green = get_stack(green)
     if frames is None:
@@ -98,9 +106,49 @@ def generator_frames_2p(red_stack, green_stack, percentiles=(5, 95), red_vlim=No
         frame = frame.astype(np.uint8)
         yield frame
 
-def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None, vmax=None, 
+def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None, vmax=None,
                   blur=0, mask=None, crop=None, log_lim=False,
-                  text=None):                           
+                  text=None, colorbarlabel="dff"):
+    """generator to make dff videos.
+    Modified from https://github.com/NeLy-EPFL/utils_video
+
+    Parameters
+    ----------
+    stack : numpy array or str
+        stack of dff frames or path pointing to .ti
+    size : tuple, optional
+        resize video to given size, by default None
+    font_size : int, optional
+        text font size, by default 16
+    pmin : float, optional
+        percentage min of dff, overruled by vmin by default 0.5
+    pmax : float, optional
+        percentage max of dff, overruled by vmax by default 99.5
+    vmin : float, optional
+        absolute minimum values for dff, if not specified, use pmin, by default None
+    vmax : float, optional
+        absolute maximum values for dff. if not specified, use pmax, by default None
+    blur : float, optional
+        whether to spatially blur dff. width of Gaussian kernel, by default 0
+    mask : numpy array or str, optional
+        mask to apply over the dff, by default None
+    crop : list, optional
+        cropping applied to dff
+        list of length 2 for symmetric cropping (same on both sides),
+        or list of length 4 for assymetric cropping, by default None
+    log_lim : bool, optional
+        EXPERIMENTAL FUNCTION: whether to use logarithmic limits and scale for dff,
+        by default False
+    text : str, optional
+        text to show in top left of image, by default None
+    colorbarlabel : str, optional
+        text printed next to the colourbar, by default "dff"
+
+    Yields
+    -------
+    frame: numpy array
+    """
+    colorbarlabel = r"%$\frac{\Delta F}{F}$" if colorbarlabel == "dff" else colorbarlabel
     if mask is not None:
         mask = np.invert(mask)  # invert only once
         stack_tmp = np.zeros_like(stack)
@@ -127,7 +175,7 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
         image_shape = resize_shape(image_shape, stack.shape[1:3])
         cbar_shape = (image_shape[0], cbar_width)
 
-    cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size)
+    cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size, label=colorbarlabel)
 
     def frame_generator():
         for frame in stack:
@@ -138,7 +186,7 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
             frame = cv2.resize(frame, image_shape[::-1])
             frame = add_colorbar(frame, cbar, "right")
             yield frame
-    
+
     generator = frame_generator()
     if text is not None:
         generator = utils_video.generators.add_text(generator, text=text, pos=(10,50))
@@ -436,6 +484,28 @@ def make_video_df3d(trial_dir, out_dir, video_name, frames=None, frame_rate=None
     make_video(os.path.join(out_dir, video_name), generator, frame_rate/factor_downsample*speedup)
 
 def generator_video(path, size=None, start=0, stop=9223372036854775807):
+    """load video from file and return as generator
+
+    Parameters
+    ----------
+    path : str
+        path of video file
+    size : tuple, optional
+        if specified, resize image to given size, by default None
+    start : int, optional
+        which frame to start at, by default 0
+    stop : int, optional
+        which frame to stop at, by default 9223372036854775807
+
+    Yields
+    -------
+    frame: numpy array
+
+    Raises
+    ------
+    RuntimeError
+        if video is already opened somwhere else
+    """
     try:
         cap = cv2.VideoCapture(path)
 
@@ -457,7 +527,47 @@ def generator_video(path, size=None, start=0, stop=9223372036854775807):
     finally:
         cap.release()
 
+def generator_cam_frames(frames, size=None, start=0, stop=9223372036854775807):
+    """read frames from list of images and return as generator
+
+    Parameters
+    ----------
+    frames : list
+        list of frame names
+    size : tuple, optional
+        if specified, resize image to given size, by default None
+    start : int, optional
+        which frame to start at, by default 0
+    stop : int, optional
+        which frame to stop at, by default 9223372036854775807
+
+    Yields
+    -------
+    frame: numpy array
+    """
+    for current_frame, frame in enumerate(frames):
+        if current_frame >= start and current_frame < stop:
+            frame = cv2.imread(frame)
+            if size is not None:
+                shape = resize_shape(size, frame.shape[:2])
+                frame = cv2.resize(frame, shape[::-1])
+            yield frame
+        elif current_frame >= stop:
+            break
+
 def downsample_generator(generator, factor):
+    """return every Nth element of a genertor
+
+    Parameters
+    ----------
+    generator : generator
+    factor : int
+        every Nth frame will be returned
+
+    Yields
+    -------
+    frame: numpy array
+    """
     i_frame = 0
     while 1:
         i_frame += 1
@@ -469,6 +579,21 @@ def downsample_generator(generator, factor):
             yield frame
 
 def selected_frames_generator(generator, select_frames):
+    """return generator that only shows selected frames.
+    Can also be used to repeat a short sequence over and over again.
+    If an error occurs, will continue to yield the first frame.
+
+    Parameters
+    ----------
+    generator : generator
+    select_frames : list or numpy array
+        indices of frames to show in which sequence. 
+        individual indices can appear multiple times
+
+    Yields
+    -------
+    frame: numpy array
+    """
     i_frame = 0
     except_frame = None
     frames = []
@@ -531,10 +656,94 @@ def selected_frames_generator(generator, select_frames):
             yield frame
 
 def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sync_dir=None,
-                           camera=6, stack_axis=0, green=None, red=None,
-                           vmin=0, vmax=None, pmin=1, pmax=99, blur=0, mask=None, crop=None, log_lim=False,
-                           text=None, asgenerator=False, downsample=None, select_frames=None, max_length=None):
+                           camera=6, stack_axis=0, green=None, red=None, colorbarlabel="dff",
+                           vmin=0, vmax=None, pmin=1, pmax=99, blur=0, mask=None, crop=None, log_lim=False, text=None,
+                           text_loc="dff", asgenerator=False, downsample=None, select_frames=None, max_length=None, time=True):
+    """make a video containing behavioural data and deltaF/F and/or green+red frames.
+    Synchronises two photon and behavioural recordings.
+    Can be used as a generator, for example when stacking videos of multiple trials
 
+    Parameters
+    ----------
+    dff : numpy array or str
+        delta F/F either as numpy array or as absolute path pointing to a .tif
+    trial_dir : str
+        directory containing the 2p data and ThorImage output
+    out_dir : str
+        directory to save the video in
+    video_name : str
+        name of the output video
+    beh_dir : str, optional
+         directory containing the 7 camera data. If not specified, will be set equal
+        to trial_dir, by default None
+    sync_trial_dir : str, optional
+        directory containing the output of ThorSync. If not specified, will be set equal
+        to trial_dir, by default None
+    camera : int, optional
+        which camera to use. will search for "camera_X.mp4", by default 6
+    stack_axis : int, optional
+        along which axis to stack the generators: 0=y axis, 1=x axis, by default 0
+    green : numpy array or str, optional
+        green stack or path to ,tif, by default None
+    red : numpy array or str, optional
+        red stack or path to .tif, by default None
+    colorbarlabel : str, optional
+        name of the dff colourbar label, by default "dff"
+    vmin : float, optional
+        absolute minimum values for dff, if not specified, use pmin, by default 0
+    vmax : float, optional
+        absolute maximum values for dff. if not specified, use pmax, by default None
+    pmin : float, optional
+        percentage min of dff, overruled by vmin by default 1
+    pmax : float, optional
+        percentage max of dff, overruled by vmax by default 99
+    blur : float, optional
+        whether to spatially blur dff. width of Gaussian kernel, by default 0
+    mask : numpy array or str, optional
+        mask to apply over the dff, by default None
+    crop : list, optional
+        cropping applied to dff
+        list of length 2 for symmetric cropping (same on both sides),
+        or list of length 4 for assymetric cropping, by default None
+    log_lim : bool, optional
+        EXPERIMENTAL FUNCTION! whether to use logarithmic limits and scale for dff, by default False
+    text : str, optional
+        string to write on top of the video, by default None
+    text_loc : str, optional
+        where the text will be displayed. either "dff" or "beh".
+        If "beh", make sure to select time=False, by default "dff"
+    asgenerator : bool, optional
+        if True, will return video as generator. if not, will make video using make_video(),
+        by default False
+    downsample : int, optional
+        downsampling factor, by default None
+    select_frames : list or numpy array, optional
+        list containing a sequence of selected two-photon frame inidices.
+        if an empty list, generate a black frame. If None, use all frames, by default None
+    max_length : int, optional
+        maximum length of the video in frames, by default None
+    time : bool, optional
+        whether or not to show the current time of the recording in the behaviour video,
+        by default True
+
+    Returns
+    -------
+    (generator: generator)
+        only if asgenerator == True
+    (N_frames: int)
+        length of the video in frames, only if asgenerator == True
+    frame_rate
+        frame rate of the video, only if asgenerator == True
+
+    Raises
+    ------
+    FileNotFoundError
+        if behaviour video file not found and no individual frames are not found either.
+    """
+    if dff is None:
+        no_dff = True
+    else:
+        no_dff = False
     if isinstance(select_frames, list) or isinstance(select_frames, np.ndarray) \
         and len(select_frames) == 0 and asgenerator:
         # deal with the case that no frames are selected
@@ -598,6 +807,9 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
     elif green is not None:
         assert green.shape == red.shape
 
+    if no_dff:
+        dff = np.zeros_like(green)
+
     if len(dff) < len(frame_times_2p):  # adapt for denoised data when some frames in the beginning and some frames in the end are missing
         len_diff = (len(frame_times_2p) - len(dff)) // 2
         first_frame_start_time = frame_times_2p[len_diff]
@@ -635,15 +847,35 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
             factor = np.ceil(max_length/len(select_frames))
             select_frames = np.repeat(np.expand_dims(select_frames, axis=0),factor, axis=0).flatten()[:max_length]
 
-    dff_generator = generator_dff(dff, vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax,
-                                  blur=blur, mask=mask, crop=crop, text=text, log_lim=log_lim)
+    if not no_dff:
+        dff_generator = generator_dff(dff, vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax,
+                                    blur=blur, mask=mask, crop=crop, colorbarlabel=colorbarlabel,
+                                    text=text if text_loc=="dff" else None, log_lim=log_lim)
+    else:
+        dff_generator = None
 
     images_dir, _ = os.path.split(seven_camera_metadata_file)
     # beh_video_dir = os.path.join(images_dir, "camera_{}.mp4".format(camera))
-    beh_video_dir = find_file(images_dir, "camera_{}*.mp4".format(camera))
-    beh_generator = generator_video(beh_video_dir, start=beh_start_ind, stop=beh_end_ind)  # TODO: selected frames
-    text = [f"{t:.1f}s" for t in frame_times_beh]
-    beh_generator = utils_video.generators.add_text(beh_generator, text, scale=3, pos=(10, 150))
+    try:
+        beh_video_dir = find_file(images_dir, f"camera_{camera}*.mp4")
+        beh_generator = generator_video(beh_video_dir, start=beh_start_ind, stop=beh_end_ind)  # TODO: selected frames
+    except FileNotFoundError:
+        print("Video file not found. will search for individual images.")
+        try:
+            image_list = glob(os.path.join(images_dir, f"camera_{camera}_img_*.jpg"))
+            image_numbers = [int(os.path.basename(image)[13:-4]) for image in image_list]
+            sort_inds = np.argsort(image_numbers)
+            image_list_sorted = [image_list[i_im] for i_im in sort_inds]
+            assert len(image_list_sorted) == len(frame_times_beh)
+            beh_generator = generator_cam_frames(image_list_sorted, start=beh_start_ind, stop=beh_end_ind)
+        except:
+            raise FileNotFoundError
+
+    if time:
+        text = [f"{t:.1f}s" for t in frame_times_beh]
+        beh_generator = utils_video.generators.add_text(beh_generator, text, scale=3, pos=(10, 150))
+    elif text_loc == "beh":
+        beh_generator = utils_video.generators.add_text(beh_generator, text, scale=2, pos=(10, 50))
     with open(seven_camera_metadata_file, "r") as f:
         metadata = json.load(f)
 
@@ -656,12 +888,15 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
     """
     dff_generator = utils_video.generators.resample(dff_generator, indices)
     """
-    if twop_generator is None:
-        generator = utils_video.generators.stack([beh_generator, dff_generator], 
+    if twop_generator is None and dff_generator is not None:
+        generator = utils_video.generators.stack([beh_generator, dff_generator],
+                                                 axis=stack_axis, allow_different_length=True)
+    elif dff_generator is not None:
+        # twop_generator = utils_video.generators.resample(twop_generator, indices)
+        generator = utils_video.generators.stack([beh_generator, dff_generator, twop_generator],
                                                  axis=stack_axis, allow_different_length=True)
     else:
-        # twop_generator = utils_video.generators.resample(twop_generator, indices)
-        generator = utils_video.generators.stack([beh_generator, dff_generator, twop_generator], 
+        generator = utils_video.generators.stack([twop_generator, beh_generator],
                                                  axis=stack_axis, allow_different_length=True)
     
     if select_frames is not None:
@@ -685,11 +920,80 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
     else:
         return generator, int(N_frames), frame_rate
 
-def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_dirs=None, sync_dirs=None, 
-                                    camera=6, stack_axes=[0, 1], greens=None, reds=None,
+def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_dirs=None, sync_dirs=None,
+                                    camera=6, stack_axes=[0, 1], greens=None, reds=None, colorbarlabel="dff",
                                     vmin=0, vmax=None, pmin=1, pmax=99, share_lim=True, log_lim=False,
-                                    blur=0, mask=None, share_mask=False, crop=None, text=None, 
-                                    downsample=None, select_frames=None):
+                                    blur=0, mask=None, share_mask=False, crop=None, text=None, text_loc="dff",
+                                    downsample=None, select_frames=None, time=True):
+    """
+    Make a synchronised and stacked video of (one behavioural camera + dff and/or red/green) for multiple trials.
+    Running this function can take very long because large amounts of data are involved.
+
+    Parameters
+    ----------
+    dffs : list of numpy array or str
+        for each trial, delta F/F either as numpy array or as absolute path pointing to a .tif
+    trial_dirs : list of str
+        for each trial, directory containing the 2p data and ThorImage output
+    out_dir : str
+        directory to save the video in
+    video_name : str
+        name of the output video
+    beh_dirs : list of str, optional
+        for each trial, directory containing the 7 camera data. If not specified, will be set equal
+        to trial_dir, by default None
+    sync_dirs : list of str, optional
+        for each trial, directory containing the output of ThorSync. If not specified, will be set equal
+        to trial_dir, by default None
+    camera : int, optional
+        which camera to use. will search for "camera_X.mp4", by default 6
+    stack_axes : list, optional
+        how to stack the generators. First value stacks behaviour/dff/... of individual trials,
+        second values stacks trials. 0=y, 1=y, by default [0, 1]
+    greens : list of (numpy array or str), optional
+        for each trial, green stack or path to ,tif, by default None
+    reds : list of (numpy array or str), optional
+        for each trial, red stack or path to .tif, by default None
+    colorbarlabel : str, optional
+        name of the dff colourbar label, by default "dff"
+    vmin : float, optional
+        absolute minimum values for dff, if not specified, use pmin, by default 0
+    vmax : float, optional
+        absolute maximum values for dff. if not specified, use pmax, by default None
+    pmin : float, optional
+        percentage min of dff, overruled by vmin by default 1
+    pmax : float, optional
+        percentage max of dff, overruled by vmax by default 99
+    share_lim : bool, optional
+        whether to use the same colorscale limits for all trials, by default True
+    log_lim : bool, optional
+        EXPERIMENTAL FUNCTION: whether to use logarithmic limits and scale for dff,
+        by default False
+    blur: float, optional
+        whether to spatially blur dff. width of Gaussian kernel, by default 0
+    mask : numpy array or str or list of the before, optional
+        mask to apply over the dff. Either specify list as long as trial_dirs 
+        or one mask and select share_mask=True, by default None
+    share_mask : bool, optional
+        whether to share the mask across all trials of dff, by default False
+    crop : list, optional
+        cropping applied to dff
+        list of length 2 for symmetric cropping (same on both sides),
+        or list of length 4 for assymetric cropping, by default None
+    text : list of str, optional
+        for each trial, string to write on top of the video, by default None
+    text_loc : str, optional
+        where the text will be displayed. either "dff" or "beh".
+        If "beh", make sure to select time=False, by default "dff"
+    downsample : int, optional
+        downsampling factor, by default None
+    select_frames : list of (list or numpy array), optional
+        for each trial, list containing a sequence of selected two-photon frame inidices.
+        if an empty list, generate a black frame. If None, use all frames, by default None
+    time : bool, optional
+        whether or not to show the current time of the recording in the behaviour video,
+        by default True
+    """
     if not isinstance(dffs, list):
         dffs = [dffs]
     if text is not None:
@@ -717,7 +1021,7 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
     dffs = [get_stack(dff) for dff  in dffs]
     dffs_tmp = []
     for this_mask, this_dff in zip(mask, dffs):
-        if this_mask is not None:
+        if this_mask is not None and this_dff is not None:
             this_mask = np.invert(this_mask)  # invert only once
             this_dff_tmp = np.zeros_like(this_dff)
             for i_f, f in enumerate(this_dff):
@@ -727,15 +1031,12 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
         else:
             dffs_tmp.append(this_dff)
     dffs = dffs_tmp
-
-    # reds = [get_stack(red) for red  in reds]
-    # greens = [get_stack(green) for green  in greens]
     
     if share_lim:
-        vmins = [np.percentile(dff, pmin) if vmin is None else vmin for dff in dffs]
-        vmaxs = [np.percentile(dff, pmax) if vmax is None else vmax for dff in dffs]
-        vmin = np.mean(vmins)
-        vmax = np.mean(vmaxs)
+        vmins = [np.percentile(dff, pmin) if vmin is None and dff is not None else vmin for dff in dffs]
+        vmaxs = [np.percentile(dff, pmax) if vmax is None and dff is not None else vmax for dff in dffs]
+        vmin = np.ma.average(np.ma.array(vmins)) if not all([v is None for v in vmins]) else None
+        vmax = np.ma.average(np.ma.array(vmaxs)) if not all([v is None for v in vmaxs]) else None
     if isinstance(log_lim, bool): #TODO: test this
         log_lim = [log_lim for _ in dffs]
     assert len(dffs) == len(log_lim)
@@ -767,9 +1068,9 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
         in enumerate(zip(dffs, trial_dirs, beh_dirs, sync_dirs, text, mask, greens, reds, select_frames, log_lim)):
         this_generator, this_N_frames, frame_rate = make_video_raw_dff_beh(dff=dff, trial_dir=trial_dir, out_dir=None, video_name=None,
                                                                   beh_dir=beh_dir, sync_dir=sync_dir, camera=camera, stack_axis=stack_axes[0],
-                                                                  green=green, red=red,
+                                                                  green=green, red=red, colorbarlabel=colorbarlabel,
                                                                   vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax, blur=blur, mask=this_mask,
-                                                                  crop=crop, text=this_text, log_lim = this_log_lim,
+                                                                  crop=crop, text=this_text, text_loc=text_loc, log_lim = this_log_lim, time=time,
                                                                   asgenerator=True, downsample=downsample, max_length=max_length, select_frames=frames)
         generators.append(this_generator)
         N_frames.append(this_N_frames)
@@ -784,6 +1085,21 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
     make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=N_frames)
 
 def stimulus_dot_generator(generator, start_stim, stop_stim):
+    """add a red dot to a video generator whenever a stimulus was on.
+    Will add red dot upon start_stim and remove it at stop_stim
+
+    Parameters
+    ----------
+    generator : generator
+    start_stim : list
+        list of indices when the stimulation started
+    stop_stim : list
+        list of indices when the stimulation ended
+
+    Yields
+    -------
+    frame: numpy array
+    """
     if not isinstance(start_stim, list) and not isinstance(start_stim, tuple):
         start_stim = [start_stim]
     if not isinstance(stop_stim, list) and not isinstance(stop_stim, tuple):
@@ -831,7 +1147,7 @@ def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, ou
             video_name = video_name + ".mp4"
     make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=N_frames)
 
-def make_all_odour_condition_videos(video_dirs, paradigm_dirs, out_dir, video_name, frame_range=[-500,1500], stim_length=1000, frame_rate=None, size=None):
+def make_all_odour_condition_videos(video_dirs, paradigm_dirs, out_dir, video_name, frame_range=[-500,1500], stim_length=1000, frame_rate=None, size=None, conditions=None):
     assert len(video_dirs) == len(paradigm_dirs)
     if video_name.endswith(".mp4"):
         video_name = video_name[:-4]
@@ -848,6 +1164,9 @@ def make_all_odour_condition_videos(video_dirs, paradigm_dirs, out_dir, video_na
         this_conditions = np.unique(trial_conditions)
         unique_conditions = np.concatenate((unique_conditions, this_conditions))
     unique_conditions = np.unique(unique_conditions)
+
+    if conditions is not None:
+        unique_conditions = [this_cond for this_cond in unique_conditions if this_cond in conditions]
     
     for condition in unique_conditions:
         start_frames = []
