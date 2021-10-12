@@ -10,6 +10,7 @@ from longterm import load
 # from longterm.dff import find_dff_mask
 # from longterm.plot.videos import make_video_dff, make_multiple_video_dff
 from longterm.pipeline import PreProcessFly, PreProcessParams
+from longterm import fly_dirs, all_selected_trials, all_selected_trials_old, conditions
 
 if __name__ == "__main__":
 
@@ -39,49 +40,17 @@ if __name__ == "__main__":
     params.ofco_verbose = True
 
 
-    fly_dirs = [os.path.join(load.NAS2_DIR_LH, "210722", "fly3"),  # high caff
-                os.path.join(load.NAS2_DIR_LH, "210721", "fly3"),  # high caff
-                os.path.join(load.NAS2_DIR_LH, "210723", "fly1"),  # low caff
-                os.path.join(load.NAS2_DIR_LH, "210723", "fly2"),  # high caff
-
-                os.path.join(load.NAS2_DIR_LH, "210802", "fly1"),  # lowcaff
-                os.path.join(load.NAS2_DIR_LH, "210804", "fly1"),  # low caff
-                os.path.join(load.NAS2_DIR_LH, "210804", "fly2"),  # low caff
-
-                os.path.join(load.NAS2_DIR_LH, "210811", "fly2"),  # high caff
-                os.path.join(load.NAS2_DIR_LH, "210811", "fly1"),  # starv
-                os.path.join(load.NAS2_DIR_LH, "210812", "fly1"),  # starv
-                os.path.join(load.NAS2_DIR_LH, "210813", "fly1"),  # sucr
-                os.path.join(load.NAS2_DIR_LH, "210818", "fly3"),  # sucr
-
-                os.path.join(load.NAS2_DIR_LH, "210901", "fly1"),  # starv
-                os.path.join(load.NAS2_DIR_LH, "210902", "fly2"),  # sucr
-                ]
-    all_selected_trials = [
-        [1,3,4,5,6,7,8,9,10,11,12,13],
-        [1,3,4,5,6,7,8,9,10,11,12],
-        [1,3,4,5,6,8,9,10,11,12],
-        [1,3,5,6,7,8,9,10,11,12,13,14],
-
-        [1,3,4,5,6,7,8,9,11,12],  # 10 exlcuded because CC out of center
-        [1,3,4,5,6,7,8,9,10,11,12],
-        [1,3,4,5,6,7,8,9,10,11,12],
-
-        [0,2,5,6,7,8,9,10,11,12,13,16],
-        [2,4,5,7],
-        [2,4,5,7],
-        [2,5,6,8],
-        [2,4,5,7],
-
-        [2,4,5,7],
-        [2,4,5,7],
-        ]
-
     params_copy = deepcopy(params)
 
-    for i_fly, (fly_dir, selected_trials) in \
-        enumerate(zip(fly_dirs, all_selected_trials)):
-        if i_fly != 13:
+    COPY_BACK_ONLY = True
+
+    for i_fly, (fly_dir, selected_trials, selected_trials_old) in \
+        enumerate(zip(fly_dirs, all_selected_trials, all_selected_trials_old)):
+        if len(selected_trials) == len(selected_trials_old):
+            continue
+        if COPY_BACK_ONLY:
+            print("COPYING BACK FLY: ", fly_dir)
+            stream = os.system(". ../longterm/register/copy_from_cluster.sh " + fly_dir)
             continue
         params = deepcopy(params_copy)
 

@@ -13,7 +13,7 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import fly_dirs, all_selected_trials, conditions
+from longterm import fly_dirs, all_selected_trials, conditions, all_selected_trials_old
 from longterm import load, utils
 # from longterm.dff import find_dff_mask
 # from longterm.plot.videos import make_video_dff, make_multiple_video_dff
@@ -92,11 +92,14 @@ if __name__ == "__main__":
 
     params_copy = deepcopy(params)
     LOG_LIM_WORKS = True
+    OVERWRITE_DFF_BASELINE = True
 
-    for i_fly, (fly_dir, selected_trials, condition) in \
-        enumerate(zip(fly_dirs, all_selected_trials, conditions)):
+    for i_fly, (fly_dir, selected_trials, selected_trials_old, condition) in \
+        enumerate(zip(fly_dirs, all_selected_trials, all_selected_trials_old, conditions)):
         params = deepcopy(params_copy)
         if i_fly not in to_run:
+            continue
+        if len(selected_trials) == len(selected_trials_old):
             continue
 
         print("Starting preprocessing of fly \n" + fly_dir)
@@ -107,6 +110,10 @@ if __name__ == "__main__":
         # warp, denoise, compute denoised dff, compute summary stats
         preprocess.params.make_dff_videos = False
         preprocess.params.make_summary_stats = True  #TODO
+
+        if OVERWRITE_DFF_BASELINE:
+            os.remove(os.path.join(fly_dir, load.PROCESSED_FOLDER, preprocess.params.dff_baseline))
+
         preprocess.run_all_trials()  #TODO
 
         # making videos
@@ -155,6 +162,7 @@ if __name__ == "__main__":
 
         
         # further pre-processing steps
+        preprocess.get_dfs()
         if False:
             try:
                 preprocess.get_dfs()
