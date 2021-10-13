@@ -505,7 +505,8 @@ class PreProcessFly:
                 prepare_corrected_data(train_data_tifs=input_datas,
                                        out_data_tifs=tmp_data_dirs,
                                        fly_dir=self.fly_dir,
-                                       summary_dict_pickle=join(self.fly_processed_dir, self.summary_stats))
+                                       summary_dict_pickle=join(self.fly_processed_dir, 
+                                                                self.params.summary_stats))
             else:
                 denoise.prepare_data(train_data_tifs=input_datas,
                                     out_data_tifs=tmp_data_dirs,
