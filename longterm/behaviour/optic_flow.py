@@ -13,6 +13,7 @@ MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
 sys.path.append(MODULE_PATH)
 
 from longterm.utils import find_file
+from longterm.behaviour.synchronisation import reduce_during_2p_frame, reduce_min
 
 gain0X = round(1/1.52,2)
 gain0Y = round(1/1.48,2)
@@ -324,3 +325,49 @@ def get_opflow_df(beh_trial_dir, index_df=None, df_out_dir=None, block_error=Fal
     if return_walk_rest:
         return df, fractions_walking_resting(df)
     return df
+
+def get_opflow_in_twop_df(opflow_df, twop_df, twop_df_out_dir=None, thres_walk=0.03, thres_rest=0.01):
+    """add downsampled optic flow information to the two photon dataframe
+
+    Parameters
+    ----------
+    opflow_df : pandas DataFrame or str
+        optical flow dataframe, as obtained from get_opflow_df()
+    twop_df : pandas DataFrame or str
+        two photon dataframe as obtained from synchronisation.get_synchronised_trial_dataframes()
+    twop_df_out_dir : str, optional
+        where to save the twop_df to after adding optic flow variables, by default None
+    thres_walk : float, optional
+        threshold to classify forward walking. unit: rotations/s, by default 0.03
+    thres_rest : float, optional
+        threshold to classify resting. unit: rotations/s, by default 0.01
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+    if isinstance(opflow_df, str) and os.path.isfile(opflow_df):
+        opflow_df = pd.read_pickle(opflow_df)
+    assert isinstance (twop_df, pd.DataFrame)
+    if isinstance(twop_df, str) and os.path.isfile(twop_df):
+        twop_df = pd.read_pickle(twop_df)
+    assert isinstance (twop_df, pd.DataFrame)
+
+    twop_index = opflow_df["twop_index"]
+    N_frames = np.max(twop_index)
+    twop_df = twop_df[:N_frames]
+    twop_df["velForw"] = reduce_during_2p_frame(twop_index, opflow_df["velForw"])[:N_frames]
+    twop_df["velSide"] = reduce_during_2p_frame(twop_index, opflow_df["velSide"])[:N_frames]
+    twop_df["velTurn"] = reduce_during_2p_frame(twop_index, opflow_df["velTurn"])[:N_frames]
+    twop_df["walk_resamp"] = reduce_during_2p_frame(twop_index, opflow_df["walk"], function=reduce_min)[:N_frames]
+    twop_df["rest_resamp"] = reduce_during_2p_frame(twop_index, opflow_df["rest"], function=reduce_min)[:N_frames]
+
+    fs = 1 / np.diff(twop_df["t"])
+
+    twop_df = resting(twop_df, thres_rest=thres_rest, winsize=int(np.floor(fs)))
+    twop_df = forward_walking(twop_df, thres_walk=thres_walk, winsize=int(np.floor(fs/4)))
+
+    if twop_df_out_dir is not None:
+        twop_df.to_pickle(twop_df_out_dir)
+    return twop_df

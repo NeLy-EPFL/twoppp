@@ -31,7 +31,7 @@ from longterm.behaviour import df3d
 from longterm.plot.videos import make_video_dff, make_multiple_video_dff, make_video_raw_dff_beh, make_multiple_video_raw_dff_beh
 from longterm.rois import local_correlations, get_roi_signals_df
 from longterm.behaviour.synchronisation import get_synchronised_trial_dataframes
-from longterm.behaviour.optic_flow import get_opflow_df
+from longterm.behaviour.optic_flow import get_opflow_df, get_opflow_in_twop_df
 from longterm.behaviour.fictrac import get_fictrac_df
 from longterm.analysis import InterPCAAnalysis
 
@@ -272,10 +272,12 @@ class PreProcessFly:
              for processed_dir in self.trial_processed_dirs if processed_dir != ""]
 
     def _save_ref_frame(self):
+        if self.params.ref_frame == "":
+            return
         ref_trial_dir = self.trial_dirs[self.params.i_ref_trial]
         ref_processed_dir = self.trial_processed_dirs[self.params.i_ref_trial]
-        _ = load.convert_raw_to_tiff(ref_trial_dir, 
-                                     overwrite=self.params.overwrite, 
+        _ = load.convert_raw_to_tiff(ref_trial_dir,
+                                     overwrite=self.params.overwrite,
                                      return_stacks=False)
         ref_stack = join(ref_processed_dir, self.params.red_raw)
         self.ref_frame = join(self.fly_processed_dir, self.params.ref_frame)
@@ -323,7 +325,7 @@ class PreProcessFly:
             self._convert_raw_to_tiff_trial(trial_dir, processed_dir)
             gc.collect()
         if self.params.use_warp:
-            _ = [self._warp_trial(processed_dir) 
+            _ = [self._warp_trial(processed_dir)
                  for processed_dir in self.trial_processed_dirs]
             gc.collect()
         elif self.params.use_com:
@@ -948,7 +950,7 @@ class PreProcessFly:
                     twop_out_dir=twop_out_dir
                 )
                 if self.params.ball_tracking == "opflow":
-                    _1, frac_walk_rest = get_opflow_df(self.beh_trial_dirs[i_trial],
+                    opflow_df, frac_walk_rest = get_opflow_df(self.beh_trial_dirs[i_trial],
                                                             index_df=opflow_out_dir,
                                                             df_out_dir=opflow_out_dir,
                                                             block_error=True,
@@ -956,6 +958,11 @@ class PreProcessFly:
                                                             winsize=self.params.opflow_win_size,
                                                             thres_rest=self.params.thres_rest,
                                                             thres_walk=self.params.thres_walk)
+                    _ = get_opflow_in_twop_df(twop_df=twop_out_dir,
+                                              opflow_df=opflow_df,
+                                              twop_df_out_dir=twop_out_dir,
+                                              thres_rest=self.params.thres_rest,
+                                              thres_walk=self.params.thres_walk)
                     print("walking, resting: ", frac_walk_rest)
                 elif self.params.ball_tracking == "fictrac":
                     _ = get_fictrac_df(self.beh_trial_dirs[i_trial],
