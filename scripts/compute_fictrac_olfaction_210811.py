@@ -267,7 +267,7 @@ if __name__ == "__main__":
     print(trial_dirs)
     # main_preprocess(trial_dirs)
     print("making plots")
-    main_plots(trial_dirs, "210908_olfactory.pdf")
+    # main_plots(trial_dirs, "210908_olfactory.pdf")
     print("making videos")
-    # main_videos(trial_dirs, video_name="210908_olfac_video")
+    main_videos(trial_dirs, video_name="210908_olfac_video")
     #TODO: optimise grid_size function in utils_video --> for 9 videos, returns 4x3
