@@ -101,7 +101,7 @@ conditions = [
 ]
 
 class Trial():
-    def __init__(self, trial_dir, beh_trial_dir, sync_trial_dir, fly):
+    def __init__(self, fly, trial_dir, beh_trial_dir, sync_trial_dir):
         super().__init__()
         self.fly = fly
         self.dir = trial_dir
@@ -132,20 +132,21 @@ class Fly():
         trial_dirs = utils.readlines_tolist(os.path.join(self.dir, "trial_dirs.txt"))
         beh_dirs = utils.readlines_tolist(os.path.join(self.dir, "beh_trial_dirs.txt"))
         sync_dirs = utils.readlines_tolist(os.path.join(self.dir, "sync_trial_dirs.txt"))
-        self.trials = [Trial(trial_dirs[i_trial],
+        self.trials = [Trial(self,
+                             trial_dirs[i_trial],
                              beh_dirs[i_trial],
-                             sync_dirs[i_trial],
-                            self) for i_trial in self.selected_trials]
+                             sync_dirs[i_trial])
+                       for i_trial in self.selected_trials]
         self.mask_coarse = os.path.join(self.processed_dir, "cc_mask.tif")
         self.fs = 16
         self.summary_dict = os.path.join(self.processed_dir, "compare_trials.pkl")
         wave_mask_names = ["mask_top.tif", "mask_left.tif", "mask_right.tif",
                            "mask_bottom.tif", "mask_gf_left.tif", "mask_gf_right.tif"]
         self.wave_masks = [os.path.join(self.processed_dir, wave_mask) for wave_mask in wave_mask_names]
-        self.trials_mean_dff = os.path.join(self.processed_dir, "trials_mean_dff.pkl")
+        self.trials_mean_dff = os.path.join(self.processed_dir, "trials_mean_dff.pkl")  # trials_mean_dff_raw
         self.raw_std = os.path.join(self.processed_dir, "raw_std.tif")
         self.mask_fine = os.path.join(self.processed_dir, "cc_mask_fiji.tif")
-        self.wave_details = os.path.join(self.processed_dir, "wave_details.pkl")
+        self.wave_details = os.path.join(self.processed_dir, "wave_details.pkl")  # wave_details_raw
         self.rest_maps = os.path.join(self.processed_dir, "rest_maps.pkl")
         self.correction = os.path.join(self.processed_dir, "illumination_correction.pkl")
 

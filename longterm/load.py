@@ -85,8 +85,8 @@ def get_trials_from_fly(fly_dir, startswith="", endswith="", contains="", exclud
     dir_list = [os.listdir(this_dir) for this_dir in fly_dir]
     # return every subfolder that starts with "startswith" and ends with "endswith"
     trial_dirs = [[os.path.join(fly_dir[i_dir], folder) for folder in fly_dir_list 
-                            if not os.path.isfile(os.path.join(fly_dir[i_dir], folder)) 
-                            and folder.endswith(endswith) 
+                            if not os.path.isfile(os.path.join(fly_dir[i_dir], folder))
+                            and folder.endswith(endswith)
                             and folder.startswith(startswith)
                             and contains in folder
                             and not exclude in folder
