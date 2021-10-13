@@ -80,29 +80,6 @@ def compute_rest_maps(fly, trials, correct=True):
             pickle.dump(map_dict, f)
     return map_dict
 
-def plot_dff_maps(map_dict, fly_dir):
-    N_trials = len(map_dict["means_rest"])
-    fig, axs = plt.subplots(N_trials, 4, figsize=(16,N_trials*3))
-    clim = [0, np.maximum(1,np.mean(map_dict["dff_max"]))]  # np.mean(map_dict["dff_min"])
-    ims = ["means_walk", "means_rest", "means_walk_norm", "means_rest_norm"]
-    clims = [clim, clim, [0,1], [0,1]]
-    titles = ["mean: walk", "mean: rest", "normalised mean: walk", "normalised mean: rest"]
-    cmaps = [plt.cm.get_cmap("jet"),plt.cm.get_cmap("jet"), plt.cm.get_cmap("viridis"), plt.cm.get_cmap("viridis")]
-    for i_trial, axs_row in enumerate(axs):
-        for i_col, ax in enumerate(axs_row):
-            im = map_dict[ims[i_col]][i_trial]
-            if len(im):
-                ax.imshow(im, clim=clims[i_col], cmap=cmaps[i_col])
-            else:
-                ax.axis("off")
-            title = titles[i_col]
-            if i_col == 0:
-                title = map_dict["trial_names"][i_trial] + " " + title
-            ax.set_title(title)
-    fig.suptitle(fly_dir)
-    fig.tight_layout()
-    return fig
-
 def make_dff_maps(fly, trials, axs, overwrite=False, data="dff", set_title=True, i_cbar_ax=2, crop=True):
     _ = [ax.axis("off") for ax in axs]
     if not os.path.isfile(fly.rest_maps) or overwrite:
@@ -175,7 +152,7 @@ def make_detailled_wave_plots(fly, axs, i_trial, overwrite=False, crop=True, tit
         if crop:
             ref_img = ref_img[to_crop[0]:-to_crop[0], to_crop[1]:-to_crop[1]]
         # 0.2 raw data
-        green = utils.get_stack(fly.trials[i_trial].green_denoised)
+        green = utils.get_stack(fly.trials[i_trial].green_raw)  #TODO. do the plot with green raw data  # green_denoised
         if crop:
             green = green[:,to_crop[0]:-to_crop[0], to_crop[1]:-to_crop[1]]
         # 0.3 over-all mask
@@ -310,7 +287,7 @@ def make_trial_wave_plot(fly, ax, ylim=None, overwrite=False, legend=False, shif
     else:
         print("loading fluorescence data for fly ", fly.dir)
         for trial in tqdm(fly.trials):
-            green = utils.get_stack(trial.green_denoised)
+            green = utils.get_stack(trial.green_raw)  # TODO: test with green raw data.  # green_denoised
             green_mean = np.sum(green*mask, axis=(1,2))/N_pixels
             green_means.append(green_mean)
         green_means = np.array(green_means).T
@@ -466,13 +443,13 @@ def fig_contributions():
 def main():
     datestring = datetime.now().strftime("%Y%m%d_%H%M")
     
-    with PdfPages(os.path.join(OUTPUT_PATH, f"_figures_paper_{datestring}.pdf")) as pdf:
+    with PdfPages(os.path.join(OUTPUT_PATH, f"_figures_paper_{datestring}_raw.pdf")) as pdf:
         for map_type in ["dff", "green", "green_denoised"]:
             fig = main_figure(map_type)
             pdf.savefig(fig)
     plt.close(fig)
     
-    with PdfPages(os.path.join(OUTPUT_PATH, f"_supfigures_paper_{datestring}.pdf")) as pdf:
+    with PdfPages(os.path.join(OUTPUT_PATH, f"_supfigures_paper_{datestring}_raw.pdf")) as pdf:
         fig = sup_fig_all_waves()
         pdf.savefig(fig)
     plt.close(fig)
