@@ -961,8 +961,8 @@ class PreProcessFly:
                     _ = get_opflow_in_twop_df(twop_df=twop_out_dir,
                                               opflow_df=opflow_df,
                                               twop_df_out_dir=twop_out_dir,
-                                              thres_rest=self.params.thres_rest,
-                                              thres_walk=self.params.thres_walk)
+                                              thres_walk=self.params.thres_walk,
+                                              thres_rest=self.params.thres_rest)
                     print("walking, resting: ", frac_walk_rest)
                 elif self.params.ball_tracking == "fictrac":
                     _ = get_fictrac_df(self.beh_trial_dirs[i_trial],

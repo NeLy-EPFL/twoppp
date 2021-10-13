@@ -349,7 +349,7 @@ def get_opflow_in_twop_df(opflow_df, twop_df, twop_df_out_dir=None, thres_walk=0
     """
     if isinstance(opflow_df, str) and os.path.isfile(opflow_df):
         opflow_df = pd.read_pickle(opflow_df)
-    assert isinstance (twop_df, pd.DataFrame)
+    assert isinstance (opflow_df, pd.DataFrame)
     if isinstance(twop_df, str) and os.path.isfile(twop_df):
         twop_df = pd.read_pickle(twop_df)
     assert isinstance (twop_df, pd.DataFrame)
@@ -363,7 +363,7 @@ def get_opflow_in_twop_df(opflow_df, twop_df, twop_df_out_dir=None, thres_walk=0
     twop_df["walk_resamp"] = reduce_during_2p_frame(twop_index, opflow_df["walk"], function=reduce_min)[:N_frames]
     twop_df["rest_resamp"] = reduce_during_2p_frame(twop_index, opflow_df["rest"], function=reduce_min)[:N_frames]
 
-    fs = 1 / np.diff(twop_df["t"])
+    fs = np.mean(1 / np.diff(twop_df["t"]))
 
     twop_df = resting(twop_df, thres_rest=thres_rest, winsize=int(np.floor(fs)))
     twop_df = forward_walking(twop_df, thres_walk=thres_walk, winsize=int(np.floor(fs/4)))
