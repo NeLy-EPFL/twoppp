@@ -6,11 +6,11 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import load
-from longterm.behaviour.synchronisation import get_synchronised_trial_dataframes
-from longterm.behaviour.optic_flow import get_opflow_df
-from longterm.utils import readlines_tolist
-from longterm.rois import get_roi_signals_df
+from twoppp import load
+from twoppp.behaviour.synchronisation import get_synchronised_trial_dataframes
+from twoppp.behaviour.optic_flow import get_opflow_df
+from twoppp.utils import readlines_tolist
+from twoppp.rois import get_roi_signals_df
 fly_dirs = [
     "/mnt/NAS2/LH/210512/fly3",
     "/mnt/NAS2/LH/210514/fly1",

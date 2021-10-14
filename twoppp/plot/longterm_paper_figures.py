@@ -16,14 +16,14 @@ from PIL import ImageColor
 
 FILE_PATH = os.path.realpath(__file__)
 PLOT_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(PLOT_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(PLOT_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 OUTPUT_PATH = os.path.join(MODULE_PATH, "outputs")
 
-from longterm import utils, load, rois, denoise
-from longterm import high_caff_flies, high_caff_main_fly, low_caff_main_fly, sucr_main_fly
-from longterm import plot as myplt
+from twoppp import utils, load, rois, denoise
+from twoppp.longterm_flies import high_caff_flies, high_caff_main_fly, low_caff_main_fly, sucr_main_fly
+from twoppp import plot as myplt
 
 colors = [myplt.DARKBLUE, myplt.DARKBLUE_CONTRAST, myplt.DARKCYAN, myplt.DARKGREEN, myplt.DARKGREEN_CONTRAST,
           myplt.DARKYELLOW, myplt.DARKORANGE, myplt.DARKPINK, myplt.DARKRED, myplt.DARKPURPLE,

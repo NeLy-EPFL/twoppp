@@ -18,14 +18,14 @@ OUT_PATH = os.path.join(MODULE_PATH, "outputs")
 
 import utils2p.synchronization
 
-from longterm import load
-from longterm import fly_dirs, all_selected_trials, conditions, all_selected_trials_old
-from longterm.behaviour.synchronisation import get_synchronised_trial_dataframes, reduce_during_2p_frame, reduce_min, reduce_bin_75p
-from longterm.behaviour.optic_flow import get_opflow_df, resting, forward_walking, clean_rest
-from longterm.utils import readlines_tolist, get_stack
-from longterm.utils.df import get_norm_dfs
-from longterm import rois
-from longterm.plot import videos
+from twoppp import load
+from twoppp import fly_dirs, all_selected_trials, conditions, all_selected_trials_old
+from twoppp.behaviour.synchronisation import get_synchronised_trial_dataframes, reduce_during_2p_frame, reduce_min, reduce_bin_75p
+from twoppp.behaviour.optic_flow import get_opflow_df, resting, forward_walking, clean_rest
+from twoppp.utils import readlines_tolist, get_stack
+from twoppp.utils.df import get_norm_dfs
+from twoppp import rois
+from twoppp.plot import videos
 
 def make_roi_dff_video_data(roi_dff_signals, roi_mask):
     N_y, N_x = roi_mask.shape

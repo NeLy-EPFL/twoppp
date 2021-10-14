@@ -18,22 +18,22 @@ from ofco.utils import default_parameters
 from deepinterpolation import interface as denoise
 
 FILE_PATH = os.path.realpath(__file__)
-LONGTERM_PATH, _ = os.path.split(FILE_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(FILE_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 OUTPUT_PATH = os.path.join(MODULE_PATH, "outputs")
 
-from longterm import load, dff
-from longterm.utils import makedirs_safe, get_stack, save_stack, readlines_tolist
-from longterm.register import warping
-from longterm.denoise import prepare_corrected_data
-from longterm.behaviour import df3d
-from longterm.plot.videos import make_video_dff, make_multiple_video_dff, make_video_raw_dff_beh, make_multiple_video_raw_dff_beh
-from longterm.rois import local_correlations, get_roi_signals_df
-from longterm.behaviour.synchronisation import get_synchronised_trial_dataframes
-from longterm.behaviour.optic_flow import get_opflow_df, get_opflow_in_twop_df
-from longterm.behaviour.fictrac import get_fictrac_df
-from longterm.analysis import InterPCAAnalysis
+from twoppp import load, dff
+from twoppp.utils import makedirs_safe, get_stack, save_stack, readlines_tolist
+from twoppp.register import warping
+from twoppp.denoise import prepare_corrected_data
+from twoppp.behaviour import df3d
+from twoppp.plot.videos import make_video_dff, make_multiple_video_dff, make_video_raw_dff_beh, make_multiple_video_raw_dff_beh
+from twoppp.rois import local_correlations, get_roi_signals_df
+from twoppp.behaviour.synchronisation import get_synchronised_trial_dataframes
+from twoppp.behaviour.optic_flow import get_opflow_df, get_opflow_in_twop_df
+from twoppp.behaviour.fictrac import get_fictrac_df
+from twoppp.analysis import InterPCAAnalysis
 
 class PreProcessParams:
     """Class containing all default parameters for the PreProcessFly class."""

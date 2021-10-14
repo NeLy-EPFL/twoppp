@@ -17,10 +17,10 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import load, utils
-import longterm
-from longterm.plot import videos
-from longterm import dff as _dff
+from twoppp import load, utils
+import twoppp
+from twoppp.plot import videos
+from twoppp import dff as _dff
 
 FA_R57C10_trial_dir = os.path.join(load.LOCAL_DATA_DIR, "181220_Rpr_R57C10_GC6s_tdTom", "Fly5", "002_coronal")
 FA_ABO_trial_dir = os.path.join(load.LOCAL_DATA_DIR, "201014_G23xU1", "Fly1", "005_coronal")
@@ -144,7 +144,7 @@ if __name__ == "__main__":
         
     denoising = False
     if denoising:
-        from longterm.pipeline import PreProcessParams
+        from twoppp.pipeline import PreProcessParams
         params = PreProcessParams()
         params.denoise_crop_size = (320, 640)
         params.denoise_crop_offset = (None, None)

@@ -12,11 +12,11 @@ import numpy as np
 
 FILE_PATH = os.path.realpath(__file__)
 BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import load
+from twoppp import load
 
 def compute_features(fly_dir, features_out_dir):
     trial_dirs = load.get_trials_from_fly(fly_dir)[0]

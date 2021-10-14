@@ -20,12 +20,12 @@ from time import sleep
 
 FILE_PATH = os.path.realpath(__file__)
 BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 OUTPUT_PATH = os.path.join(MODULE_PATH, "outputs")
 
-from longterm import load, utils
+from twoppp import load, utils
 
 IGNORE_ROI = [579, 122, 528, 141, 477, 134, 438, 140, 381, 151, 323, 153, 291, 134, 234, 75, 320, 39, 323, 37, 416, 27, 499, 27, 568, 26]
 

@@ -8,8 +8,8 @@ sys.path.append(MODULE_PATH)
 OUT_PATH = os.path.join(MODULE_PATH, "outputs")
 
 
-from longterm.utils.raw_files import FrameFromRawMetadata
-from longterm.load import NAS_DIR
+from twoppp.utils.raw_files import FrameFromRawMetadata
+from twoppp.load import NAS_DIR
 
 import utils2p
 

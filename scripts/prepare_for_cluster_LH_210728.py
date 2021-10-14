@@ -6,11 +6,11 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import load
-# from longterm.dff import find_dff_mask
-# from longterm.plot.videos import make_video_dff, make_multiple_video_dff
-from longterm.pipeline import PreProcessFly, PreProcessParams
-from longterm import fly_dirs, all_selected_trials, all_selected_trials_old, conditions
+from twoppp import load
+# from twoppp.dff import find_dff_mask
+# from twoppp.plot.videos import make_video_dff, make_multiple_video_dff
+from twoppp.pipeline import PreProcessFly, PreProcessParams
+from twoppp import fly_dirs, all_selected_trials, all_selected_trials_old, conditions
 
 if __name__ == "__main__":
 

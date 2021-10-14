@@ -7,9 +7,9 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import load, utils
-from longterm.pipeline import PreProcessFly, PreProcessParams
-from longterm.rois import local_correlations
+from twoppp import load, utils
+from twoppp.pipeline import PreProcessFly, PreProcessParams
+from twoppp.rois import local_correlations
 
 fly_dirs = [os.path.join(load.NAS_DIR_LH, "210415", "J1M5_fly2"),
                 os.path.join(load.NAS_DIR_LH, "210423_caffeine", "J1M5_fly2"),

@@ -27,13 +27,13 @@ from deepfly.CameraNetwork import CameraNetwork
 
 FILE_PATH = os.path.realpath(__file__)
 PLOT_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(PLOT_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(PLOT_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.utils import get_stack, find_file, crop_img, crop_stack
-from longterm import load
-from longterm.register.warping import apply_motion_field, apply_offset
+from twoppp.utils import get_stack, find_file, crop_img, crop_stack
+from twoppp import load
+from twoppp.register.warping import apply_motion_field, apply_offset
 
 def make_video(video_path, frame_generator, fps, output_shape=(-1, 1920), n_frames=-1):
     """Wrapper around utils_video.make_video() changing the frame rate to be a non-integer value

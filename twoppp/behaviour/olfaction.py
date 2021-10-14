@@ -17,13 +17,13 @@ from utils2p.synchronization import get_lines_from_h5_file, process_cam_line, pr
 
 FILE_PATH = os.path.realpath(__file__)
 BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 OUTPUT_PATH = os.path.join(MODULE_PATH, "outputs")
 
-from longterm import load, utils
-from longterm import plot as myplt
+from twoppp import load, utils
+from twoppp import plot as myplt
 
 
 conditions_old = ["None", "Odor1", "Odor2", "Odor3", "Odor4", "Odor5", "Odor6",

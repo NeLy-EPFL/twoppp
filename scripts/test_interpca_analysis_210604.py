@@ -7,8 +7,8 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.analysis import InterPCAAnalysis, InterPCAAnalysisFromFile
-from longterm import load
+from twoppp.analysis import InterPCAAnalysis, InterPCAAnalysisFromFile
+from twoppp import load
 
 fly_dirs = [os.path.join(load.NAS2_DIR_LH, "210512", "fly3"),
             os.path.join(load.NAS2_DIR_LH, "210519", "fly1"),

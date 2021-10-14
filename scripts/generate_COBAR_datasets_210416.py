@@ -9,8 +9,8 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import load
-from longterm.behaviour.synchronisation import get_frame_times_indices
+from twoppp import load
+from twoppp.behaviour.synchronisation import get_frame_times_indices
 
 
 def generate_neural_dataframe(fly_dir, out_dir):

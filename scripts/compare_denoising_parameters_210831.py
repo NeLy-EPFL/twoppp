@@ -33,9 +33,9 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import load, utils, dff
-from longterm.pipeline import PreProcessFly, PreProcessParams
-from longterm.plot.videos import make_2p_grid_video, make_multiple_video_dff
+from twoppp import load, utils, dff
+from twoppp.pipeline import PreProcessFly, PreProcessParams
+from twoppp.plot.videos import make_2p_grid_video, make_multiple_video_dff
 
 fly_dirs = [
     os.path.join(load.NAS2_DIR_LH, "210722", "fly3"),  # high caff

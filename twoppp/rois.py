@@ -4,12 +4,12 @@ import pandas as pd
 from scipy.ndimage.filters import convolve
 
 FILE_PATH = os.path.realpath(__file__)
-LONGTERM_PATH, _ = os.path.split(FILE_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(FILE_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.utils import get_stack, save_stack, readlines_tolist
-from longterm.utils.df import get_multi_index_trial_df
+from twoppp.utils import get_stack, save_stack, readlines_tolist
+from twoppp.utils.df import get_multi_index_trial_df
 
 # copying from nely_suite because of an import error
 def local_correlations(Y, eight_neighbours=True, swap_dim=False, order_mean=1):
