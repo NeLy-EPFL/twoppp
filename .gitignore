@@ -136,8 +136,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-<<<<<<< HEAD
-=======
 
 # shpinx
 documentation/_build
@@ -152,4 +150,3 @@ examples/data/*.pkl
 
 # Mac
 **.DS_Store
->>>>>>> develop
