@@ -1,6 +1,7 @@
 # twoppp: **two-p**hoton data **p**rocessing **p**ipeline
 
-This package allows to process simulataneously recorded two-photon imaging data and behavioural data.\n
+This package allows to process simulataneously recorded two-photon imaging data and behavioural data.
+
 This includes:
 * two-photon processing:
     * converting from .raw to .tif
@@ -33,4 +34,5 @@ Installation instructions:
     - df3dPostProcessing: https://github.com/NeLy-EPFL/df3dPostProcessing
     - ```conda install os sys pathlib shutil numpy array gc copy tqdm sklearn pickle glob matplotlib math cv2 json pandas scipy```
 2. clone repository: ```git clone https://github.com/NeLy-EPFL/twoppp```
-3. run setup.py: ```python twoppp/.setup.py```
+3. change directory: ```cd twoppp```
+3. run setup.py: ```python setup.py```
