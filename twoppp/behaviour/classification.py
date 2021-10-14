@@ -23,11 +23,13 @@ def compute_features(fly_dir, features_out_dir):
     genotype = date_genotype[7:]
     fly = int(fly[3:])
 
-    multi_index = pd.MultiIndex(levels=[[]] * 5, codes=[[]]  * 5, names=[u'Date', u'Genotype', u'Fly', u'Trial', u'Frame'])
+    multi_index = pd.MultiIndex(levels=[[]] * 5, codes=[[]]  * 5, 
+                                names=[u'Date', u'Genotype', u'Fly', u'Trial', u'Frame'])
     results = pd.DataFrame(index=multi_index)
 
     for i_trial, trial_dir in enumerate(trial_dirs):
-        angles_file = glob.glob(os.path.join(trial_dir, "behData", "images", "df3d", "joint_angles*"))[0]
+        angles_file = glob.glob(os.path.join(trial_dir, "behData", "images", 
+                                             "df3d", "joint_angles*"))[0]
         with open(angles_file, "rb") as f:
             angles = pickle.load(f)
         leg_keys = []
@@ -43,9 +45,11 @@ def compute_features(fly_dir, features_out_dir):
             for i_angle, angle in enumerate(angle_keys):
                 X[:, i_angle + i_leg*len(angle_keys)] = np.array(angles[leg][angle])
                 X_names.append(leg + "_" + angle)
-        
-        freqs, power, X_coeff = behavelet.wavelet_transform(X, n_freqs=25, fsample=100., fmin=1., fmax=50., gpu=True)
-        coeff_columns = [f"Coeff {col} {freq}Hz" for col in X_names for freq in freqs]  # has to stay the same
+
+        freqs, power, X_coeff = behavelet.wavelet_transform(X, n_freqs=25, fsample=100., 
+                                                            fmin=1., fmax=50., gpu=True)
+        coeff_columns = [f"Coeff {col} {freq}Hz" 
+                         for col in X_names for freq in freqs]  # has to stay the same
         frames = np.arange(N_samples)
         indices = pd.MultiIndex.from_arrays(([date, ] * N_samples,  # e.g 210301
                                              [genotype, ] * N_samples,  # e.g. 'J1xCI9'
@@ -57,7 +61,7 @@ def compute_features(fly_dir, features_out_dir):
         trial_results = pd.DataFrame(index=indices)
         trial_results[coeff_columns] = X_coeff
         results = results.append(trial_results)
-    
+
     results.to_pickle(features_out_dir)
 
 
@@ -68,8 +72,9 @@ def classify_behaviour(features_file, labels_out_dir, clf=None, le=None):
     if le is None:
         with open(os.path.join(BEHAVIOUR_PATH, "label_encoder.pkl"), "rb") as f:
             le = pickle.load(f)
-    
-    multi_index = pd.MultiIndex(levels=[[]] * 5, codes=[[]]  * 5, names=[u'Date', u'Genotype', u'Fly', u'Trial', u'Frame'])
+
+    multi_index = pd.MultiIndex(levels=[[]] * 5, codes=[[]]  * 5, 
+                                names=[u'Date', u'Genotype', u'Fly', u'Trial', u'Frame'])
     results = pd.DataFrame(index=multi_index)
 
     wavelet_df = pd.read_pickle(features_file)
@@ -96,23 +101,3 @@ def split_result_to_trials(fly_labels_out_dir, trial_label_out_dirs, to_csv=Fals
         trial_labels.to_pickle(trial_label_out_dir)
         if to_csv:
             trial_labels.to_csv(trial_label_out_dir[:-4]+".csv")
-
-
-
-
-
-if __name__ == "__main__":
-    date_dir = os.path.join(load.NAS_DIR_JB, "210301_J1xCI9")
-    fly_dir = load.get_flies_from_datedir(date_dir)[0]
-    features_out_dir = os.path.join(fly_dir, load.PROCESSED_FOLDER, "wavelet_behaviour_features.pkl")
-    labels_out_dir = os.path.join(fly_dir, load.PROCESSED_FOLDER, "behaviour_labels.pkl")
-
-    # compute_features(fly_dir, features_out_dir)
-
-    # classify_behaviour(features_out_dir, labels_out_dir)
-
-    trial_dirs = load.get_trials_from_fly(fly_dir)[0]
-    label_dirs = [os.path.join(trial_dir, "behData", "behaviour_labels.pkl")
-                  for trial_dir in trial_dirs]
-    split_result_to_trials(labels_out_dir, label_dirs, to_csv=True)
-    pass

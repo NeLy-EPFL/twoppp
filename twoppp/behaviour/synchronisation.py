@@ -235,11 +235,3 @@ def reduce_during_2p_frame(twop_index, values, function=reduce_mean):
         reduced[i] = function(values[twop_index==index, :])
 
     return np.squeeze(reduced) if squeeze else reduced
-
-if __name__ == "__main__":
-    date_dir = os.path.join(load.NAS_DIR_JB, "210301_J1xCI9")  # 210216_J1xCI9 fly1 trial 0
-    fly_dirs = load.get_flies_from_datedir(date_dir)
-    trial_dirs = load.get_trials_from_fly(fly_dirs)
-    trial_dir = trial_dirs[0][0]
-    times_2p, times_beh, index = get_frame_times_indices(trial_dir, crop_2p_start_end=30)
-    pass

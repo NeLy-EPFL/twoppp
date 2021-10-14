@@ -458,19 +458,6 @@ def get_fictrac_df(trial_dir, index_df=None, df_out_dir=None, med_filt_size=5, s
         df.to_pickle(df_out_dir)
     return df
 
-if __name__ == "__main__":
-    # fly_dir = "/mnt/NAS2/JB/210908_PR_olfac/Fly1"
-    fly_dirs = [
-        "/mnt/NAS2/JB/210930_PR_olfac/Fly1",
-        "/mnt/NAS2/JB/210930_PR_olfac/Fly2",
-    ]
-    for fly_dir in fly_dirs:
-        config_and_run_fictrac(fly_dir)
-
-
-
-
-
 # missing in automatically generated config file:
 """
 max_bad_frames   : -1
