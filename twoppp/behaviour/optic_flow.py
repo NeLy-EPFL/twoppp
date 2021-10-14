@@ -6,12 +6,6 @@ import sys
 import numpy as np
 import pandas as pd
 
-FILE_PATH = os.path.realpath(__file__)
-BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
-
 from twoppp.utils import find_file
 from twoppp.behaviour.synchronisation import reduce_during_2p_frame, reduce_min
 

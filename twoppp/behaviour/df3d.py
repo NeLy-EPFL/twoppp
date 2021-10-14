@@ -13,13 +13,10 @@ from df3dPostProcessing.df3dPostProcessing import df3dPostProcess
 
 FILE_PATH = os.path.realpath(__file__)
 BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
 
 from twoppp.utils import makedirs_safe, find_file
 from twoppp.load import NAS2_DIR_JB, get_trials_from_fly
-
+from twoppp import TMP_PATH
 
 
 def prepare_for_df3d(trial_dirs, videos=True, scope=2, tmp_process_dir=None, overwrite=False):
@@ -53,7 +50,7 @@ def prepare_for_df3d(trial_dirs, videos=True, scope=2, tmp_process_dir=None, ove
     if not isinstance(trial_dirs, list):
         trial_dirs = [trial_dirs]
     
-    tmp_process_dir = os.path.join(MODULE_PATH, "tmp") if tmp_process_dir is None else tmp_process_dir
+    tmp_process_dir = TMP_PATH if tmp_process_dir is None else tmp_process_dir
     makedirs_safe(tmp_process_dir)
 
     # copy the relevant run script to tmp folder

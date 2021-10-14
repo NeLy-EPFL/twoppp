@@ -11,12 +11,6 @@ import numpy as np
 import utils2p
 import utils2p.synchronization
 
-FILE_PATH = os.path.realpath(__file__)
-BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
-
 from twoppp import load
 from twoppp.utils.df import get_multi_index_trial_df
 

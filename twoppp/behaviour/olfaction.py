@@ -15,13 +15,6 @@ import utils2p
 import utils2p.synchronization
 from utils2p.synchronization import get_lines_from_h5_file, process_cam_line, process_stimulus_line, crop_lines, get_times, SyncMetadata
 
-FILE_PATH = os.path.realpath(__file__)
-BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
-OUTPUT_PATH = os.path.join(MODULE_PATH, "outputs")
-
 from twoppp import load, utils
 from twoppp import plot as myplt
 
