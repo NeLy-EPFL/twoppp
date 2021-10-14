@@ -18,11 +18,6 @@ import matplotlib.pyplot as plt
 
 import utils2p
 
-FILE_PATH = os.path.realpath(__file__)
-TWOPPP_PATH, _ = os.path.split(FILE_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
-
 from twoppp.utils import get_stack, crop_img
 from twoppp import load
 from twoppp.plot.videos import make_video_dff, make_multiple_video_dff, make_multiple_video_2p

@@ -10,12 +10,6 @@ from scipy.ndimage import gaussian_filter1d
 import pickle
 import gc
 
-FILE_PATH = os.path.realpath(__file__)
-ANALYSIS_PATH, _ = os.path.split(FILE_PATH)
-TWOPPP_PATH, _ = os.path.split(ANALYSIS_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
-
 from twoppp.plot import confidence_ellipse
 from twoppp import utils
 from twoppp import rois

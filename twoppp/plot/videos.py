@@ -25,12 +25,6 @@ import utils_video.generators
 from utils_video.utils import resize_shape, colorbar, add_colorbar, rgb, process_2p_rgb, get_generator_shape
 from deepfly.CameraNetwork import CameraNetwork
 
-FILE_PATH = os.path.realpath(__file__)
-PLOT_PATH, _ = os.path.split(FILE_PATH)
-TWOPPP_PATH, _ = os.path.split(PLOT_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
-
 from twoppp.utils import get_stack, find_file, crop_img, crop_stack
 from twoppp import load
 from twoppp.register.warping import apply_motion_field, apply_offset

@@ -157,7 +157,7 @@ def shade_walk_rest(walk, rest, x=None, ax=None, alpha=0.2, colors=["red", "blue
     rest_diff_end = np.where(rest_diff==-1)[0]
     N_walk = np.sum(walk_diff==1)
     N_rest = np.sum(rest_diff==1)
-    
+
     for i_stim in range(N_walk):
         ax.axvspan(x[walk_diff_start[i_stim]], x[walk_diff_end[i_stim]], 
                    alpha=alpha, color=colors[0], ec=None, label="walk" if i_stim==0 else None)

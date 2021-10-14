@@ -13,12 +13,6 @@ import cv2
 import utils2p
 import ofco
 
-FILE_PATH = os.path.realpath(__file__)
-REGISTER_PATH, _ = os.path.split(FILE_PATH)
-TWOPPP_PATH, _ = os.path.split(REGISTER_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
-
 from twoppp import load, utils
 
 def save_ref_frame(stack, ref_frame_dir, i_frame = 0, com_pre_reg=True, overwrite=False, crop=None):

@@ -1,10 +1,5 @@
 import os, sys
 
-FILE_PATH = os.path.realpath(__file__)
-TWOPPP_PATH, _ = os.path.split(FILE_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
-
 import numpy as np
 from scipy.ndimage import gaussian_filter
 from scipy.signal import medfilt

@@ -17,13 +17,7 @@ from scipy.signal import medfilt
 from ofco.utils import default_parameters
 from deepinterpolation import interface as denoise
 
-FILE_PATH = os.path.realpath(__file__)
-TWOPPP_PATH, _ = os.path.split(FILE_PATH)
-MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
-sys.path.append(MODULE_PATH)
-OUTPUT_PATH = os.path.join(MODULE_PATH, "outputs")
-
-from twoppp import load, dff
+from twoppp import load, dff, OUTPUT_PATH
 from twoppp.utils import makedirs_safe, get_stack, save_stack, readlines_tolist
 from twoppp.register import warping
 from twoppp.denoise import prepare_corrected_data
