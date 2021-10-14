@@ -2,6 +2,8 @@
 
 This package allows to process simulataneously recorded two-photon imaging data and behavioural data.
 
+Examples to document basic uses are forthcoming!
+
 This includes:
 * two-photon processing:
     * converting from .raw to .tif
