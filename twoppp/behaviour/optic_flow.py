@@ -8,12 +8,12 @@ import pandas as pd
 
 FILE_PATH = os.path.realpath(__file__)
 BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.utils import find_file
-from longterm.behaviour.synchronisation import reduce_during_2p_frame, reduce_min
+from twoppp.utils import find_file
+from twoppp.behaviour.synchronisation import reduce_during_2p_frame, reduce_min
 
 gain0X = round(1/1.52,2)
 gain0Y = round(1/1.48,2)

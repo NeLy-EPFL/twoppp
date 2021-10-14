@@ -13,12 +13,12 @@ import utils2p.synchronization
 
 FILE_PATH = os.path.realpath(__file__)
 BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import load
-from longterm.utils.df import get_multi_index_trial_df
+from twoppp import load
+from twoppp.utils.df import get_multi_index_trial_df
 
 def get_frame_times_indices(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
                             sync_trial_dir=None, opflow=False):

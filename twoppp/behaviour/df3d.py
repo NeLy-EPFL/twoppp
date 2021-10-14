@@ -13,12 +13,12 @@ from df3dPostProcessing.df3dPostProcessing import df3dPostProcess
 
 FILE_PATH = os.path.realpath(__file__)
 BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(BEHAVIOUR_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(BEHAVIOUR_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.utils import makedirs_safe, find_file
-from longterm.load import NAS2_DIR_JB, get_trials_from_fly
+from twoppp.utils import makedirs_safe, find_file
+from twoppp.load import NAS2_DIR_JB, get_trials_from_fly
 
 
 

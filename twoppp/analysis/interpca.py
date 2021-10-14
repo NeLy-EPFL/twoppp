@@ -12,15 +12,15 @@ import gc
 
 FILE_PATH = os.path.realpath(__file__)
 ANALYSIS_PATH, _ = os.path.split(FILE_PATH)
-LONGTERM_PATH, _ = os.path.split(ANALYSIS_PATH)
-MODULE_PATH, _ = os.path.split(LONGTERM_PATH)
+TWOPPP_PATH, _ = os.path.split(ANALYSIS_PATH)
+MODULE_PATH, _ = os.path.split(TWOPPP_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.plot import confidence_ellipse
-from longterm import utils
-from longterm import rois
-from longterm.behaviour import optic_flow as of
-from longterm.behaviour import synchronisation as sync
+from twoppp.plot import confidence_ellipse
+from twoppp import utils
+from twoppp import rois
+from twoppp.behaviour import optic_flow as of
+from twoppp.behaviour import synchronisation as sync
 
 def cluster_corr(corr_array):
     """

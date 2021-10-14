@@ -1,12 +1,9 @@
-<<<<<<< HEAD
-=======
 .vscode/
 outputs/
 .workspace*
 tmp/
 
 
->>>>>>> develop
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
