@@ -174,8 +174,11 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
         image_shape = (size[0], size[1] - cbar_width)
         image_shape = resize_shape(image_shape, stack.shape[1:3])
         cbar_shape = (image_shape[0], cbar_width)
-
-    cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size, label=colorbarlabel)
+    try:
+        cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size, label=colorbarlabel)
+    except:
+        print("Using old version of utils_video. please update utils_video")
+        cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size)
 
     def frame_generator():
         for frame in stack:

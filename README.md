@@ -28,13 +28,15 @@ Installation instructions:
     - ```conda install jupyter```
     - DeepFly3D: https://github.com/NeLy-EPFL/DeepFly3D
     - deepinterpolation: https://github.com/NeLy-EPFL/deepinterpolation/tree/adapttoR57C10
+        - this might throw an error like: "ERROR: pip's dependency resolver does not currently take into account all the packages that are installed." ... for incompatibilities of numpy and scipy version, but this can be ignored.
     - ```conda install pandas```
     - ```conda install numpy```
     - utils2p: https://github.com/NeLy-EPFL/utils2p
     - ofco: https://github.com/NeLy-EPFL/ofco
+        - this might again throw a dependency error about numpy and scipy, but it can be ignored.
     - utils_video: https://github.com/NeLy-EPFL/utils_video
     - df3dPostProcessing: https://github.com/NeLy-EPFL/df3dPostProcessing
-    - ```conda install os sys pathlib shutil numpy array gc copy tqdm sklearn pickle glob matplotlib math cv2 json pandas scipy```
+    - ```pip install behavelet```
 2. clone repository: ```git clone https://github.com/NeLy-EPFL/twoppp```
 3. change directory: ```cd twoppp```
 3. install using pip: ```pip install -e .```
