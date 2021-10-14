@@ -1,3 +1,12 @@
+<<<<<<< HEAD
+=======
+.vscode/
+outputs/
+.workspace*
+tmp/
+
+
+>>>>>>> develop
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -127,3 +136,20 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+<<<<<<< HEAD
+=======
+
+# shpinx
+documentation/_build
+documentation/_static
+documentation/_templates
+
+# swp files
+**.swp
+
+# data
+examples/data/*.pkl
+
+# Mac
+**.DS_Store
+>>>>>>> develop
