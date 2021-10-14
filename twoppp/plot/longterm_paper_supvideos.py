@@ -16,7 +16,7 @@ sys.path.append(MODULE_PATH)
 OUTPUT_PATH = os.path.join(MODULE_PATH, "outputs")
 
 from twoppp import utils, load, rois
-from twoppp import high_caff_flies, high_caff_main_fly, low_caff_main_fly, sucr_main_fly
+from twoppp.longterm_flies import high_caff_flies, high_caff_main_fly, low_caff_main_fly, sucr_main_fly
 from twoppp.plot.videos import make_multiple_video_raw_dff_beh
 
 
