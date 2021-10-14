@@ -35,4 +35,4 @@ Installation instructions:
     - ```conda install os sys pathlib shutil numpy array gc copy tqdm sklearn pickle glob matplotlib math cv2 json pandas scipy```
 2. clone repository: ```git clone https://github.com/NeLy-EPFL/twoppp```
 3. change directory: ```cd twoppp```
-3. run setup.py: ```python setup.py```
+3. install using pip: ```pip -e .```
