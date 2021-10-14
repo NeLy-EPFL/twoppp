@@ -31,6 +31,10 @@ try:
 except ImportError or ModuleNotFoundError:
     raise ImportError("df3dPostProcessing must be installed in environment.")
 
+try:
+    import behavelet
+except ImportError or ModuleNotFoundError:
+    raise ImportError("behavelet must be installed in environment.")
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
