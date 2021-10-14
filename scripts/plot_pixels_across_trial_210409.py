@@ -12,10 +12,10 @@ matplotlib.use('agg')  # use non-interactive backend for PNG plotting
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from longterm.plot import plot_sample_pixels
-from longterm.pipeline import PreProcessFly, PreProcessParams
-from longterm import load
-from longterm.utils import get_stack
+from twoppp.plot import plot_sample_pixels
+from twoppp.pipeline import PreProcessFly, PreProcessParams
+from twoppp import load
+from twoppp.utils import get_stack
 
 
 date_dir = os.path.join(load.NAS_DIR_JB, "210301_J1xCI9")

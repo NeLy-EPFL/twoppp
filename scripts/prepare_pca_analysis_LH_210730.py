@@ -6,8 +6,8 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm import load, utils
-from longterm.pipeline import PreProcessFly, PreProcessParams
+from twoppp import load, utils
+from twoppp.pipeline import PreProcessFly, PreProcessParams
 
 if __name__ == "__main__":
 

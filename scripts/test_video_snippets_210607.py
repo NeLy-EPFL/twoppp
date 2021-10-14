@@ -11,12 +11,12 @@ sys.path.append(MODULE_PATH)
 
 import utils2p.synchronization
 
-from longterm import load
-from longterm.behaviour.synchronisation import get_synchronised_trial_dataframes, reduce_during_2p_frame
-from longterm.behaviour.optic_flow import get_opflow_df, resting, forward_walking
-from longterm.utils import readlines_tolist, get_stack
-from longterm.rois import get_roi_signals_df
-from longterm.plot import videos
+from twoppp import load
+from twoppp.behaviour.synchronisation import get_synchronised_trial_dataframes, reduce_during_2p_frame
+from twoppp.behaviour.optic_flow import get_opflow_df, resting, forward_walking
+from twoppp.utils import readlines_tolist, get_stack
+from twoppp.rois import get_roi_signals_df
+from twoppp.plot import videos
 fly_dirs = [
     "/mnt/NAS2/LH/210512/fly3",
     "/mnt/NAS2/LH/210519/fly1",

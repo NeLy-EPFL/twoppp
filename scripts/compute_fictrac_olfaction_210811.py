@@ -21,11 +21,11 @@ import utils2p
 import utils2p.synchronization
 from utils2p.synchronization import get_lines_from_h5_file, process_cam_line, process_stimulus_line, crop_lines, get_times, SyncMetadata
 
-from longterm import load, utils
-from longterm import plot as myplt
-from longterm.plot.videos import make_all_odour_condition_videos
-from longterm.behaviour.fictrac import get_fictrac_df
-from longterm.behaviour.olfaction import get_sync_signals_olfaction, conditions, plot_olfac_conditions
+from twoppp import load, utils
+from twoppp import plot as myplt
+from twoppp.plot.videos import make_all_odour_condition_videos
+from twoppp.behaviour.fictrac import get_fictrac_df
+from twoppp.behaviour.olfaction import get_sync_signals_olfaction, conditions, plot_olfac_conditions
 
 def main_preprocess(trial_dirs):
     # file_dir = os.path.join(OUT_PATH, "210812_olfactory_test.pdf")

@@ -10,11 +10,11 @@ from copy import deepcopy
 from tqdm import tqdm
 import numpy as np
 
-from longterm import load, utils
-from longterm.pipeline import PreProcessFly, PreProcessParams
-from longterm.behaviour.fictrac import config_and_run_fictrac
-from longterm.behaviour.olfaction import get_sync_signals_olfaction, average_neural_across_repetitions
-from longterm.plot.videos import make_all_odour_condition_videos
+from twoppp import load, utils
+from twoppp.pipeline import PreProcessFly, PreProcessParams
+from twoppp.behaviour.fictrac import config_and_run_fictrac
+from twoppp.behaviour.olfaction import get_sync_signals_olfaction, average_neural_across_repetitions
+from twoppp.plot.videos import make_all_odour_condition_videos
 
 params = PreProcessParams()
 params.genotype = "J1xM5"

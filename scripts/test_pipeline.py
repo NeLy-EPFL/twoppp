@@ -5,8 +5,8 @@ SCRIPT_PATH, _ = os.path.split(FILE_PATH)
 MODULE_PATH, _ = os.path.split(SCRIPT_PATH)
 sys.path.append(MODULE_PATH)
 
-from longterm.pipeline import PreProcessFly, PreProcessParams
-from longterm import load
+from twoppp.pipeline import PreProcessFly, PreProcessParams
+from twoppp import load
 
 date_dir = os.path.join(load.NAS_DIR_JB, "210301_J1xCI9")
 fly_dirs = load.get_flies_from_datedir(date_dir=date_dir)
