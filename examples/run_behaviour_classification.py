@@ -1,5 +1,5 @@
 """
-Classify behaviours using a classifier built by FLorian.
+Classify behaviours using a classifier built by Florian.
 Use with caution. Might not generalise well to unseen flies.
 DeepFly3D and post processing have to be run before.
 """

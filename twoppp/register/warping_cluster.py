@@ -1,4 +1,5 @@
-# largely copied and slightly modified from https://github.com/NeLy-EPFL/ofco/blob/master/examples/register.py
+# largely copied and slightly modified from
+# https://github.com/NeLy-EPFL/ofco/blob/master/examples/register.py
 
 import sys
 import os.path
@@ -64,7 +65,8 @@ for i, substack in enumerate(utils2p.load_stack_batches(os.path.join(folder, STA
         print("skipped because it exists")
         continue
     stack1_warped, stack2_warped = motion_compensate(
-        substack, None, frames, param, parallel=True, verbose=True, w_output=w_output, ref_frame=ref_frame
+        substack, None, frames, param, parallel=True, verbose=True,
+        w_output=w_output, ref_frame=ref_frame
     )
 
     io.imsave(warped_output, stack1_warped)

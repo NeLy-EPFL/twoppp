@@ -138,33 +138,6 @@ def convert_raw_to_tiff(trial_dir, overwrite=False, return_stacks=True, green_di
 
     return green, red
 
-if __name__ == "__main__":
-    COPY = False
-    CONVERT = False
-    if COPY:
-        trial_dirs = ["210212/Fly1/cs_003",
-                      "210212/Fly1/cs_005",
-                      "210212/Fly1/cs_007",
-                      "210212/Fly1/cs_010"]
-
-        copy_remote_to_local(trial_dirs=trial_dirs, source_base_dir=LABSERVER_DIR_LH_2P, 
-                             target_base_dir=LOCAL_DATA_DIR_LONGTERM, raw=True, xml=True)
-    
-    elif CONVERT:
-        date_dir = os.path.join(LOCAL_DATA_DIR_LONGTERM, "210212")
-        fly_dirs = get_flies_from_datedir(date_dir)
-        trial_dirs = get_trials_from_fly(fly_dirs)
-
-        for fly_trial_dirs in trial_dirs:
-            for trial_dir in fly_trial_dirs:
-                convert_raw_to_tiff(trial_dir, return_stacks=False)
-    
-    else:
-        copy_remote_to_local(trial_dirs=["210216_J1xCI9/Fly1/001_xz"], source_base_dir=LABSERVER_DIR_JB,
-                             target_base_dir=LOCAL_DATA_DIR, raw=True, xml=True)
-
-        trial_dir = os.path.join(LOCAL_DATA_DIR, "210216_J1xCI9", "Fly1", "001_xz")
-        convert_raw_to_tiff(trial_dir, return_stacks=False)
 
 
 

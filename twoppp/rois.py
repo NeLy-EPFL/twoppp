@@ -280,34 +280,3 @@ def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default
     if df_out_dir is not None:
         df.to_pickle(df_out_dir)
     return df
-
-if __name__ == "__main__":
-    SIMPLE_TEST = False
-    DF_TEST = True
-    if SIMPLE_TEST:
-        stack = np.arange(100*30*20).reshape(100,30,20)
-        centers = [[10,10], [15,15]]  # [5,5]
-        size = [7,11]  # [1,1]  # [0,0]
-        pattern = None # "default"  # None
-        mask = np.zeros((30,20))  # None
-        mask[5:7,10:12] = 1
-        
-        roi_signals = get_roi_signals(stack, centers=centers, size=size, pattern=pattern, mask=mask)
-        print(roi_signals.shape)
-        a = 0
-    elif DF_TEST:
-        fly_dir = "/mnt/NAS2/LH/210512/fly3"  # "/mnt/NAS2/LH/210521/fly1"  # "/mnt/NAS2/LH/210519/fly1"  # 
-        trial_dirs = readlines_tolist(os.path.join(fly_dir, "trial_dirs.txt"))
-        trial_list = [0,2,3,4,5,8,11]  # [3,4,7,12]  # [3,5,8,12] 
-        for i_trial in trial_list:
-            trial_dir = trial_dirs[i_trial]
-            print(trial_dir)
-            processed_dir = os.path.join(trial_dir, "processed")
-            roi_file = os.path.join(fly_dir, "processed", "ROI_centers.txt")
-            index_df = os.path.join(processed_dir, "twop_df.pkl")
-            stack = os.path.join(processed_dir, "green_denoised_t1.tif")
-            mask_out_dir = os.path.join(fly_dir, "processed", "ROI_mask.tif")
-            df = get_roi_signals_df(stack, roi_file, size=[7,11], pattern="default", index_df=index_df, 
-                                    df_out_dir=index_df, mask_out_dir=mask_out_dir)
-        a = 0
-

@@ -133,7 +133,7 @@ def compute_dff_from_stack(stack, baseline_blur=10, baseline_med_filt=1, blur_pr
     stack = get_stack(stack)
     N_frames, N_y, N_x = stack.shape
 
-    dff_baseline = find_dff_baseline(stack, baseline_blur=baseline_blur, 
+    dff_baseline = find_dff_baseline(stack, baseline_blur=baseline_blur,
                                      baseline_med_filt=baseline_med_filt, blur_pre=blur_pre,
                                      baseline_mode=baseline_mode, baseline_length=baseline_length,
                                      baseline_quantile=baseline_quantile, baseline_dir=baseline_dir,
@@ -262,7 +262,7 @@ def find_dff_baseline_multi_stack_load_single(stacks, individual_baseline_dirs,
                                               baseline_blur=10, baseline_med_filt=1,
                                               blur_pre=True, 
                                               baseline_mode="convolve", # slow alternative: "quantile"
-                                              baseline_length=10, baseline_quantile=0.05, 
+                                              baseline_length=10, baseline_quantile=0.05,
                                               baseline_dir=None, min_baseline=None):
     if not isinstance(stacks, list):
         stacks = [stacks]
@@ -340,114 +340,3 @@ def compute_dff_multi_stack(stacks, baseline_blur=10, baseline_med_filt=1, blur_
             for stack, dff_out_dir in zip(stacks, dff_out_dirs)]
 
     return dffs
-
-
-if __name__ == "__main__":
-    COMPUTE = False
-    VIDEOS = False
-    VIDEOS_2P = False
-    ANALYSE = False
-    MULTIBASELINE = False
-    DENOISED = True
-
-    date_dir = os.path.join(load.LOCAL_DATA_DIR_LONGTERM, "210212")
-    fly_dirs = load.get_flies_from_datedir(date_dir)
-    all_trial_dirs = load.get_trials_from_fly(fly_dirs)
-    for fly_dir, trial_dirs in zip(fly_dirs, all_trial_dirs):
-        fly_processed_dir = os.path.join(fly_dir, load.PROCESSED_FOLDER)
-        processed_dirs = [os.path.join(trial_dir, load.PROCESSED_FOLDER) for trial_dir in trial_dirs]
-        green_warped_dirs = [os.path.join(processed_dir, "green_com_warped.tif") for processed_dir in processed_dirs]  # green_com_warped
-        red_warped_dirs = [os.path.join(processed_dir, "red_com_warped.tif") for processed_dir in processed_dirs] 
-        baseline_dir = os.path.join(fly_processed_dir, "dff_baseline_com_warped_003_005_007_010.tif")  # dff_baseline_com_warped_003_005_007_010
-        dff_out_dirs = [os.path.join(processed_dir, "dff_com_warped.tif") for processed_dir in processed_dirs]  # dff_com_warped
-        dff_video_dirs = [os.path.join(processed_dir, "dff_com_warped.mp4") for processed_dir in processed_dirs]  # dff_com_warped
-
-        ext_crops = (74, 736-74, 48, 480-48)  # (74, 736-74, 48+38, 480-25)  # crop 10 % of the image on each side  (74, 736-74, 48, 480-48)
-
-        if COMPUTE:
-            print("computing dff")
-            dffs = compute_dff_multi_stack(stacks=green_warped_dirs, baseline_blur=10, baseline_mode="convolve",  # baselin_blur=3
-                                        baseline_length=10, baseline_dir=baseline_dir, 
-                                        use_crop=ext_crops, manual_add_to_crop=20, dff_blur=0, 
-                                        dff_out_dirs=dff_out_dirs, return_stacks=True)
-        else:
-            dffs = [get_stack(dff_out_dir) for dff_out_dir in dff_out_dirs]
-        
-        if VIDEOS:
-            print("making videos")
-            _ = [make_video_dff(dff, processed_dir, video_name="dff_com_warped", trial_dir=trial_dir, vmin=-10)  # dff_com_warped
-                for dff, trial_dir, processed_dir in zip(dffs, trial_dirs, processed_dirs)]
-
-            make_multiple_video_dff(dffs, fly_processed_dir, video_name="dff_com_warped_003_005_007_010", trial_dir=trial_dirs[0], vmin=-10)  # dff_com_warped_003_005_007_010
-
-        if VIDEOS_2P:
-            print("making 2p videos")
-            make_multiple_video_2p(greens=green_warped_dirs, out_dir=fly_processed_dir, video_name="green_warped_003_005_007_010", reds=None, trial_dir=trial_dirs[0])
-        if ANALYSE:
-            dff_above_thres = [np.sum(dff > 50, axis=(1,2)) for dff in dffs]
-            dff_names = [trial_dir[-3:] for trial_dir in trial_dirs]
-            colors = ["b", "g", "m", "r"]
-            fig, axs = plt.subplots(2,1, figsize=(10,10))
-            _ = [axs[0].plot(gaussian_filter1d(dff_above_thre, 3), color, label=dff_name) for dff_above_thre, dff_name, color in zip(dff_above_thres, dff_names, colors)]
-            axs[0].set_xlabel("samples")
-            axs[0].set_ylabel("# of pixels above $\Delta F/F=50$")
-            axs[0].legend()
-
-            dff_names2 = [dff_name + ": {:5.1f} +- {:.1f}".format(np.mean(dff_above_thre), np.std(dff_above_thre)) for dff_above_thre, dff_name in zip(dff_above_thres, dff_names)]
-            axs[1].hist(dff_above_thres, bins=20, label=dff_names2, color=colors)
-            axs[1].set_xlabel("# of pixels above $\Delta F/F=50$")
-            axs[1].set_ylabel("# of frames")
-            axs[1].legend()
-            plt.savefig(os.path.join(fly_processed_dir, "mean_dFF_warped.png"))
-
-            active_neurons = [np.quantile(dff, 0.95, axis=0) for dff in dffs]
-            differences = np.array([active_neuron - active_neurons[0] for active_neuron in active_neurons])
-            relatives = differences / np.clip(active_neurons[0], 10, None)
-            # clim = np.max([np.abs(np.quantile(differences, 0.95)), np.abs(np.quantile(differences, 0.05))])
-
-            fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(15,7))
-            for i_t, (dff_name, active_neuron, difference, relative) in enumerate(zip(dff_names, active_neurons, differences, relatives)):
-                axs[0, i_t].imshow(active_neuron, clim=[0, 150], cmap=plt.cm.jet)
-                axs[0, i_t].set_title(dff_name + " 95% quantile")
-                axs[1, i_t].imshow(difference, clim=[-50, 50], cmap=plt.cm.seismic)
-                axs[1, i_t].set_title("difference to first trial")
-                # axs[2, i_t].imshow(difference, clim=[-2, 2], cmap=plt.cm.seismic)
-                # axs[2, i_t].set_title("relative difference to first trial")
-                # fig.suptitle("clim = {:.2f}".format(clim))
-            plt.savefig(os.path.join(fly_processed_dir, "max_dFF_trial_difference.png"))
-            
-        if MULTIBASELINE:
-            baseline_dir = os.path.join(fly_processed_dir, "dff_baseline_warped_003_005_007_010_4x.tif")
-            dff_baselines = find_dff_baseline_multi_stack(stacks=green_warped_dirs, baseline_blur=0, baseline_mode="convolve", baseline_length=10,
-                                                          baseline_dir=baseline_dir, return_multiple_baselines=True)
-
-            fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(10,10))
-            cmap = plt.cm.jet
-            clim = [0, np.quantile(dff_baselines, 0.995)]
-            baseline_names = [trial_dir[-3:] for trial_dir in trial_dirs]
-            for i_b, dff_baseline in enumerate(dff_baselines):
-                ax = axs[np.floor(i_b/2).astype(np.int), i_b%2]
-                ax.imshow(dff_baseline, clim=clim, cmap=cmap)
-                ax.set_title(baseline_names[i_b])
-
-            minind_image = np.argmin(dff_baselines, axis=0)
-            axs[2,0].imshow(minind_image,cmap=plt.cm.binary)
-            axs[2,0].set_title("index of minimum baseline")
-            axs[2,1].axis("off")
-            fig.suptitle("$\Delta F/F baselines$")
-            plt.savefig(os.path.join(fly_processed_dir, "dff_baseline_warped_003_005_007_010_4x_blur0.png"))
-        
-    if DENOISED:
-        base_dir = "/home/jbraun/bin/deepinterpolation/sample_data"
-        greens = [get_stack(os.path.join(base_dir, "longterm_003_crop.tif"))[30:-30],
-                  get_stack(os.path.join(base_dir, "denoised_longterm_003_crop_out.tif")),
-                  get_stack(os.path.join(base_dir, "denoised_halves_longterm_003_crop_out.tif"))]
-        baseline_blurs = [10, 1, 1]
-        dff_out_dirs = [os.path.join(base_dir, "dff_raw.tif"),
-                        os.path.join(base_dir, "dff_denoised.tif"),
-                        os.path.join(base_dir, "dff_denoised_halves.tif")]
-        dffs = [compute_dff_from_stack(green, baseline_blur=baseline_blur, dff_out_dir=dff_out_dir, use_crop=False) 
-                for green, baseline_blur, dff_out_dir in zip(greens, baseline_blurs, dff_out_dirs)]
-        make_multiple_video_dff(dffs, out_dir=base_dir, video_name="compare_dff", frame_rate=8, vmin=0)
-
-        pass

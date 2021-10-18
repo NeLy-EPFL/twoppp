@@ -82,6 +82,7 @@ class PreProcessParams:
         self.use_df3d = False
         self.use_df3dPostProcess = False
         self.use_behaviour_classifier = False
+        self.make_dfs = False
         self.select_trials = False
         self.cleanup_files = False
         self.make_dff_videos = False
@@ -343,6 +344,8 @@ class PreProcessFly:
                 self._compute_summary_stats(force_overwrite=True)
             else:
                 self._compute_summary_stats()
+        if params.make_dfs:
+            self.get_dfs()
 
     def _run_depth_first(self, force_single_trial_dff=False):
         # TODO: align this trial selection with the new one written up in __init__()
@@ -377,6 +380,8 @@ class PreProcessFly:
                 self._compute_summary_stats(force_overwrite=True)
             else:
                 self._compute_summary_stats()
+        if params.make_dfs:
+            self.get_dfs()
 
     def _convert_raw_to_tiff_trial(self, trial_dir, processed_dir):
         if trial_dir != "" and processed_dir != "":
@@ -440,17 +445,17 @@ class PreProcessFly:
             if os.path.isfile(join(processed_dir, self.params.green_denoised)) and not self.params.overwrite:
                 return
             input_data = join(processed_dir, self.params.green_com_warped)
-            tmp_data_dir = join(self.params.denoise_tmp_data_dir, 
+            tmp_data_dir = join(self.params.denoise_tmp_data_dir,
                                 self.params.denoise_tmp_data_name(processed_dir))
-            denoise.prepare_data(train_data_tifs=input_data, 
+            denoise.prepare_data(train_data_tifs=input_data,
                                 out_data_tifs=tmp_data_dir,
                                 offset=self.params.denoise_crop_offset,
                                 size=self.params.denoise_crop_size)
-            tmp_run_dir = denoise.train(train_data_tifs=tmp_data_dir, 
+            tmp_run_dir = denoise.train(train_data_tifs=tmp_data_dir,
                                         run_base_dir=self.params.denoise_tmp_run_dir,
                                         run_identifier=self.params.denoise_runid(processed_dir),
                                         params=self.params.denoise_params)
-            denoise.inference(data_tifs=tmp_data_dir, 
+            denoise.inference(data_tifs=tmp_data_dir,
                             run_dir=tmp_run_dir,
                             tif_out_dirs=join(processed_dir, self.params.green_denoised),
                             params=self.params.denoise_params)
@@ -463,7 +468,7 @@ class PreProcessFly:
     def _denoise_all_trials(self):
         if self.params.denoise_train_each_trial:
             print(time.ctime(time.time()), "Start denoising by training on all trials.")
-            _ = [self._denoise_trial_trainNinfer(processed_dir) 
+            _ = [self._denoise_trial_trainNinfer(processed_dir)
                  for processed_dir in self.trial_processed_dirs]
         else:
             print(time.ctime(time.time()), "Start denoising by training on one trial: {}".format(self.params.denoise_train_trial))
@@ -499,7 +504,7 @@ class PreProcessFly:
                 prepare_corrected_data(train_data_tifs=input_datas,
                                        out_data_tifs=tmp_data_dirs,
                                        fly_dir=self.fly_dir,
-                                       summary_dict_pickle=join(self.fly_processed_dir, 
+                                       summary_dict_pickle=join(self.fly_processed_dir,
                                                                 self.params.summary_stats))
             else:
                 denoise.prepare_data(train_data_tifs=input_datas,
@@ -562,8 +567,9 @@ class PreProcessFly:
                 baseline_med_filt = self.params.dff_baseline_med_filt
                 baseline_dir = join(processed_dir, self.params.dff_baseline)
 
-            if not os.path.isfile(join(processed_dir, self.params.dff)) or self.params.overwrite or force_overwrite:
-                _ = dff.compute_dff_from_stack(stack, 
+            if not os.path.isfile(join(processed_dir, self.params.dff)) \
+                or self.params.overwrite or force_overwrite:
+                _ = dff.compute_dff_from_stack(stack,
                                                 baseline_blur=baseline_blur,
                                                 baseline_med_filt=baseline_med_filt,
                                                 blur_pre=blur_pre,
