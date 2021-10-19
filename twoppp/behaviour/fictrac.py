@@ -52,8 +52,10 @@ def get_mean_image(video_file, skip_existing=True, output_name="camera_3_mean_im
     ----------
     video_file : string
         absolute path of the video to be averaged
+
     skip_existing : bool, optional
         if already computed, read the image and return it, by default True
+
     output_name : string, optional
         file name of the resulting mean image, by default "_camera_3_mean_image.jpg"
 
@@ -84,23 +86,28 @@ def get_mean_image(video_file, skip_existing=True, output_name="camera_3_mean_im
     return mean_frame
 
 def get_ball_parameters(img, output_dir=None):
-    """Using an image that includes the ball, for example the mean image, compute the location and the radius
-    Uses cv2.HoughCircles to find circles in the image and then selects the most likely one
+    """Using an image that includes the ball, for example the mean image,
+    compute the location and the radius.
+    Uses cv2.HoughCircles to find circles in the image and then selects the most likely one.
     partially copied and modified from Florian Aymann's
     https://github.com/NeLy-EPFL/ABO_data_processing/blob/master/add_fictrac_config.py
     Parameters
     ----------
     img : np.array
         image to be analysed
+
     output_dir : string, optional
-        if specified, make image that includes the analysis results and save to file, by default None
+        if specified, make image that includes the analysis results and save to file,
+        by default None
 
     Returns
     -------
     float
         x position in pixels
+
     float
         y position in pixels
+
     float
         radius in pixels
     """
@@ -144,12 +151,16 @@ def get_circ_points_for_config(x, y, r, img_shape, n=12):
     ----------
     x : float
         x position of ball in pixels
+
     y : float
         y position of ball in pixels
+
     r : float
         radius of ball in pixels
+
     img_shape : tuple/list
         shape of the image as (y, x)
+
     n : int, optional
         number of points, by default 12
 
@@ -198,25 +209,35 @@ def write_config_file(video_file, roi_circ, vfov=3.05, q_factor=40, c2a_src="c2a
     ----------
     video_file : string
         absolute path of video file to run fictrac on
+
     roi_circ : list
         points on the circumference of the ball defining the ball.
         can be generated using get_circ_points_for_config()
+
     vfov : float, optional
         [description], by default 3.05
+
     q_factor : int, optional
         quality factor of fictrac, by default 40
+
     c2a_src : str, optional
         [description], by default "c2a_cnrs_xz"
+
     do_display : str, optional
         [description], by default "n"
+
     c2a_t : list, optional
         [description], by default [-5.800291, -23.501165, 1762.927645]
+
     c2a_r : list, optional
         [description], by default [1.200951, -1.196946, -1.213069]
+
     c2a_cnrs_xz : list, optional
         [description], by default [422, 0, 422, 0, 422, 10, 422, 10]
+
     overwrite : bool, optional
         whether to overwrite an existing config file, by default False
+
     ignore_roi : list, optional
         list of points defining the ROI to be ignored by Fictrac, by default IGNORE_ROI
 
@@ -255,6 +276,7 @@ def run_fictrac_config_gui(config_file, fictrac_config_gui="~/bin/fictrac/bin/co
     ----------
     config_file : str
         absolut path of config file
+
     fictrac_config_gui : str, optional
         location of fictrac config gui command, by default "~/bin/fictrac/bin/configGui"
     """
@@ -270,6 +292,7 @@ def run_fictrac(config_file, fictrac="~/bin/fictrac/bin/fictrac"):
     ----------
     config_file : str
         path to config file generate by the config gui or automatically
+
     fictrac : str, optional
         location of fictrac on computer, by default "~/bin/fictrac/bin/fictrac"
     """
@@ -285,6 +308,7 @@ def config_and_run_fictrac(fly_dir, trial_dirs=None):
     fly_dir : string
         absolute directory pointing to a folder that contains the trial directories.
         Could be anything that is accepted by print() if trial_dirs is not None
+
     trial_dirs : list, optional
         if trial directories are not specified, automatically choose all subfolders of fly_dir
         that start with "0", by default None
@@ -321,9 +345,12 @@ def get_v_th_from_fictrac(trial_dir, f_s=f_s, r_ball=r_ball):
     Parameters
     ----------
     trial_dir : string
-        trial directory that contains the behData/images subfolder, which in turn holds the fictrac output
+        trial directory that contains the behData/images subfolder,
+        which in turn holds the fictrac output
+
     f_s : float, optional
         sampling frequency, by default f_s
+
     r_ball : float, optional
         ball radius, by default r_ball
 
@@ -331,6 +358,7 @@ def get_v_th_from_fictrac(trial_dir, f_s=f_s, r_ball=r_ball):
     -------
     numpy array
         vector of velocity across time
+
     numpy array
         vector of orientation across time
     """
@@ -355,8 +383,10 @@ def filter_fictrac(x, med_filt_size=5, sigma_gauss_size=10):
     ----------
     x : numpy array
         time series to filter
+
     med_filt_size : int, optional
         size of median filter, by default 5
+
     sigma_gauss_size : int, optional
         width of Gaussian kernel, by default 10
 
@@ -375,14 +405,18 @@ def get_fictrac_df(trial_dir, index_df=None, df_out_dir=None, med_filt_size=5, s
     ----------
     trial_dir : str
         trial directory
+
     index_df : pandas Dataframe or str, optional
         pandas dataframe or path of pickle containing dataframe to which the fictrac result is added.
         This could, for example, be a dataframe that contains indices for synchronisation with 2p data,
         by default None
+
     df_out_dir : str, optional
         if specified, will save the dataframe as .pkl, by default None
+
     med_filt_size : int, optional
         size of median filter applied to velocity and orientation, by default 5
+
     sigma_gauss_size : int, optional
         width of Gaussian kernel applied to velocity and orientation, by default 10
 
@@ -395,6 +429,7 @@ def get_fictrac_df(trial_dir, index_df=None, df_out_dir=None, med_filt_size=5, s
     ------
     IOError
         If fictract output file cannot be located
+
     ValueError
         If the length of the specified index_df and the fictrac output do not match
     """

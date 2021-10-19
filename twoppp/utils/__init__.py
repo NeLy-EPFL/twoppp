@@ -33,6 +33,7 @@ def get_stack(stack):
     ------
     FileNotFoundError
         if str is not a file
+
     NotImplementedError
         if after loading from file stack is not a numpy array
     """
@@ -55,6 +56,7 @@ def save_stack(path, stack):
     ----------
     path : str
         location to save to. should be .tif
+
     stack : numpy array
         stack to save
     """
@@ -71,6 +73,7 @@ def resize_stack(stack, size=(128, 128)):
     ----------
     stack : numpy array
         stack of images
+
     size : tuple, optional
         new size, by default (128, 128)
 
@@ -91,6 +94,7 @@ def crop_stack(stack, crop):
     ----------
     stack : numpy array
         stack of images to be cropped
+
     crop : list or tuple
         list of length 2 for symmetric cropping (crop specified value on both sides),
             stack[:, crop[0]:stack.shape[1]-crop[0], crop[1]:stack.shape[2]-crop[1]]
@@ -130,6 +134,7 @@ def crop_img(img, crop):
     ----------
     img : numpy array
         image
+
     crop : list or tuple
          list of length 2 for symmetric cropping (crop specified value on both sides),
             img[crop[0]:stack.shape[1]-crop[0], crop[1]:stack.shape[2]-crop[1]]
@@ -189,6 +194,7 @@ def find_file(directory, name, file_type=""):
     ----------
     directory : str
         Directory in which to search.
+
     name : str
         Name of the file.
 
@@ -214,6 +220,7 @@ def readlines_tolist(file, remove_empty=True):
     ----------
     file : str
         location of .txt file
+
     remove_empty : bool, optional
         remove empty entries, by default True
 
@@ -255,6 +262,7 @@ def sem(array, axis=None):
     Parameters
     ----------
     array : numpy array
+
     axis : int, optional
         along which axis to compute the sem, by default None
 
@@ -279,6 +287,7 @@ def conf_int(array, axis=None):
     Parameters
     ----------
     array : numpy array
+
     axis : int, optional
         along which axis to compute the sem, by default None
 
@@ -297,8 +306,10 @@ def run_shell_command(command, allow_ctrl_c=True, suppress_output=False):
     ----------
     command : str
         shell command to execute
+
     allow_ctrl_c : bool, optional
         whether a CTRL+C event will allow to continue or not, by default True
+
     suppress_output : bool, optional
         whether to not show outputs, by default False
     """

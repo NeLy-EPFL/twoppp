@@ -23,15 +23,19 @@ def get_frame_times_indices(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
     ----------
     trial_dir : str
         directory containing the 2p data and ThorImage output
+
     crop_2p_start_end : int, optional
         specify if DeepInterpolation was used, because it crops 30 frames in the front
         and 30 frames in the back., by default 0
+
     beh_trial_dir : [type], optional
         directory containing the 7 camera data. If not specified, will be set equal
         to trial_dir,, by default None
+
     sync_trial_dir : [type], optional
         directory containing the output of ThorSync. If not specified, will be set equal
         to trial_dir, by default None
+
     opflow : bool, optional
         whether to load optical flow. This will also change the output format
         (5 instead of 3 outputs), by default False
@@ -40,14 +44,18 @@ def get_frame_times_indices(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
     -------
     frame_times_2p: numpy array
         absolute times when the two photon frames were acquired
+
     frame_times_beh: numpy array
         absolute times when the 7 camera images were acquired
+
     beh_frame_idx: numpy array
         same length as frame_times_beh. contains the index of the two photon frame
         that was acquired during each behaviour frame
+
     (frame_times_opflow): numpy array
         only returned if opflow == True
         absolute times when the optic flow sensor values were acquired
+
     (opflow_frame_idx): numpy array
         only returned if opflow == True
         same length as frame_times_opflow. contains the index of the two photon frame
@@ -106,25 +114,34 @@ def get_synchronised_trial_dataframes(trial_dir, crop_2p_start_end=0, beh_trial_
     ----------
     trial_dir : str
         directory containing the 2p data and ThorImage output
+
     crop_2p_start_end : int, optional
         specify if DeepInterpolation was used, because it crops 30 frames in the front
         and 30 frames in the back., by default 0
+
     beh_trial_dir : str, optional
         directory containing the 7 camera data. If not specified, will be set equal
         to trial_dir, by default None
+
     sync_trial_dir : str, optional
         directory containing the output of ThorSync. If not specified, will be set equal
         to trial_dir, by default None
+
     trial_info : dict, optional
         information about trial used to generate MultiIndex DataFrame, by default None
+
     opflow : bool, optional
         whether to create a dataframe for optic flow as well, by default False
+
     df3d : bool, optional
         whether to create a dataframe for 7cam data as well, by default True
+
     opflow_out_dir : str, optional
         absolute file path where to store the optical flow DataFrame, by default None
+
     df3d_out_dir : str, optional
         absolute file path where to store the 7cam DataFrame, by default None
+
     twop_out_dir : str, optional
         absolute file path where to store the twop data DataFrame, by default None
 
@@ -132,8 +149,10 @@ def get_synchronised_trial_dataframes(trial_dir, crop_2p_start_end=0, beh_trial_
     -------
     twop_df: pandas DataFrame
         two-photon data DataFrame
+
     df3d_df: pandas DataFrame or None
         7 camera data DataFrame
+
     opflow_df: pandas DataFrame or None
         optical flow data DataFrame
     """
@@ -199,13 +218,16 @@ def reduce_during_2p_frame(twop_index, values, function=reduce_mean):
     ----------
     twop_index : numpy array
         1d array holding frame indices of one trial.
+
     values : numpy array
         Values upsampled to the frequency of ThorSync,
         i.e. 1D numpy array of the same length as
         `frame_counter` or 2D numpy array of the same length.
+
     function : function
         Function used to reduce the value,
         e.g. np.mean for 1D variables
+
     Returns
     -------
     reduced : numpy array

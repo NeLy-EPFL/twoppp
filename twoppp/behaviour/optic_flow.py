@@ -92,7 +92,9 @@ def filter_velocities(flow_data, winsize=80):
     Parameters
     ----------
     flow_data : pandas DataFrame
-        dataframe containing velocities computed from optical flow, e.g. output of compute_velocities()
+        dataframe containing velocities computed from optical flow,
+        e.g. output of compute_velocities()
+
     winsize : int, optional
         window size, by default 80
 
@@ -113,10 +115,13 @@ def forward_walking(flow_data, thres_walk=0.03, winsize=100):
     Parameters
     ----------
     flow_data : pandas DataFrame
-        dataframe containing velocities computed from optical flow, e.g. output of compute_velocities()
+        dataframe containing velocities computed from optical flow,
+        e.g. output of compute_velocities()
         Ideally already filtered using filter_velocities()
+
     thres_walk : float, optional
         threshold to apply on forward walking units (rotations/s), by default 0.03
+
     winsize : int, optional
         behaviour will only be considered walking if  >=75% of the samples within a window centered
         around the current frame are also above the threshold., by default 100 (at 400 Hz)
@@ -141,8 +146,10 @@ def resting(flow_data, thres_rest=0.01, winsize=400):
     flow_data : pandas DataFrame
         dataframe containing velocities computed from optical flow, e.g. output of compute_velocities()
         Ideally already filtered using filter_velocities()
+
     thres_rest : float, optional
         threshold to apply on forward walking units (rotations/s), by default 0.03
+
     winsize : int, optional
         behaviour will only be considered resting if  >=75% of the samples within a window centered
         around the current frame are also above the threshold., by default 400 (at 400 Hz)
@@ -168,6 +175,7 @@ def clean_rest(rest, N_clean=16*5):  # for 16 Hz. for full res data 400*5
     ----------
     rest : numpy array
         binary time signal indicating whether a fly is resting or not
+
     N_clean : int, optional
         how many samples at the beginning of each resting period to cut off, by default 16*5 (at 16 Hz)
 
@@ -200,6 +208,7 @@ def fractions_walking_resting(flow_data):
     -------
     float
         fraction of walking
+
     float
         fraction of resting
     """
@@ -216,20 +225,27 @@ def get_opflow_df(beh_trial_dir, index_df=None, df_out_dir=None, block_error=Fal
     ----------
     beh_trial_dir : str
         absolute path of the folder where the optic flow file "OptFlow.txt" is located
+
     index_df : pandas Dataframe or str, optional
         pandas dataframe or path of pickle containing dataframe to which the optic flow result is added.
         This could, for example, be a dataframe that contains indices for synchronisation with 2p data,
         by default None
+
     df_out_dir : str, optional
         where to save the dataframe, by default None
+
     block_error : bool, optional
         if True, ignore if optical flow file is not found and return an empty dataframe, by default False
+
     winsize : int, optional
         window size for moving average filter to be applied to raw sensor values, by default 80
+
     thres_walk : float, optional
         threshold to classify forward walking. unit: rotations/s, by default 0.03
+
     thres_rest : float, optional
         threshold to classify resting. unit: rotations/s, by default 0.01
+
     return_walk_rest : bool, optional
         if True, return dataframe, fraction_walking, fraction_resting.
         Otherwise, just the dataframe, by default False
@@ -244,8 +260,10 @@ def get_opflow_df(beh_trial_dir, index_df=None, df_out_dir=None, block_error=Fal
     ------
     FileNotFoundError
         if optical flow file not found and block_error == False
+
     SyntaxError
         Error during reading of the optical flow file and/or replacing it with empty array.
+
     ValueError
         length of index_df and optical flow file are not corresponding to each other by more than 10 samples
     """
@@ -327,19 +345,23 @@ def get_opflow_in_twop_df(opflow_df, twop_df, twop_df_out_dir=None, thres_walk=0
     ----------
     opflow_df : pandas DataFrame or str
         optical flow dataframe, as obtained from get_opflow_df()
+
     twop_df : pandas DataFrame or str
         two photon dataframe as obtained from synchronisation.get_synchronised_trial_dataframes()
+
     twop_df_out_dir : str, optional
         where to save the twop_df to after adding optic flow variables, by default None
+
     thres_walk : float, optional
         threshold to classify forward walking. unit: rotations/s, by default 0.03
+
     thres_rest : float, optional
         threshold to classify resting. unit: rotations/s, by default 0.01
 
     Returns
     -------
-    [type]
-        [description]
+    pandas DataFrame
+        two photon dataframe including additional fields velForw, velSide, velTurn, walk_resamp, rest_resamp
     """
     if isinstance(opflow_df, str) and os.path.isfile(opflow_df):
         opflow_df = pd.read_pickle(opflow_df)

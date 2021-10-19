@@ -133,15 +133,20 @@ def shade_walk_rest(walk, rest, x=None, ax=None, alpha=0.2, colors=["red", "blue
     ----------
     walk : numpy array
         binary array indicating whether fly is walking or not
+
     rest : numpy array
         binary array indicating whether fly is resting or not
+
     x : numpy array, optional
         x values that other data on the axes will be/was plotted against.
         if not specified: x = np.arange(len(walk)), by default None
+
     ax : matplotlib.pyplot.Axes, optional
         axis to be plotted on. if not specified plt.gca(), by default None
+
     alpha : float, optional
         transparency of shaded area, by default 0.2
+
     colors : list, optional
         colors to shade walking and resting in, by default ["red", "blue"]
     """
@@ -173,22 +178,27 @@ def plot_mu_sem(mu, err, x=None, label="", alpha=0.3, color=None, ax=None):
     ----------
     mu: numpy array
         mean, shape [N_samples, N_lines] or [N_samples]
+
     err: numpy array
         error to be plotted, e.g. standard error of the mean,
         shape [N_samples, N_lines] or [N_samples]
+
     x: numpy array, optional
         shape [N_samples]. If not specified will be np.arange(mu.shape[0]),
         by default None
+
     label: str, optional
         the label for each line either a string if only one line or
         list of strings if multiple lines, by default ""
+
     alpha: float, optional
         transparency of the shaded area, by default 0.3
+
     color: optional
         pre-specify colour. if None, use Python default colour cycle, by default None
+
     ax: matplotlib.pyplot.Axes, optional
         axis to be plotted on, otherwise it will get the current axis with plt.gca(), by default None
-    :return:
     """
     if ax is None:
         ax = plt.gca()
@@ -199,5 +209,5 @@ def plot_mu_sem(mu, err, x=None, label="", alpha=0.3, color=None, ax=None):
         ax.fill_between(x, mu - err, mu + err, alpha=alpha, color=p[0].get_color())
     else:
         for i in np.arange(mu.shape[1]):
-            ax.fill_between(x, mu[:, i] - err[:, i], mu[:, i] + err[:, i], 
+            ax.fill_between(x, mu[:, i] - err[:, i], mu[:, i] + err[:, i],
                             alpha=alpha, color=p[i].get_color())

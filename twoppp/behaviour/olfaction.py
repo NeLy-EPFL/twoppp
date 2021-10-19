@@ -38,12 +38,16 @@ def process_lines_olfaction(sync_file, sync_metadata_file, seven_camera_metadata
     ----------
     sync_file : str
         Path to the synchronization file.
+
     sync_metadata_file : str
         Path to the synchronization metadata file.
+
     metadata_2p_file : str
         Path to the ThorImage metadata file.
+
     seven_camera_metadata_file : str
         Path to the metadata file of the 7 camera system.
+
     Returns
     -------
     processed_lines : dictionary
@@ -241,7 +245,6 @@ def plot_olfac_conditions(t, signals, conditions, start_indices, t_stim=10, t_pl
         return fig, signals_to_avg
     return fig
 
-
 def average_neural_across_repetitions(beh_dfs, to_average, output_dir=None, condition="WaterB", t_range=[-5, 15], twop_fs=16):
     N_rep = 0
     
@@ -269,6 +272,3 @@ def average_neural_across_repetitions(beh_dfs, to_average, output_dir=None, cond
     if output_dir is not None:
         utils.save_stack(output_dir, output)
     return output
-
-
-

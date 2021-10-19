@@ -115,7 +115,7 @@ def get_roi_signals(stack, centers=None, size=(0, 0), mask=None, pattern=None, m
         if size == [0, 0] or size == (0, 0):
             return np.array([stack[:, center[0], center[1]] for center in centers]).T
         else:
-            return np.array([np.mean(stack[:, center[0]-size[0]:center[0]+size[0], 
+            return np.array([np.mean(stack[:, center[0]-size[0]:center[0]+size[0],
                                             center[1]-size[1]:center[1]+size[1]], axis=(1, 2)) for center in centers]).T
     elif pattern is not None:
         mask = get_roi_mask(stack,centers, size, pattern, mask_out_dir=mask_out_dir)
@@ -202,19 +202,24 @@ def get_dff_from_traces(signals, length_baseline=10, return_f0=False, f0_min=Non
     ----------
     signals : numpy array
         Image stack with fluorescence values. First dimension is time.
+
     length_baseline : int, optional
         Length of the baseline used to compute dF/F.
         Default is 10.
+
     return_f0 : bool
         whether to return the baseline values as a 2nd output value
         default: False
+
     f0_min : int
         whether to apply a minimum baseline
         default: None
+
     Returns
     -------
     dff_traces : numpy array
         First dimension encodes neuron number. Second dimension is time.
+
     f_0s : numpy array
         optional additional output with the dff baselines
     """
@@ -244,7 +249,7 @@ def write_roi_center_file(centers, filename):
 
 def read_roi_center_file(filename):
     """
-    caution: this only works for files that were written with write_roi_center_file 
+    caution: this only works for files that were written with write_roi_center_file()
              and where the coordinates are 3 digits maximum
     """
     roi_centers_text = readlines_tolist(filename)
@@ -255,7 +260,46 @@ def read_roi_center_file(filename):
     print("Read the centers of {} ROIs from file".format(N_rois))
     return roi_centers
 
-def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default", index_df=None, df_out_dir=None, mask_out_dir=None):
+def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default",
+                       index_df=None, df_out_dir=None, mask_out_dir=None):
+    """extract the temporal signals from manually selected regions of interest
+    using a fixed shape
+
+    Parameters
+    ----------
+    stack : numpy array or str
+        fluorescence data stack of images from which to extract the ROI data
+
+    roi_center_filename : str
+        .txt file written with write_roi_center_file() containing the centers of the ROIs
+
+    size : tuple, optional
+        fixed size of the ROI. Implemented sizes: (7, 11), (5, 9), (3, 5).
+        by default (7,11)
+
+    pattern : str or numpy array, optional
+        currently implemented: "default" or a binary numpy array detailling the shape,
+        by default "default"
+
+    index_df : str or pandas.DataFrame, optional
+        dataframe containing synchronisation data, e.g. frame time stamps, by default None
+
+    df_out_dir : str, optional
+        where to store the dataframe, by default None
+
+    mask_out_dir : str, optional
+        where to store the mask including all the ROIs, by default None
+
+    Returns
+    -------
+    pandas DataFrame
+        dataframe including "neuron_0" to "neuron_N" fields with ROI signals
+
+    Raises
+    ------
+    ValueError
+        if the supplied dataframe is much larger/shorter than the ROI signals
+    """
     roi_centers = read_roi_center_file(roi_center_filename)
     roi_signals = get_roi_signals(stack, centers=roi_centers, size=size, pattern=pattern, mask=None, mask_out_dir=mask_out_dir)
     N_samples, N_rois = roi_signals.shape

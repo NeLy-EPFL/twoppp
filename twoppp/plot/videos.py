@@ -110,31 +110,43 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
     ----------
     stack : numpy array or str
         stack of dff frames or path pointing to .ti
+
     size : tuple, optional
         resize video to given size, by default None
+
     font_size : int, optional
         text font size, by default 16
+
     pmin : float, optional
         percentage min of dff, overruled by vmin by default 0.5
+
     pmax : float, optional
         percentage max of dff, overruled by vmax by default 99.5
+
     vmin : float, optional
         absolute minimum values for dff, if not specified, use pmin, by default None
+
     vmax : float, optional
         absolute maximum values for dff. if not specified, use pmax, by default None
+
     blur : float, optional
         whether to spatially blur dff. width of Gaussian kernel, by default 0
+
     mask : numpy array or str, optional
         mask to apply over the dff, by default None
+
     crop : list, optional
         cropping applied to dff
         list of length 2 for symmetric cropping (same on both sides),
         or list of length 4 for assymetric cropping, by default None
+
     log_lim : bool, optional
         EXPERIMENTAL FUNCTION: whether to use logarithmic limits and scale for dff,
         by default False
+
     text : str, optional
         text to show in top left of image, by default None
+
     colorbarlabel : str, optional
         text printed next to the colourbar, by default "dff"
 

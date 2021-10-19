@@ -9,10 +9,13 @@ def get_multi_index_trial_df(trial_info, N_samples, t=None, twop_index=None):
     trial_info : dict
         dictionary with info about the trial containing:
         Date (int), Genotype (str), Fly (int), TrialName (str), i_trial (int)
+
     N_samples : int
         number of samples in the trial
+
     t : numpy array, optional
         time vector to be added as "t" column in the data frame, by default None
+
     twop_index : numpy array, optional
         synchronisation indices. to be added as "twop_index" column, by default None
 
@@ -70,6 +73,7 @@ def get_norm_dfs(dfs, perc=0.99):
     ----------
     dfs : list of pandas DataFrames
         for example generated using get_multi_index_trial_df()
+
     perc : float, optional
         percentile to normalise to, by default 0.99
 

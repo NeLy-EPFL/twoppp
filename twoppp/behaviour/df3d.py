@@ -28,12 +28,16 @@ def prepare_for_df3d(trial_dirs, videos=True, scope=2, tmp_process_dir=None, ove
     ----------
     trial_dirs : list
         list of absolute trial directories that are to be processed
+
     videos : bool, optional
         whether the data source is videos or images, by default True
+
     scope : int, optional
         which two-photon set-up was used to acquire the data. 1=LH&CLC, 2=FA&JB, by default 2
+
     tmp_process_dir : string or None, optional
         from which folder to run deepfly3d. If none, will be ../../../tmp, by default None
+
     overwrite : bool, optional
         whether to overwrite excisting 'pose_result*' files, by default False
 
@@ -111,6 +115,7 @@ def postprocess_df3d_trial(trial_dir, overwrite=False):
     ----------
     trial_dir : string
         directory of the trial. should contain an "images" folder at some level of hierarchy
+ 
     overwrite : bool, optional
         whether to overwrite existing results, by default False
     """
@@ -136,6 +141,28 @@ def postprocess_df3d_trial(trial_dir, overwrite=False):
         leg_angles = mydf3dPostProcess.calculate_leg_angles(save_angles=True)
 
 def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
+    """load pose estimation data into a dataframe, potentially one that is synchronised
+    to the two-photon recordings.
+    Adds columns for joint position and joint angles.
+
+    Parameters
+    ----------
+    trial_dir : str
+        base directory where pose estimation results can be found
+
+    index_df : pandas Dataframe or str, optional
+        pandas dataframe or path of pickle containing dataframe to which the df3d result is added.
+        This could, for example, be a dataframe that contains indices for synching with 2p data,
+        by default None
+
+    out_dir : str, optional
+        if specified, will save the dataframe as .pkl, by default None
+
+    Returns
+    -------
+    beh_df: pandas DataFrame
+        Dataframe containing behavioural data
+    """
 
     if index_df is not None and isinstance(index_df, str) and os.path.isfile(index_df):
         index_df = pd.read_pickle(index_df)
@@ -145,7 +172,6 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
 
     # read the angles and convert them into an understandable format
     angles_file = find_file(trial_dir, name="joint_angles")
-    # angles_file = glob.glob(os.path.join(trial_dir, "behData", "images", "df3d","joint_angles*"))[0]
     with open(angles_file, "rb") as f:
         angles = pickle.load(f)
     leg_keys = []
@@ -170,7 +196,6 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
 
     # read the joints from df3d after post-processing and convert them into an understandable format
     joints_file = find_file(trial_dir, name="aligned_pose")
-    # joints_file = glob.glob(os.path.join(trial_dir, "behData", "images", "df3d","aligned_pose*"))[0]
     with open(joints_file, "rb") as f:
         joints = pickle.load(f)
     leg_keys = []
@@ -182,11 +207,13 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
     Y_names = []
     for i_leg, leg in enumerate(leg_keys):
         for i_joint, joint in enumerate(joint_keys):
-            Y[:, i_leg*len(joint_keys)*3 + i_joint*3 : i_leg*len(joint_keys)*3 + (i_joint+1)*3] = np.array(joints[leg][joint]["raw_pos_aligned"])
+            Y[:, i_leg*len(joint_keys)*3 + i_joint*3 : i_leg*len(joint_keys)*3 + (i_joint+1)*3] = \
+                np.array(joints[leg][joint]["raw_pos_aligned"])
             Y_names += ["joint_" + leg + "_" + joint + i_ax for i_ax in ["_x", "_y", "_z"]]
 
     if beh_df is None:
-        # if no index_df was supplied externally, try to get info from trial directory and create empty dataframe
+        # if no index_df was supplied externally,
+        # try to get info from trial directory and create empty dataframe
         frames = np.arange(N_samples)
         try:
             fly_dir, trial = os.path.split(trial_dir)
@@ -207,7 +234,7 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
                                                 [i_trial, ] * N_samples,  # e.g. 1
                                                 frames
                                             ),
-                                            names=[u'Date', u'Genotype', u'Fly', u'Trial', u'Frame'])
+                                            names=[u'Date', u'Genotype', u'Fly', u'Trial',u'Frame'])
         beh_df = pd.DataFrame(index=indices)
 
     beh_df[X_names] = X

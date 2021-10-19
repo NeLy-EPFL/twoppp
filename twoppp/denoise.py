@@ -48,6 +48,7 @@ def correct_illumination(stack, correction):
     ----------
     stack : numpy array
         imaging stack
+
     correction : numpy array
         computed using get_illumination_correction()
 
@@ -66,10 +67,13 @@ def prepare_corrected_data(train_data_tifs, out_data_tifs, fly_dir, summary_dict
     ----------
     train_data_tifs : list of (numpy array of str)
         stacks to be used for training
+
     out_data_tifs : list of str
         where to save the corrected data to
+
     fly_dir : str
         not used
+
     summary_dict_pickle : str
         path to a pickled file containing a dictionary with entry "green_means_raw"
         This will be used to fit the correction

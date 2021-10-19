@@ -30,11 +30,14 @@ def _compute_dff(stack, baseline, apply_filter=True):
     ----------
     img : np.array
         Single image or stack of images.
+
     baseline : np.array, optional
         Must have the same dimension as the image(s) given in img.
+
     apply_filter : boolean
         If true the dff stacked is median filter with (3, 3, 3) kernel before
         it is returned.
+
     Returns
     -------
     dff_img : np.array
@@ -64,11 +67,14 @@ def _find_pixel_wise_baseline(stack, n=10, occlusions=None):
     stack : np.array 3D
         First dimension should encode time.
         Second and third dimension are for space.
+
     n : int, default = 10
         Length of baseline.
+
     occlusions : numpy array of type boolean
         Occlusions are ignored in baseline calculation.
         Default is None.
+
     Returns
     -------
     baseline_img : np.array 3D
