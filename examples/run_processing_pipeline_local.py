@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # You could, for example, call the load.get_trials_from_fly() function
     # and use the 'startswith' and 'endswith' arguments.
     # Alternatively, you can save them in a file in the fly_dir called:
-    # trial_dirs.txt
+    # trial_dirs.txt. In this case supply trial_dirs="fromfile"
     # Also, make sure that the trial_dirs each contain the synchronisation data
     # and the behaviour data. If this is not the case, supply them separately
     # using the beh_trial_dirs and sync_trial_dirs arguments. Agains, these

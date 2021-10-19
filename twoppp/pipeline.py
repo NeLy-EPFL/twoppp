@@ -27,15 +27,19 @@ from twoppp.rois import local_correlations, get_roi_signals_df
 from twoppp.behaviour.synchronisation import get_synchronised_trial_dataframes
 from twoppp.behaviour.optic_flow import get_opflow_df, get_opflow_in_twop_df
 from twoppp.behaviour.fictrac import get_fictrac_df
-from twoppp.analysis import InterPCAAnalysis
 
 class PreProcessParams:
-    """Class containing all default parameters for the PreProcessFly class."""
+    """Class containing all default parameters for the PreProcessFly class.
+    Usage:
+    param = PreProcessParams()
+    param.value1 = ABC
+    param.value2 = DEF
+    """
 
     def __init__(self):
         """Class containing all default parameters for the PreProcessFly class."""
         self.genotype = " "
-        # names of tif/npy files generated throughout processing
+        # names of files generated throughout processing
         self.red_raw = "red.tif"
         self.green_raw = "green.tif"
         self.green_com_crop = "green_com_crop.tif"
@@ -69,92 +73,89 @@ class PreProcessParams:
         self.roi_centers = "ROI_centers.txt"
         self.roi_mask = "ROI_mask.tif"
 
-        self.pca_analysis_file = "pcan.pkl"
-        self.pca_analysis_map_file = "pca_map.pdf"
-
         # mode of pre-processing: if True, perfom one processing step
         # on each trial before moving to next processing step
         self.breadth_first = True
-        self.overwrite = False
-        self.use_warp = False
-        self.use_denoise = False
-        self.use_dff = False
-        self.use_df3d = False
-        self.use_df3dPostProcess = False
-        self.use_behaviour_classifier = False
-        self.make_dfs = False
-        self.select_trials = False
+        self.overwrite = False  # whether to overwrite existing files with same name
+        self.use_warp = False  # optic flow motion correction
+        self.use_denoise = False  # denoising using deep interpolation
+        self.use_dff = False  # computing delta F / F
+        self.use_df3d = False  # pose estimation
+        self.use_df3dPostProcess = False  # pose post processing, e.g. computing angles
+        self.use_behaviour_classifier = False  # use behavioural classifier
+        self.make_dfs = False  # whether to generate synchronised dataframes
         self.cleanup_files = False
-        self.make_dff_videos = False
-        self.make_summary_stats = True
+        self.make_dff_videos = False  # whether to make dff videos for each trial
+        self.make_summary_stats = True  # whether to save mean/std/... for each trial
         self.ball_tracking = "opflow"  # "opflow", "fictrac", or None
-        self.add_df3d_to_df = False
+        self.add_df3d_to_df = False  # whether to add pose estimation results to data frame
 
-        # ofco params
-        self.i_ref_trial = 0
-        self.i_ref_frame = 0
-        self.use_com = True
-        self.post_com_crop = True
-        self.post_com_crop_values = None
-        self.save_motion_field = False  # TODO: set this to True if we have enought space
-        self.ofco_param = default_parameters()
-        self.ofco_parallel = True
-        self.ofco_verbose = True
+        # ofco (optical flow motion correction) params
+        self.i_ref_trial = 0  # in which trial to search for reference frame
+        self.i_ref_frame = 0  # which frame to pick in that trial
+        self.use_com = True  # whethter to use center of mass registration
+        self.post_com_crop = True  # whether to crop the images after COM registration
+        self.post_com_crop_values = None  # cropping after com: (Y_SIZE, X_SIZE)
+        self.save_motion_field = False  # whether to save motion field. They are very large
+        self.ofco_param = default_parameters()  # parameters from ofco including regularisation
+        self.ofco_parallel = True  # whether to use parallel processing with multiprocessing.Pool
+        self.ofco_verbose = True  # whether to inform about intermediate processing steps
         # self.ofco_out_dtype = np.float32  # TODO: verify whether this is the best choice
 
-        # denoising params
-        self.denoise_crop_size = (320, 640)
-        self.denoise_crop_offset = (None, None)
-        self.denoise_tmp_data_dir = join(os.path.expanduser("~"), "tmp", "deepinterpolation", "data")
+        # denoising params for DeepInterpolation
+        self.denoise_crop_size = None  # cropping before denoising: (Y_SIZE, X_SIZE)
+        self.denoise_crop_offset = (None, None)  # offset of the crop: (Y_OFFSET, X_OFFSET)
+        # the following three serve to make local copies of the data to allow for faster processing
+        self.denoise_tmp_data_dir = join(os.path.expanduser("~"), "tmp", "deepinterpolation","data")
         self.denoise_tmp_data_name = self._make_denoise_data_name
         self.denoise_tmp_run_dir = join(os.path.expanduser("~"), "tmp", "deepinterpolation", "runs")
         self.denoise_runid = self._make_runid
-        self.denoise_final_dir = "denoising_run"
-        self.denoise_delete_tmp_run_dir = True
+        self.denoise_final_dir = "denoising_run"  # name of folder to save model in
+        self.denoise_delete_tmp_run_dir = True  # whether to delete the temporary run directory
         self.denoise_params = denoise.DefaultInterpolationParams()
-        self.denoise_train_each_trial = False
-        self.denoise_train_trial = 0
+        self.denoise_train_each_trial = False  # if False, only train on one trial.
+        self.denoise_train_trial = 0  # which trial to train on
+        # whether to use correction of illumination along medial-lateral axis before denoising
         self.denoise_correct_illumination_leftright = False
 
         # dff params
-        self.dff_common_baseline = True
-        self.dff_baseline_blur = 10
-        self.dff_baseline_med_filt = 1
-        self.dff_baseline_blur_pre = True
-        self.dff_baseline_mode = "convolve"
-        self.dff_baseline_length = 10
-        self.dff_baseline_quantile = 0.95
-        self.dff_use_crop=False
-        self.dff_manual_add_to_crop = 20
-        self.dff_blur = 0
-        self.dff_min_baseline = None
-        self.dff_baseline_exclude_trials = None
+        self.dff_common_baseline = True  # whether to use the same baseline across all trials
+        self.dff_baseline_blur = 10  # sigma of spatial Gaussian filter applied to compute baseline
+        self.dff_baseline_med_filt = 1  # median filter applied to compute basline
+        # whether to apply filters on stack before baseline computation or on baseline
+        self.dff_baseline_blur_pre = True  
+        self.dff_baseline_mode = "convolve"  # slower version: "quantile"
+        self.dff_baseline_length = 10  # length in samples of moving average filter for baseline
+        self.dff_baseline_quantile = 0.05  # only used is baseline mode is "quantile"
+        self.dff_use_crop=False  # whether to crop dff
+        self.dff_manual_add_to_crop = 20  # only used if automatic crop is selected
+        self.dff_blur = 0  # whether to blur the dff after computing it. supply width of Gaussian
+        self.dff_min_baseline = None  # value of minimum baseline. e.g., 0 to prevent neg. baseline
+        self.dff_baseline_exclude_trials = None  # list with faulty trials to be excluded
 
         self.dff_video_name = "dff"
         self.dff_beh_video_name = "dff_beh"
-        self.dff_video_pmin = None
-        self.dff_video_vmin = 0
-        self.dff_video_pmax = 99
-        self.dff_video_vmax = None
-        self.dff_video_share_lim = True
-        self.dff_video_log_lim = False
-        self.dff_video_downsample = 2
-        self.default_video_camera = 6
+        self.dff_video_pmin = None  # percentile minimum for dff videos
+        self.dff_video_vmin = 0  # absolute minimum for dff videos
+        self.dff_video_pmax = 99  # percentile maximum for dff videos
+        self.dff_video_vmax = None  # absolute maximum for dff videos
+        self.dff_video_share_lim = True  # whether to share dff limit across trials in one video
+        self.dff_video_log_lim = False  # whether to use a logarithmic scale/limit in video
+        self.dff_video_downsample = 2  # temporal downsampling of dff videos to reduce size
+        self.default_video_camera = 6  # which video camera to use. 5 for set-up 2 and 6 for setup 1
 
         # deepfly3d params
-        self.behaviour_as_videos = True
-        self.twop_scope = 2
+        self.behaviour_as_videos = True  # whether 7 cam data is available as .mp4 videos
+        self.twop_scope = 2  # which of the two set-ups you used (1=LH&CLC, 2=FA+JB)
 
         # optic flow params
-        self.opflow_win_size = 80
-        self.thres_walk = 0.03
-        self.thres_rest = 0.01
+        self.opflow_win_size = 80  # moving average window used to smooth optical flow
+        self.thres_walk = 0.03  # absolute threshold on optical flow data for walking. unit rot/s
+        self.thres_rest = 0.01  # absolute threshold on optical flow data for resting. unit rot/s
 
         # ROI extraction params
-        self.roi_size = (7,11)
-        self.roi_pattern = "default"
-
-
+        self.roi_size = (7,11)  # size of pattern for ROI extraction
+        self.roi_pattern = "default"  # shape of pattern. "default" gives a rhomboid
 
     @staticmethod
     def _make_runid(processed_dir, appendix=None):
@@ -172,11 +173,55 @@ class PreProcessFly:
     """Class to automatise preprocessing of 2p and behavioural data."""
 
     def __init__(self, fly_dir, params=PreProcessParams(), trial_dirs=None, selected_trials=None,
-                 beh_fly_dir=None, beh_trial_dirs=None, sync_fly_dir=None, sync_trial_dirs=None):
+                 beh_trial_dirs=None, sync_trial_dirs=None):
+        """Class to automatise pre-processing of two-photon and behavioural data.
+        All parameters and which pre-processing steps to perform can be selected by supplying params
+
+        Parameters
+        ----------
+        fly_dir : str
+            base directory that contains trials
+
+        params : PreProcessParams, optional
+            parameter class including processing parameters and which processing steps to perform,
+            by default PreProcessParams()
+
+        trial_dirs : list of str or str, optional
+            directories containing the two photon data
+            if None: automatic. find all dirs in fly_dir: load.get_trials_from_fly(self.fly_dir)[0],
+            if "fromfile": read lines of fly_dir/"params.trial_dirs" file (default: trial_dirs.txt)
+            if str: supply the path to a text file containint a trial directory on each list
+            otherwise: supply a list of trials
+            by default None
+
+        selected_trials : list of int, optional
+            list of indices of trials to keep. all others will be excluded from analysis,
+            by default None
+
+        beh_trial_dirs : list of str or str, optional
+            directories containing behavioural data, i.e., 7 cam, optic flow,
+            same system as for trial_dirs, but if None, beh_trial_dirs=trial_dirs will be selected,
+            by default None
+
+        sync_trial_dirs : ist of str or str, optional
+            directories containing thorsync data
+            same system as for trial_dirs, but if None, sync_trial_dirs=trial_dirs will be selected,
+            by default None
+
+        Raises
+        ------
+        FileNotFoundError
+            if trial_dirs/beh_trial_dirs/sync_trial_dirs file is not found
+
+        NotImplementedError
+            if selected trials is not None and not a list of integers
+        """
         super().__init__()
         self.params = params
         self.fly_dir = fly_dir
         self.selected_trials = selected_trials
+
+        # get the trial directories containing two-photon data
         if trial_dirs == "fromfile":
             self.trial_dirs = readlines_tolist(join(self.fly_dir, self.params.trial_dirs))
         elif isinstance(trial_dirs, str) and os.path.isfile(trial_dirs):
@@ -189,6 +234,7 @@ class PreProcessFly:
             print("Automatically detecting trial dirs.")
             self.trial_dirs = load.get_trials_from_fly(self.fly_dir)[0]
 
+        # get the behavioural data directories in case they are not the same as the two photon ones
         if beh_trial_dirs == "fromfile":
             self.beh_trial_dirs = readlines_tolist(join(self.fly_dir, self.params.beh_trial_dirs))
         elif isinstance(beh_trial_dirs, str) and os.path.isfile(beh_trial_dirs):
@@ -199,8 +245,8 @@ class PreProcessFly:
             self.beh_trial_dirs = beh_trial_dirs
         else:
             self.beh_trial_dirs = self.trial_dirs
-        self.beh_fly_dir, _ = os.path.split(self.beh_trial_dirs[0]) if beh_fly_dir is None else beh_fly_dir
 
+        # get the thorsync data directories in case they are not the same as the two photon ones
         if sync_trial_dirs == "fromfile":
             self.sync_trial_dirs = readlines_tolist(join(self.fly_dir, self.params.sync_trial_dirs))
         elif isinstance(sync_trial_dirs, str) and os.path.isfile(sync_trial_dirs):
@@ -211,8 +257,8 @@ class PreProcessFly:
             self.sync_trial_dirs = sync_trial_dirs
         else:
             self.sync_trial_dirs = self.trial_dirs
-        self.sync_fly_dir, _ = os.path.split(self.sync_trial_dirs[0]) if sync_fly_dir is None else sync_fly_dir
 
+        # select the trials according to selected_trials
         self._match_trials_and_beh_trials()
         if self.selected_trials is not None and isinstance(self.selected_trials, list):
             self.trial_dirs = [self.trial_dirs[i] for i in self.selected_trials]
@@ -220,15 +266,19 @@ class PreProcessFly:
             self.sync_trial_dirs = [self.sync_trial_dirs[i] for i in self.selected_trials]
             self._match_trials_and_beh_trials()
         elif self.selected_trials is not None:
-            raise NotImplementedError("selected_trials should be None or a list containing integer indices.")
+            raise NotImplementedError("selected_trials should be None or a list of ints.")
         else:
             self.selected_trials = np.arange(len(self.trial_dirs))
+        
         self._get_trial_names()
         self._get_experiment_info()
         self._create_processed_structure()
         # self._save_ref_frame() --> moved to run_all_trials
 
     def _get_trial_names(self):
+        """get the trial name of each trial by splitting the direcory
+        and taking the last folder name as trial name
+        """
         trial_names = []
         for trial in self.trial_dirs:
             _, name = os.path.split(trial)
@@ -236,6 +286,12 @@ class PreProcessFly:
         self.trial_names = trial_names
 
     def _get_experiment_info(self):
+        """extract information about the expteriment from the fly_dir
+        this includes:
+            fly: the number of the fly on that day
+            date: the date of the recording
+            genotype: the genotype of the fly recorded
+        """
         try:
             tmp, fly = os.path.split(self.fly_dir)
             self.fly = int(fly[-1:])
@@ -255,19 +311,36 @@ class PreProcessFly:
             self.genotpye = self.params.genotype
 
     def _match_trials_and_beh_trials(self):
+        """check that the same number of two-photon, behavioural and sync trials exist
+        """
         assert len(self.beh_trial_dirs) == len(self.trial_dirs)
         assert len(self.sync_trial_dirs) == len(self.trial_dirs)
         return
 
     def _create_processed_structure(self):
+        """create a "processed" sub-folder in each trial_dir and one inside the fly_dir.
+        the first one will contain trial-specific data, the second one fly_specific data
+        """
         self.fly_processed_dir = join(self.fly_dir, load.PROCESSED_FOLDER)
         makedirs_safe(self.fly_processed_dir)
-        self.trial_processed_dirs = [join(trial_dir, load.PROCESSED_FOLDER) if trial_dir != "" else ""
+        self.trial_processed_dirs = [join(trial_dir, load.PROCESSED_FOLDER)
+                                     if trial_dir != "" else ""
                                      for trial_dir in self.trial_dirs]
         _ = [makedirs_safe(processed_dir)
              for processed_dir in self.trial_processed_dirs if processed_dir != ""]
 
     def _save_ref_frame(self):
+        """save the reference frame for optical flow motion registration
+        uses the following params:
+            ref_frame: if "", don't compute reference frame, else use as file name
+            i_ref_trial: which trial to use
+            i_ref_frame: which frame to use
+            raw_red: name of raw data file
+            use_com: whether to use center of mass registration
+            post_com_crop: whther to crop after com registration
+            post_com_crop_values: how to crop
+            overwrite: whether to overwrite existing files
+        """
         if self.params.ref_frame == "":
             return
         ref_trial_dir = self.trial_dirs[self.params.i_ref_trial]
@@ -287,6 +360,13 @@ class PreProcessFly:
                                if self.params.post_com_crop else None)
 
     def run_all_trials(self):
+        """run pre-processing for all trials
+        according to the steps and parameters defined in self.params.
+        Either runs breadth first (finish one step for all trials)
+        or depth dirst (go as far as possible with one trial before touching the others).
+        uses the following params:
+            breadth_first: to decide whether to run breath first or depth first
+        """
         self._save_ref_frame()
         if self.params.breadth_first:
             self._run_breadth_first()
@@ -294,6 +374,21 @@ class PreProcessFly:
             self._run_depth_first()
 
     def run_single_trial(self, i_trial):
+        """run all processing steps defined in self.params for one trial
+        uses the following params to decide which steps to perform:
+            use_warp
+            use_denoise
+            use_dff
+            use_df3d
+            use_df3dPostProcess
+            make_dff_videos
+            make_summary_stats
+
+        Parameters
+        ----------
+        i_trial : int
+            which trial to run the processing for
+        """
         self._save_ref_frame()
         trial_dir = self.trial_dirs[i_trial]
         beh_trial_dir = self.beh_trial_dirs[i_trial]
@@ -315,6 +410,18 @@ class PreProcessFly:
             self._compute_summary_stats(i_trials=[i_trial])
 
     def _run_breadth_first(self):
+        """run all trials and finish one stage for all trials before going to next stage
+        uses the following params to decide which steps to perform:
+            use_warp
+            use_com
+            use_denoise
+            use_dff
+            use_df3d
+            use_df3dPostProcess
+            make_dff_videos
+            make_summary_stats
+            make_dfs
+        """
         for trial_dir, processed_dir in \
             zip(self.trial_dirs, self.trial_processed_dirs):
             print(time.ctime(time.time()), " converting trial to tif: " + trial_dir)
@@ -345,33 +452,43 @@ class PreProcessFly:
                 self._compute_summary_stats(force_overwrite=True)
             else:
                 self._compute_summary_stats()
-        if params.make_dfs:
+        if self.params.make_dfs:
             self.get_dfs()
 
     def _run_depth_first(self, force_single_trial_dff=False):
-        # TODO: align this trial selection with the new one written up in __init__()
-        if isinstance(self.params.select_trials, bool) and not self.params.select_trials:
-            selected_trials = [True for trial in self.trial_dirs]
-        elif isinstance(self.params.select_trials, list) and len(self.params.select_trials) == len(self.trial_dirs):
-            selected_trials = self.params.select_trials
-        else:
-            raise NotImplementedError("selected trials should be a list of booleans with the same length as self.trial_dirs.")
+        """run processing for all trials and going as far as possible with one trial
+        before considering other trials
+        uses the following params to decide which steps to perform:
+            use_warp
+            use_denoise
+            use_dff
+            use_df3d
+            use_df3dPostProcess
+            make_dff_videos
+            make_summary_stats
+            make_dfs
+
+        Parameters
+        ----------
+        force_single_trial_dff : bool, optional
+            compute dff for single trials and don't use common baseline,
+            allows to compute it before other trials are finished. by default False
+        """
         for i_trial, (trial_dir, beh_trial_dir, processed_dir) in \
             enumerate(zip(self.trial_dirs, self.beh_trial_dirs, self.trial_processed_dirs)):
-            if selected_trials[i_trial]:
-                self._convert_raw_to_tiff_trial(trial_dir, processed_dir)
-                if self.params.use_warp:
-                    self._warp_trial(processed_dir)
-                if self.params.use_denoise:
-                    self._denoise_trial_trainNinfer(processed_dir)
-                if self.params.use_df3d:
-                    self._pose_estimate(trial_dir)
-                if self.params.use_dff and force_single_trial_dff:
-                    self._compute_dff_trial(processed_dir, force_single_baseline=True)
-                if self.params.use_df3d:
-                    self._pose_estimate(beh_trial_dir)
-                if self.params.use_df3dPostProcess:
-                    self._post_process_pose(beh_trial_dir)
+            self._convert_raw_to_tiff_trial(trial_dir, processed_dir)
+            if self.params.use_warp:
+                self._warp_trial(processed_dir)
+            if self.params.use_denoise:
+                self._denoise_trial_trainNinfer(processed_dir)
+            if self.params.use_df3d:
+                self._pose_estimate(trial_dir)
+            if self.params.use_dff and force_single_trial_dff:
+                self._compute_dff_trial(processed_dir, force_single_baseline=True)
+            if self.params.use_df3d:
+                self._pose_estimate(beh_trial_dir)
+            if self.params.use_df3dPostProcess:
+                self._post_process_pose(beh_trial_dir)
         if self.params.use_dff:
             self._compute_dff_alltrials()
         if self.params.make_dff_videos:
@@ -381,19 +498,47 @@ class PreProcessFly:
                 self._compute_summary_stats(force_overwrite=True)
             else:
                 self._compute_summary_stats()
-        if params.make_dfs:
+        if self.params.make_dfs:
             self.get_dfs()
 
     def _convert_raw_to_tiff_trial(self, trial_dir, processed_dir):
+        """first step of processing: convert .raw files into .tif
+        uses the following params:
+            overwrite
+            green_raw
+            red_raw
+        Parameters
+        ----------
+        trial_dir : str
+            directory where to find the .raw data
+        processed_dir : str
+            directory where to store the .tif data
+        """
         if trial_dir != "" and processed_dir != "":
-            _ = load.convert_raw_to_tiff(trial_dir, 
-                                        overwrite=self.params.overwrite, 
+            _ = load.convert_raw_to_tiff(trial_dir,
+                                        overwrite=self.params.overwrite,
                                         return_stacks=False,
                                         green_dir=join(processed_dir, self.params.green_raw),
                                         red_dir=join(processed_dir, self.params.red_raw)
                                         )
 
     def _com_correct_trial(self, processed_dir):
+        """apply center of mass correction to a trial
+        uses the following params:
+            red_raw
+            green_raw
+            red_com_crop
+            green_com_crop
+            post_com_crop_values
+            com_offset
+            overwrite
+
+        Parameters
+        ----------
+        processed_dir : str
+            processed directory of that trial containing raw tif and where com corrected
+            tif will be saved to
+        """
         print(time.ctime(time.time()), " com correcting and cropping trial: " + processed_dir)
         _ = warping.center_and_crop(stack1=join(processed_dir, self.params.red_raw),
                                     stack2=join(processed_dir, self.params.green_raw),
@@ -405,8 +550,34 @@ class PreProcessFly:
                                     overwrite=self.params.overwrite)
 
     def _warp_trial(self, processed_dir):
+        """apply optic flow motion registration
+        (and potentialy center of mass registration before)
+        uses the following params:
+            use_com
+            post_com_crop
+            red_raw
+            green_raw
+            red_com_crop
+            green_com_crop
+            red_com_warped
+            green_com_warped
+            com_offset
+            overwrite
+            ofco_parallel
+            ofco_verbose
+            motion_field
+            save_motion_field
+            ofco_param
+        Parameters
+        ----------
+        processed_dir : str
+            processed directory of that trial containing raw tif and where com corrected
+            tif will be saved to
+        """
         if processed_dir != "":
             if self.params.use_com and self.params.post_com_crop:
+                # if to be cropped, perform COM outside of the warping.warp() call
+                # otherwise, perform COM inside warping.warp
                 self._com_correct_trial(processed_dir)
                 if self.params.cleanup_files:
                     pass
@@ -419,9 +590,9 @@ class PreProcessFly:
                 stack1 = join(processed_dir, self.params.red_raw)
                 stack2 = join(processed_dir, self.params.green_raw)
                 use_com = self.params.use_com
-                
+
             print(time.ctime(time.time()), "warping trial: " + processed_dir)
-            
+
             _ = warping.warp(stack1=stack1,
                             stack2=stack2,
                             ref_frame=self.ref_frame,
@@ -441,9 +612,30 @@ class PreProcessFly:
                             )
 
     def _denoise_trial_trainNinfer(self, processed_dir):
+        """train a DeepInterpolation model on one trial and infer on the same trial
+        uses the following params:
+            green_com_warped
+            green_denoised
+            overwrite
+            denoise_tmp_data_dir
+            denoise_tmp_data_name
+            denoise_crop_offset
+            denoise_crop_size
+            denoise_tmp_run_dir
+            denoise_runid
+            denoise_params
+            denoise_final_dir
+            denoise_delete_tmp_run_dir
+        Parameters
+        ----------
+        processed_dir : str
+            processed directory of that trial containing motion corrected tif and where denoised
+            tif will be saved to
+        """
         if processed_dir != "":
             print(time.ctime(time.time()), "denoising trial: " + processed_dir)
-            if os.path.isfile(join(processed_dir, self.params.green_denoised)) and not self.params.overwrite:
+            if os.path.isfile(join(processed_dir, self.params.green_denoised)) \
+                and not self.params.overwrite:
                 return
             input_data = join(processed_dir, self.params.green_com_warped)
             tmp_data_dir = join(self.params.denoise_tmp_data_dir,
@@ -467,29 +659,49 @@ class PreProcessFly:
             gc.collect()
 
     def _denoise_all_trials(self):
+        """denoise all trials using DeepInterpolation either by training on one trial or on all.
+        Using the following params:
+            green_com_warped
+            green_denoised
+            overwrite
+            denoise_correct_illumination_leftright
+            summary_stats
+            denoise_train_trial
+            denoise_crop_offset
+            denoise_crop_size
+            denoise_params
+            denoise_tmp_data_dir
+            denoise_tmp_data_name
+            denoise_final_dir
+            denoise_delete_tmp_run_dir
+        """
         if self.params.denoise_train_each_trial:
             print(time.ctime(time.time()), "Start denoising by training on all trials.")
             _ = [self._denoise_trial_trainNinfer(processed_dir)
                  for processed_dir in self.trial_processed_dirs]
         else:
-            print(time.ctime(time.time()), "Start denoising by training on one trial: {}".format(self.params.denoise_train_trial))
+            print(time.ctime(time.time()),
+                  f"Start denoising by training on one trial: {self.params.denoise_train_trial}")
             input_datas = []
             tmp_data_dirs = []
-            if os.path.isdir(join(self.fly_processed_dir, self.params.denoise_final_dir)) and not self.params.overwrite:
+            if os.path.isdir(join(self.fly_processed_dir, self.params.denoise_final_dir)) \
+                and not self.params.overwrite:
                 tmp_run_dir = join(self.fly_processed_dir, self.params.denoise_final_dir)
                 already_trained = True
                 print("Using already trained model.")
             else:
                 already_trained = False
 
-            already_denoised_trials = [os.path.isfile(join(processed_dir, self.params.green_denoised))
-                                       for processed_dir in self.trial_processed_dirs]
+            already_denoised_trials = [
+                os.path.isfile(join(processed_dir, self.params.green_denoised))
+                for processed_dir in self.trial_processed_dirs]
             if all(already_denoised_trials) and not self.params.overwrite:
                 return
             elif any(already_denoised_trials) and already_trained and not self.params.overwrite:
-                todo_trial_processed_dirs = [processed_dir for processed_dir, already_denoised
-                                             in zip(self.trial_processed_dirs, already_denoised_trials)
-                                             if not already_denoised]
+                todo_trial_processed_dirs = [
+                    processed_dir for processed_dir, already_denoised
+                    in zip(self.trial_processed_dirs, already_denoised_trials)
+                    if not already_denoised]
             else:
                 todo_trial_processed_dirs = self.trial_processed_dirs
 
@@ -553,6 +765,40 @@ class PreProcessFly:
             gc.collect()
 
     def _compute_dff_trial(self, processed_dir, force_single_baseline=False, force_overwrite=False):
+        """Compute Delta F/F for one trial
+        If you want to compute dff for not-denoised data, rename params.green_denoised to however
+        your not-denoised data is called (and ideally change the name of params.dff as well).
+        Uses the following params:
+            green_denoised
+            dff_baseline
+            dff
+            overwrite
+            dff_common_baseline
+            dff_baseline
+            dff_baseline_mode
+            dff_baseline_blur_pre
+            dff_baseline_blur
+            dff_baseline_med_filt
+            dff_baseline_length
+            dff_baseline_quantile
+            dff_use_crop
+            dff_manual_add_to_crop
+            dff_blur
+            dff_min_baseline
+
+        Parameters
+        ----------
+        processed_dir : str
+            processed directory of that trial containing motion corrected (and denoised) tif
+            and where dff tif will be saved to
+
+        force_single_baseline : bool, optional
+            whether to use a baseline that was only calculated on this trial.
+            If False load the common baseline from file, by default False
+
+        force_overwrite : bool, optional
+            possibility to force overwriting of files if params.overwrite == False, by default False
+        """
         if processed_dir != "":
             stack = join(processed_dir, self.params.green_denoised)
             if self.params.dff_common_baseline and not force_single_baseline:
@@ -570,33 +816,55 @@ class PreProcessFly:
 
             if not os.path.isfile(join(processed_dir, self.params.dff)) \
                 or self.params.overwrite or force_overwrite:
-                _ = dff.compute_dff_from_stack(stack,
-                                                baseline_blur=baseline_blur,
-                                                baseline_med_filt=baseline_med_filt,
-                                                blur_pre=blur_pre,
-                                                baseline_mode=baseline_mode,
-                                                baseline_length=self.params.dff_baseline_length,
-                                                baseline_quantile=self.params.dff_baseline_quantile,
-                                                baseline_dir=baseline_dir,
-                                                use_crop=self.params.dff_use_crop,
-                                                manual_add_to_crop=self.params.dff_manual_add_to_crop,
-                                                dff_blur=self.params.dff_blur,
-                                                min_baseline=self.params.dff_min_baseline,
-                                                dff_out_dir=join(processed_dir, self.params.dff),
-                                                return_stack=False)
+                _ = dff.compute_dff_from_stack(
+                    stack,
+                    baseline_blur=baseline_blur,
+                    baseline_med_filt=baseline_med_filt,
+                    blur_pre=blur_pre,
+                    baseline_mode=baseline_mode,
+                    baseline_length=self.params.dff_baseline_length,
+                    baseline_quantile=self.params.dff_baseline_quantile,
+                    baseline_dir=baseline_dir,
+                    use_crop=self.params.dff_use_crop,
+                    manual_add_to_crop=self.params.dff_manual_add_to_crop,
+                    dff_blur=self.params.dff_blur,
+                    min_baseline=self.params.dff_min_baseline,
+                    dff_out_dir=join(processed_dir, self.params.dff),
+                    return_stack=False)
 
     def _compute_dff_alltrials(self):
+        """Compute delta F / F for all trials
+        If you want to compute dff for not-denoised data, rename params.green_denoised to however
+        your not-denoised data is called (and ideally change the name of params.dff as well).
+        Uses the following params:
+            green_denoised
+            dff_baseline
+            dff
+            overwrite
+            dff_baseline_exclude_trials
+            dff_common_baseline
+            dff_baseline
+            dff_baseline_mode
+            dff_baseline_blur_pre
+            dff_baseline_blur
+            dff_baseline_med_filt
+            dff_baseline_length
+            dff_baseline_quantile
+            dff_min_baseline
+        """
         if self.params.dff_baseline_exclude_trials is None:
             self.params.dff_baseline_exclude_trials = [False for _ in self.trial_dirs]
-        stacks = [join(processed_dir, self.params.green_denoised) 
-                  for i_dir, processed_dir in enumerate(self.trial_processed_dirs) 
+        stacks = [join(processed_dir, self.params.green_denoised)
+                  for i_dir, processed_dir in enumerate(self.trial_processed_dirs)
                   if processed_dir != "" and not self.params.dff_baseline_exclude_trials[i_dir]]
-        baseline_dirs = [join(processed_dir, self.params.dff_baseline)
-                         for i_dir, processed_dir in enumerate(self.trial_processed_dirs) 
-                         if processed_dir != "" and not self.params.dff_baseline_exclude_trials[i_dir]]
+        baseline_dirs = [
+            join(processed_dir, self.params.dff_baseline)
+            for i_dir, processed_dir in enumerate(self.trial_processed_dirs)
+            if processed_dir != "" and not self.params.dff_baseline_exclude_trials[i_dir]]
         if self.params.dff_common_baseline:
             print(time.ctime(time.time()), "computing dff baseline")
-            if not os.path.isfile(join(self.fly_processed_dir, self.params.dff_baseline)) or self.params.overwrite:
+            if not os.path.isfile(join(self.fly_processed_dir, self.params.dff_baseline)) \
+                or self.params.overwrite:
                 _ = dff.find_dff_baseline_multi_stack_load_single(stacks=stacks,
                         individual_baseline_dirs=baseline_dirs,
                         baseline_blur=self.params.dff_baseline_blur,
@@ -607,12 +875,23 @@ class PreProcessFly:
                         baseline_quantile=self.params.dff_baseline_quantile,
                         min_baseline=self.params.dff_min_baseline,
                         baseline_dir=join(self.fly_processed_dir, self.params.dff_baseline))
-               
+
         for processed_dir in self.trial_processed_dirs:
             print(time.ctime(time.time()), "computing dff for trial: " + processed_dir)
             self._compute_dff_trial(processed_dir)
 
     def _pose_estimate(self, trial_dirs=None):
+        """run pose estimation using DeepFly3D.
+        Uses the following params:
+            behaviour_as_videos
+            twop_scope
+            overwrite
+        Parameters
+        ----------
+        trial_dirs : list of str, optional
+            which trials to run deepfly3d for. if not supplied, use self.beh_trial_dirs,
+            by default None
+        """
         trial_dirs = deepcopy(self.beh_trial_dirs) if trial_dirs is None else trial_dirs
         if not isinstance(trial_dirs, list):
             trial_dirs = [trial_dirs]
@@ -625,20 +904,54 @@ class PreProcessFly:
         df3d.run_df3d(tmp_dir)
 
     def _post_process_pose(self, trial_dirs=None):
+        """run deepfly3d pose post processding.
+        this aligns the positions to a reference fly and computes the joint angles.
+        Uses the following params:
+            overwrite
+
+        Parameters
+        ----------
+        trial_dirs : [type], optional
+            [description], by default None
+        """
         trial_dirs = deepcopy(self.beh_trial_dirs) if trial_dirs is None else trial_dirs
         for trial_dir in trial_dirs:
             if trial_dir != "":
                 print(time.ctime(time.time()), "postprocessing df3d for trial: " + trial_dir)
-                df3d.postprocess_df3d_trial(trial_dir, overwrite=self.params.overwrite)         
+                df3d.postprocess_df3d_trial(trial_dir, overwrite=self.params.overwrite)
 
     def _make_dff_video_trial(self, i_trial, mask=None):
+        """make a video of the DFF for one trial.
+        Uses the following parameters:
+            dff_video_name
+            overwrite
+            dff_mask
+            overwrite
+            dff
+            dff_baseline
+            dff_video_vmin
+            dff_video_vmax
+            dff_video_pmin
+            dff_video_pmax
+
+        Parameters
+        ----------
+        i_trial : int
+            index of trial in self.trial_dirs
+
+        mask : bool or np.array or str, optional
+            if numpy array, use it directly as mask to make vide.
+            if "fromfile", load the mask specified at fly_processed_dir/self.params.dff_mask
+            if bool and True, automatically find a mask (NOT RECOMMENDED!!!),
+            by default None
+        """
         processed_dir = self.trial_processed_dirs[i_trial]
         trial_dir = self.trial_dirs[i_trial]
         trial_name = self.trial_names[i_trial]
         if not os.path.isfile(join(processed_dir, self.params.dff_video_name+".mp4")) \
             or self.params.overwrite:
             if not isinstance(mask, np.ndarray):
-                if (isinstance(mask, bool) and mask == True) \
+                if (isinstance(mask, bool) and mask is True) \
                     or mask == "fromfile" or mask == "compute":
                     mask_dir = join(processed_dir, self.params.dff_mask)
                     if not os.path.isfile(mask_dir) or self.params.overwrite:
@@ -649,7 +962,7 @@ class PreProcessFly:
                                     np.array(dff_stack.shape[1:])) // 2
                         else:
                             crop = None
-                        mask = dff.find_dff_mask(join(processed_dir, self.params.dff_baseline), 
+                        mask = dff.find_dff_mask(join(processed_dir, self.params.dff_baseline),
                                                  crop=crop)
                         save_stack(mask_dir, mask)
                     else:
@@ -660,16 +973,36 @@ class PreProcessFly:
                             out_dir=processed_dir,
                             video_name=self.params.dff_video_name,
                             trial_dir=trial_dir,
-                            vmin=self.params.dff_video_vmin, 
+                            vmin=self.params.dff_video_vmin,
                             vmax=self.params.dff_video_vmax,
                             pmin=self.params.dff_video_pmin,
-                            pmax=self.params.dff_video_pmax, 
-                            blur=0, mask=mask, crop=None, 
+                            pmax=self.params.dff_video_pmax,
+                            blur=0, mask=mask, crop=None,
                             text=trial_name)
 
     def _make_dff_videos(self, mask=None):
+        """Make one individual dff video for every trial and one merged video for all of them.
+        Uses the following params:
+            overwrite
+            dff_mask
+            dff
+            dff_baseline
+            dff_video_name
+            dff_video_vmin
+            dff_video_vmax
+            dff_video_pmin
+            dff_video_pmax
+
+        Parameters
+        ----------
+        mask : bool or np.array or str, optional
+            if numpy array, use it directly as mask to make vide.
+            if "fromfile", load the mask specified at fly_processed_dir/self.params.dff_mask
+            if bool and True, automatically find a mask (NOT RECOMMENDED!!!),
+            by default None
+        """
         if not isinstance(mask, np.ndarray):
-            if (isinstance(mask, bool) and mask == True) \
+            if (isinstance(mask, bool) and mask is True) \
                 or mask == "fromfile" or mask == "compute":
                 mask_dir = join(self.fly_processed_dir, self.params.dff_mask)
                 if not os.path.isfile(mask_dir) or self.params.overwrite:
@@ -680,41 +1013,75 @@ class PreProcessFly:
                         del dff_stack, dff_baseline
                     else:
                         crop = None
-                    mask = dff.find_dff_mask(join(self.fly_processed_dir, self.params.dff_baseline), crop=crop)
+                    mask = dff.find_dff_mask(
+                        join(self.fly_processed_dir, self.params.dff_baseline),
+                        crop=crop)
                     save_stack(mask_dir, mask)
                 else:
                     mask = get_stack(mask_dir)
         for i_trial, _ in enumerate(self.trial_dirs):
             self._make_dff_video_trial(i_trial, mask=mask)
-        if not os.path.isfile(join(self.fly_processed_dir, self.params.dff_video_name+"_multiple.mp4")) \
+        if not os.path.isfile(join(self.fly_processed_dir,
+                                   self.params.dff_video_name+"_multiple.mp4")) \
             or self.params.overwrite:
-            make_multiple_video_dff(dffs=[join(processed_dir, self.params.dff) 
+            make_multiple_video_dff(dffs=[join(processed_dir, self.params.dff)
                                         for processed_dir in self.trial_processed_dirs],
                                     out_dir=self.fly_processed_dir,
-                                    video_name=self.params.dff_video_name+"_multiple", 
+                                    video_name=self.params.dff_video_name+"_multiple",
                                     trial_dir=self.trial_dirs[0],
-                                    vmin=self.params.dff_video_vmin, 
+                                    vmin=self.params.dff_video_vmin,
                                     vmax=self.params.dff_video_vmax,
                                     pmin=self.params.dff_video_pmin,
-                                    pmax=self.params.dff_video_pmax, 
-                                    share_lim=self.params.dff_video_share_lim, 
+                                    pmax=self.params.dff_video_pmax,
+                                    share_lim=self.params.dff_video_share_lim,
                                     share_mask=True,
                                     blur=0, mask=mask, crop=None,
                                     text=self.trial_names)
 
     def _make_dff_behaviour_video_trial(self, i_trial, mask=None, include_2p=False):
+        """make combined dff + behaviour (+ raw data) video for one trial.
+        Uses the following params:
+            green_com_warped
+            red_com_warped
+            overwrite
+            default_video_camera
+            dff_beh_video_name
+            dff_mask
+            dff
+            dff_baseline
+            dff_video_name
+            dff_video_vmin
+            dff_video_vmax
+            dff_video_pmin
+            dff_video_pmax
+        Parameters
+        ----------
+        i_trial : int
+            which trial to make the video for
+
+        mask : bool or np.array or str, optional
+            if numpy array, use it directly as mask to make vide.
+            if "fromfile", load the mask specified at fly_processed_dir/self.params.dff_mask
+            if bool and True, automatically find a mask (NOT RECOMMENDED!!!),
+            by default None
+
+        include_2p : bool, optional
+            whether to also show motion corrected red&green images or just dff, by default False
+        """
         processed_dir = self.trial_processed_dirs[i_trial]
         trial_dir = self.trial_dirs[i_trial]
         beh_trial_dir = self.beh_trial_dirs[i_trial]
         sync_trial_dir = self.sync_trial_dirs[i_trial]
         trial_name = self.trial_names[i_trial]
-        green_dir = join(self.trial_processed_dirs[i_trial], self.params.green_com_warped) if include_2p else None
-        red_dir = join(self.trial_processed_dirs[i_trial], self.params.red_com_warped) if include_2p else None
+        green_dir = join(self.trial_processed_dirs[i_trial], self.params.green_com_warped) \
+            if include_2p else None
+        red_dir = join(self.trial_processed_dirs[i_trial], self.params.red_com_warped) \
+            if include_2p else None
 
         if not os.path.isfile(join(processed_dir, self.params.dff_beh_video_name+".mp4")) \
             or self.params.overwrite:
             if not isinstance(mask, np.ndarray):
-                if (isinstance(mask, bool) and mask == True) \
+                if (isinstance(mask, bool) and mask is True) \
                     or mask == "fromfile" or mask == "compute":
                     mask_dir = join(processed_dir, self.params.dff_mask)
                     if not os.path.isfile(mask_dir) or self.params.overwrite:
@@ -725,7 +1092,7 @@ class PreProcessFly:
                                     np.array(dff_stack.shape[1:])) // 2
                         else:
                             crop = None
-                        mask = dff.find_dff_mask(join(processed_dir, self.params.dff_baseline), 
+                        mask = dff.find_dff_mask(join(processed_dir, self.params.dff_baseline),
                                                  crop=crop)
                         save_stack(mask_dir, mask)
                     else:
@@ -748,9 +1115,48 @@ class PreProcessFly:
                             blur=0, mask=mask, crop=None, text=trial_name,
                             asgenerator=False, downsample=10)
 
-    def _make_dff_behaviour_video_multiple_trials(self, i_trials=None, mask=None, include_2p=False, select_frames=None):
+    def _make_dff_behaviour_video_multiple_trials(self, i_trials=None, mask=None, include_2p=False,
+                                                  select_frames=None):
+        """make a combined dff + behaviour (+ motion corrected data) video
+        for a number of selected trials.
+        Uses the following params:
+            dff_mask
+            overwrite
+            dff
+            dff_baseline
+            green_com_warped
+            red_com_warped
+            dff_beh_video_name
+            default_video_camera
+            dff_video_share_lim
+            dff_video_log_lim
+            dff_video_downsample
+            dff_video_vmin
+            dff_video_vmax
+            dff_video_pmin
+            dff_video_pmax
+
+        Parameters
+        ----------
+        i_trials : list of int, optional
+            indices of trials in self.trial_dirs to be used for the video.
+            if None, use all trials, by default None
+
+        mask : bool or np.array or str, optional
+            if numpy array, use it directly as mask to make vide.
+            if "fromfile", load the mask specified at fly_processed_dir/self.params.dff_mask
+            if bool and True, automatically find a mask (NOT RECOMMENDED!!!),
+            by default None
+
+        include_2p : bool, optional
+            whether to also show motion corrected red&green images or just dff, by default False
+
+        select_frames : list of (list or numpy array), optional
+            for each trial, list containing a sequence of selected two-photon frame inidices.
+            if an empty list, generate a black frame. If None, use all frames, by default None
+        """
         if not isinstance(mask, np.ndarray):
-            if (isinstance(mask, bool) and mask == True) \
+            if (isinstance(mask, bool) and mask is True) \
                 or mask == "fromfile" or mask == "compute":
                 mask_dir = join(self.fly_processed_dir, self.params.dff_mask)
                 if not os.path.isfile(mask_dir) or self.params.overwrite:
@@ -761,7 +1167,9 @@ class PreProcessFly:
                         del dff_stack, dff_baseline
                     else:
                         crop = None
-                    mask = dff.find_dff_mask(join(self.fly_processed_dir, self.params.dff_baseline), crop=crop)
+                    mask = dff.find_dff_mask(
+                        join(self.fly_processed_dir, self.params.dff_baseline),
+                        crop=crop)
                     save_stack(mask_dir, mask)
                 else:
                     mask = get_stack(mask_dir)
@@ -774,10 +1182,13 @@ class PreProcessFly:
         beh_dirs = [self.beh_trial_dirs[i_trial] for i_trial in i_trials]
         sync_dirs = [self.sync_trial_dirs[i_trial] for i_trial in i_trials]
         text = [self.trial_names[i_trial] for i_trial in i_trials]
-        green_dirs = [join(self.trial_processed_dirs[i_trial], self.params.green_com_warped) for i_trial in i_trials] if include_2p else None
-        red_dirs = [join(self.trial_processed_dirs[i_trial], self.params.red_com_warped) for i_trial in i_trials] if include_2p else None
+        green_dirs = [join(self.trial_processed_dirs[i_trial], self.params.green_com_warped)
+                      for i_trial in i_trials] if include_2p else None
+        red_dirs = [join(self.trial_processed_dirs[i_trial], self.params.red_com_warped)
+                    for i_trial in i_trials] if include_2p else None
 
-        if not os.path.isfile(join(self.fly_processed_dir, self.params.dff_beh_video_name+"_multiple.mp4")) \
+        if not os.path.isfile(join(self.fly_processed_dir,
+                                   self.params.dff_beh_video_name+"_multiple.mp4")) \
             or self.params.overwrite:
             make_multiple_video_raw_dff_beh(dffs=dffs,
                                         trial_dirs=trial_dirs,
@@ -802,6 +1213,28 @@ class PreProcessFly:
                                         downsample=self.params.dff_video_downsample)  # 10)
 
     def _compute_summary_stats(self, i_trials=None, raw_only=False, force_overwrite=False):
+        """compute summary statistics for every trial and save them for quick access.
+        These statistics include the mean/standard deviation/maximum
+        of the dff, green denoised, green raw.
+        Saves them to a pickle file in the fly_processed_dir.
+        Uses the following parameters:
+            summary_stats
+            overwrite
+            dff
+            green_denoised
+            green_com_warped
+        Parameters
+        ----------
+        i_trials : list of int, optional
+            Which trials to compute from. If not supplied, use all. by default None
+
+        raw_only : bool, optional
+            Compute only for green raw data. Might be usefull before processing. by default False
+
+        force_overwrite : bool, optional
+            overturns the self.params.overwrite flag to force overwriting existing files,
+            by default False
+        """
         output = join(self.fly_processed_dir, self.params.summary_stats)
         if os.path.isfile(output) and (not self.params.overwrite or force_overwrite):
             return
@@ -810,9 +1243,9 @@ class PreProcessFly:
             i_trials = range(len(self.trial_processed_dirs))
 
         dffs = [join(self.trial_processed_dirs[i_trial], self.params.dff) for i_trial in i_trials]
-        greens = [join(self.trial_processed_dirs[i_trial], self.params.green_denoised) 
+        greens = [join(self.trial_processed_dirs[i_trial], self.params.green_denoised)
                   for i_trial in i_trials]
-        greens_raw = [join(self.trial_processed_dirs[i_trial], self.params.green_com_warped) 
+        greens_raw = [join(self.trial_processed_dirs[i_trial], self.params.green_com_warped)
                   for i_trial in i_trials]
 
         if not raw_only:
@@ -838,7 +1271,8 @@ class PreProcessFly:
             quants = [np.percentile(dff, 95, axis=0) for dff in dffs]
             quant_diffs = [quant - quants[good_dffs[0]] for quant in quants]
             local_corrs = [local_correlations(dff) for dff in dffs]
-            local_corr_diffs = [local_corr - local_corrs[good_dffs[0]] for local_corr in local_corrs]
+            local_corr_diffs = [local_corr - local_corrs[good_dffs[0]]
+                                for local_corr in local_corrs]
 
         del dffs
         if not raw_only:
@@ -853,7 +1287,7 @@ class PreProcessFly:
             quants_green = [np.percentile(green, 95, axis=0) for green in greens]
             quant_diffs_green = [quant - quants_green[0] for quant in quants_green]
             local_corrs_green = [local_correlations(green) for green in greens]
-            local_corr_diffs_green = [local_corr - local_corrs_green[0] 
+            local_corr_diffs_green = [local_corr - local_corrs_green[0]
                                     for local_corr in local_corrs_green]
 
         del greens
@@ -869,7 +1303,7 @@ class PreProcessFly:
         quants_green_raw = [np.percentile(green, 95, axis=0) for green in greens_raw]
         quant_diffs_green_raw = [quant - quants_green_raw[0] for quant in quants_green_raw]
         local_corrs_green_raw = [local_correlations(green) for green in greens_raw]
-        local_corr_diffs_green_raw = [local_corr - local_corrs_green_raw[0] 
+        local_corr_diffs_green_raw = [local_corr - local_corrs_green_raw[0]
                                   for local_corr in local_corrs_green_raw]
 
         del greens_raw
@@ -921,6 +1355,26 @@ class PreProcessFly:
             pickle.dump(output_dict, f)
 
     def get_dfs(self):
+        """Get synchronised data frames including the frame times for two photon
+        and behavioural data.
+        Get as much behavioural data into these data frames as possible.
+        This includes: optical flow or fictrac data, pose estimation data
+        Uses the following params:
+            opflow_df_out_dir
+            df3d_df_out_dir
+            twop_df_out_dir
+            denoise_params
+            ball_tracking
+            opflow_win_size
+            thres_rest
+            thres_walk
+            add_df3d_to_df
+
+        Raises
+        ------
+        KeyError
+            if keyboard interrupt during processing is sent, otherwise ignores errors and continues
+        """
         for i_trial, (trial_dir, processed_dir, trial_name) \
             in enumerate(zip(self.trial_dirs, self.trial_processed_dirs, self.trial_names)):
             print(time.ctime(time.time()), " creating data frames: " + trial_dir)
@@ -971,7 +1425,7 @@ class PreProcessFly:
                                        index_df=df3d_out_dir,
                                        df_out_dir=df3d_out_dir)
 
-                if self.param.add_df3d_to_df:
+                if self.params.add_df3d_to_df:
                     _ = df3d.get_df3d_dataframe(self.beh_trial_dirs[i_trial],
                                                 index_df=df3d_out_dir,
                                                 out_dir=df3d_out_dir)
@@ -981,8 +1435,17 @@ class PreProcessFly:
                 print("Error while getting dfs in trial: " + trial_dir)
 
     def extract_rois(self):
-        roi_file = os.path.join(self.fly_processed_dir, "ROI_centers.txt")
-        mask_out_dir = os.path.join(self.fly_processed_dir, "ROI_mask.tif")
+        """extract the regions of interest from manually labelled ROI centers.
+        Uses the following params:
+            roi_centers
+            roi_mask
+            twop_df_out_dir
+            green_denoised
+            roi_size
+            roi_pattern
+        """
+        roi_file = os.path.join(self.fly_processed_dir, self.params.roi_centers)
+        mask_out_dir = os.path.join(self.fly_processed_dir, self.params.roi_mask)
         for processed_dir in self.trial_processed_dirs:
             print(time.ctime(time.time()), " extracting ROIs: " + processed_dir)
             twop_out_dir = os.path.join(processed_dir, self.params.twop_df_out_dir)
@@ -991,44 +1454,3 @@ class PreProcessFly:
                                     size=self.params.roi_size, pattern=self.params.roi_pattern,
                                     index_df=twop_out_dir, df_out_dir=twop_out_dir,
                                     mask_out_dir=mask_out_dir)
-
-    def prepare_pca_analysis(self, condition, i_trials=None, compare_trials=None, load_df=True, load_pixels=True, 
-                             pixel_shape=None, sigma=1, zscore_trials="all"):
-        print(time.ctime(time.time()), " preparing PCA analysis: " + self.fly_dir)
-        i_trials = self.selected_trials if i_trials is None else i_trials
-        trial_names = [trial_name for i_trial, trial_name in zip(self.selected_trials, self.trial_names)
-                       if i_trial in i_trials]
-        pcan = InterPCAAnalysis(fly_dir=self.fly_dir,
-                        i_trials=i_trials,
-                        condition=condition,
-                        compare_i_trials=i_trials if compare_trials is None else compare_trials,
-                        thres_walk=self.params.thres_walk,
-                        thres_rest=self.params.thres_rest,
-                        load_df=load_df,
-                        load_pixels=load_pixels,
-                        pixel_shape=pixel_shape,
-                        sigma=sigma,
-                        trial_names=trial_names,
-                        zscore_trials=zscore_trials)
-        out_file = os.path.join(self.fly_processed_dir, self.params.pca_analysis_map_file)
-        print(time.ctime(time.time()), " creating PCA maps: " + self.fly_dir)
-        pcan.save_maps(out_file)
-        copy_file_name = f"{self.params.pca_analysis_map_file[:-4]}_{self.date}_{self.genotpye}_fly{self.fly}.pdf"
-        copy_file = os.path.join(OUTPUT_PATH,copy_file_name)
-        copy2(out_file, copy_file)
-        out_file = os.path.join(self.fly_processed_dir, self.params.pca_analysis_file)
-        print(time.ctime(time.time()), " pickling PCA analysis: " + self.fly_dir)
-        pcan.pickle_self(out_file)
-
-
-
-
-if __name__ == "__main__":
-    date_dir = os.path.join(load.NAS_DIR_JB, "210301_J1xCI9")
-    fly_dirs = load.get_flies_from_datedir(date_dir=date_dir)
-    fly_dir = fly_dirs[0]
-
-    params = PreProcessParams()
-    preprocess = PreProcessFly(fly_dir, params=params)
-
-    preprocess.run_all_trials()
