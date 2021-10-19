@@ -1,3 +1,5 @@
+import os.path
+
 import utils2p
 
 from twoppp.utils.raw_files import FrameFromRawMetadata, FrameFromRaw
@@ -20,8 +22,11 @@ if __name__ == "__main__":
                                       meta_n_z=1, n_z=2)
 
     frame = myFrameFromRaw.read_nth_frame(100)
-    channel_0 = frame[0]
-    channel_1 = frame[1]
-    print("channel 0 shape: ", channel_0.shape, "\nchannel 1 shape: ", channel_1.shape)
-    assert channel_0.shape == (height, width)
-    assert channel_1.shape == (height, width)
+    green = frame[0]
+    red = frame[1]
+    print("green channel shape: ", green.shape, "\nred channel shape: ", red.shape)
+    assert green.shape == (height, width)
+    assert green.shape == (height, width)
+
+    utils2p.save_img(os.path.join(data_dir, "green.tif"), green)
+    utils2p.save_img(os.path.join(data_dir, "red.tif"), red)
