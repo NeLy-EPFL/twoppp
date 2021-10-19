@@ -7,6 +7,8 @@ import os
 from shutil import copy
 import glob
 import pickle
+import numpy as np
+import pandas as pd
 
 from df3dPostProcessing.df3dPostProcessing import df3dPostProcess
 
@@ -132,3 +134,86 @@ def postprocess_df3d_trial(trial_dir, overwrite=False):
         with open(path, 'wb') as f:
             pickle.dump(aligned_model, f)
         leg_angles = mydf3dPostProcess.calculate_leg_angles(save_angles=True)
+
+def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
+
+    if index_df is not None and isinstance(index_df, str) and os.path.isfile(index_df):
+        index_df = pd.read_pickle(index_df)
+    if index_df is not None:
+        assert isinstance(index_df, pd.DataFrame)
+    beh_df = index_df
+
+    # read the angles and convert them into an understandable format
+    angles_file = find_file(trial_dir, name="joint_angles")
+    # angles_file = glob.glob(os.path.join(trial_dir, "behData", "images", "df3d","joint_angles*"))[0]
+    with open(angles_file, "rb") as f:
+        angles = pickle.load(f)
+    leg_keys = []
+    _ = [leg_keys.append(key) for key in angles.keys()]
+    angle_keys = []
+    _ = [angle_keys.append(key) for key in angles[leg_keys[0]].keys()]
+    name_change = {"yaw": "Coxa_yaw",
+                   "pitch": "Coxa",
+                   "roll": "Coxa_roll",
+                   "th_fe": "Femur",
+                   "roll_tr": "Femur_roll",
+                   "th_ti": "Tibia",
+                   "th_ta": "Tarsus"}
+    N_features = len(leg_keys) * len(angle_keys)
+    N_samples = len(angles[leg_keys[0]][angle_keys[0]])
+    X = np.zeros((N_samples, N_features), dtype="float64")
+    X_names = []
+    for i_leg, leg in enumerate(leg_keys):
+        for i_angle, angle in enumerate(angle_keys):
+            X[:, i_angle + i_leg*len(angle_keys)] = np.array(angles[leg][angle])
+            X_names.append("angle_" + leg + "_" + name_change[angle])
+
+    # read the joints from df3d after post-processing and convert them into an understandable format
+    joints_file = find_file(trial_dir, name="aligned_pose")
+    # joints_file = glob.glob(os.path.join(trial_dir, "behData", "images", "df3d","aligned_pose*"))[0]
+    with open(joints_file, "rb") as f:
+        joints = pickle.load(f)
+    leg_keys = []
+    _ = [leg_keys.append(key) for key in joints.keys()]
+    joint_keys = []
+    _ = [joint_keys.append(key) for key in joints[leg_keys[0]].keys()]
+    N_features = len(leg_keys) * len(joint_keys)
+    Y = np.zeros((N_samples, N_features*3), dtype="float64")
+    Y_names = []
+    for i_leg, leg in enumerate(leg_keys):
+        for i_joint, joint in enumerate(joint_keys):
+            Y[:, i_leg*len(joint_keys)*3 + i_joint*3 : i_leg*len(joint_keys)*3 + (i_joint+1)*3] = np.array(joints[leg][joint]["raw_pos_aligned"])
+            Y_names += ["joint_" + leg + "_" + joint + i_ax for i_ax in ["_x", "_y", "_z"]]
+
+    if beh_df is None:
+        # if no index_df was supplied externally, try to get info from trial directory and create empty dataframe
+        frames = np.arange(N_samples)
+        try:
+            fly_dir, trial = os.path.split(trial_dir)
+            date_dir, fly = os.path.split(fly_dir)
+            _, date_genotype = os.path.split(date_dir)
+            date = int(date_genotype[:6])
+            genotype = date_genotype[7:]
+            fly = int(fly[3:])
+            i_trial = int(trial[-3:])
+        except:
+            date = 123456
+            genotype = ""
+            fly = -1
+            i_trial = -1
+        indices = pd.MultiIndex.from_arrays(([date, ] * N_samples,  # e.g 210301
+                                                [genotype, ] * N_samples,  # e.g. 'J1xCI9'
+                                                [fly, ] * N_samples,  # e.g. 1
+                                                [i_trial, ] * N_samples,  # e.g. 1
+                                                frames
+                                            ),
+                                            names=[u'Date', u'Genotype', u'Fly', u'Trial', u'Frame'])
+        beh_df = pd.DataFrame(index=indices)
+
+    beh_df[X_names] = X
+    beh_df[Y_names] = Y
+
+    if out_dir is not None:
+        beh_df.to_pickle(out_dir)
+
+    return beh_df

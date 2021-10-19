@@ -401,7 +401,7 @@ def get_fictrac_df(trial_dir, index_df=None, df_out_dir=None, med_filt_size=5, s
     # partially adapted from Florian: https://github.com/NeLy-EPFL/ABO_data_processing/blob/master/fictrac_sync_odor.py
     if isinstance(index_df, str) and os.path.isfile(index_df):
         index_df = pd.read_pickle(index_df)
-    elif index_df is not None:
+    if index_df is not None:
         assert isinstance (index_df, pd.DataFrame)
 
     trial_image_dir = os.path.join(trial_dir, "behData", "images")

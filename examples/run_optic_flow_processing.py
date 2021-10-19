@@ -18,7 +18,6 @@ if __name__ == "__main__":
 
         opflow_out_dir = os.path.join(trial_dir, PROCESSED_FOLDER, "opflow_df.pkl")
         twop_out_dir = os.path.join(trial_dir, PROCESSED_FOLDER, "twop_df.pkl")
-        df3d_out_dir = os.path.join(trial_dir, PROCESSED_FOLDER, "beh_df.pkl")
         twop_df, df3d_df, opflow_df = get_synchronised_trial_dataframes(
             trial_dirs[i_trial],
             crop_2p_start_end=30,
@@ -26,9 +25,9 @@ if __name__ == "__main__":
             sync_trial_dir=trial_dirs,
             trial_info=trial_info,
             opflow=True,
-            df3d=True,
+            df3d=False,
             opflow_out_dir=opflow_out_dir,
-            df3d_out_dir=df3d_out_dir,
+            df3d_out_dir=False,
             twop_out_dir=twop_out_dir)
 
         opflow_df, this_fractions = get_opflow_df(trial_dir,

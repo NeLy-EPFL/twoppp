@@ -96,7 +96,7 @@ def get_frame_times_indices(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
 
 def get_synchronised_trial_dataframes(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
                                       sync_trial_dir=None, trial_info=None,
-                                      opflow=False, df3d=True, opflow_out_dir=None, 
+                                      opflow=False, df3d=True, opflow_out_dir=None,
                                       df3d_out_dir=None, twop_out_dir=None):
     """get trial dataframes that include the time and synchronisation variables.
     Important: they do not contain any data yet, but only the timing information

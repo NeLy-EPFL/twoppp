@@ -28,7 +28,7 @@ if __name__ == "__main__":
         beh_dirs=None,  # define in case behavioural data is not located inside trial_dir
         sync_dirs=None,  # define in case sync data is not located inside trial_dir
         camera=5,
-        stack_axes=[0, 1],
+        stack_axes=[0, 1],  # stack within trial along y (0) and across trial along x (1) axis
         greens=greens,
         reds=greens,
         share_lim=True,

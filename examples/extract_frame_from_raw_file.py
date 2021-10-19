@@ -2,8 +2,6 @@ import utils2p
 
 from twoppp.utils.raw_files import FrameFromRawMetadata, FrameFromRaw
 
-
-
 if __name__ == "__main__":
     USE_METADATA = True
 

@@ -88,6 +88,7 @@ class PreProcessParams:
         self.make_dff_videos = False
         self.make_summary_stats = True
         self.ball_tracking = "opflow"  # "opflow", "fictrac", or None
+        self.add_df3d_to_df = False
 
         # ofco params
         self.i_ref_trial = 0
@@ -969,10 +970,15 @@ class PreProcessFly:
                     _ = get_fictrac_df(self.beh_trial_dirs[i_trial],
                                        index_df=df3d_out_dir,
                                        df_out_dir=df3d_out_dir)
+
+                if self.param.add_df3d_to_df:
+                    _ = df3d.get_df3d_dataframe(self.beh_trial_dirs[i_trial],
+                                                index_df=df3d_out_dir,
+                                                out_dir=df3d_out_dir)
             except KeyboardInterrupt:
                 raise KeyError
             except:
-                print("Error while getting dfs and computing optic flow in trial: " + trial_dir)
+                print("Error while getting dfs in trial: " + trial_dir)
 
     def extract_rois(self):
         roi_file = os.path.join(self.fly_processed_dir, "ROI_centers.txt")

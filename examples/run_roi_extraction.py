@@ -8,7 +8,7 @@ if __name__ == "__main__":
     trial_dirs = load.get_trials_from_fly(fly_dir, exclude="processed")[0]
     green_denoised_stacks = [os.path.join(trial_dir, "green_denoised.tif")
                              for trial_dir in trial_dirs]
-    
+
     roi_file = "path/to/fly/processed/ROI_centers.txt"
     mask_out_dir = "path/to/fly/processed/ROI_mask.tif"
 
@@ -31,7 +31,7 @@ if __name__ == "__main__":
         # get the times and synchronise the neural and two-photon recordings
         twop_out_dir = os.path.join(trial_dir, load.PROCESSED_FOLDER, "twop_df.pkl")
         twop_df, df3d_df, opflow_df = get_synchronised_trial_dataframes(
-            trial_dirs[i_trial],
+            trial_dir,
             crop_2p_start_end=30,  # select this if you used DeepInterpolation, otherwise 0
             beh_trial_dir=trial_dirs,
             sync_trial_dir=trial_dirs,

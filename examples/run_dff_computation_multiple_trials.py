@@ -38,6 +38,7 @@ if __name__ == "__main__":
         baseline_dir=fly_baseline,
         min_baseline=None)
 
+    # compute dff for each trial based on the pre-computed baseline
     for i_trial, (stack, dff_dir) in enumerate(stacks, dff_dirs):
         dff_stack = dff.compute_dff_from_stack(
             stack,
@@ -52,6 +53,7 @@ if __name__ == "__main__":
             dff_out_dir=dff_dir,
             return_stack=True)
 
+    # make video of all the dffs computed
     videos.make_multiple_video_dff(dffs=dff_dirs,
         out_dir=dff_video_dir,
         video_name="dff_multiple.tif",

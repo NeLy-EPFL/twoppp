@@ -24,6 +24,7 @@ if __name__ == "__main__":
     params.use_df3dPostProcess = False  # pose post processing, e.g. computing angles
     params.make_dff_videos = False  # whether to make dff videos for each trial
     params.make_summary_stats = False  # whether to save mean/std/... for each trial
+    params.add_df3d_to_df = False  # whether to add pose estimation results to data frame
 
     # Define some paramters. There are much more that could be changed.
     # These are just the essentials
