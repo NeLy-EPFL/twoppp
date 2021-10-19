@@ -19,6 +19,7 @@ This includes:
     * olfactory stimulation data processing
 * combined behavioural and two-photon data processing:
     * synchronisation of the two (or three) modalities
+    * creating pandas dataframes with synchronised data from behavioural and neural data
     * making videos
 
 Installation instructions:
