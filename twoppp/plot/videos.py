@@ -417,11 +417,12 @@ def generator_df3d(image_folder, cameras=[5,3,1], font_size=16, print_frame_num=
     i_cs = np.linspace(start=0, stop=1, num=10)
     i_cs[5:] = np.flip(i_cs[5:])
     colors = [np.array(cmap(i_c))*255 for i_c in i_cs]
-    if os.path.isfile(os.path.join(image_folder, "camera_{}_img_0.jpg".format(cameras[0]))):
-        saved_as_videos = False
+    if os.path.isfile(os.path.join(image_folder, f"camera_{cameras[0]}_img_0.jpg")):
+        saved_as_frames = True
+        # CameraNetwork can read frames already, but if no frames are saves, then need to load videos
     else:
-        saved_as_videos = True
-        caps = [cv2.VideoCapture(os.path.join(image_folder, "camera_{}.mp4".format(cam))) for cam in cameras]
+        saved_as_frames = False
+        caps = [cv2.VideoCapture(os.path.join(image_folder, f"camera_{cam}.mp4")) for cam in cameras]
         videos = [[] for _ in cameras]
         for i_cam, (cam, cap) in enumerate(zip(cameras, caps)):
             i_frame = 0
@@ -437,7 +438,7 @@ def generator_df3d(image_folder, cameras=[5,3,1], font_size=16, print_frame_num=
         i_cam = np.argwhere(np.array(cameras)==cam)[0,0]
         cam_df3d = np.argwhere(np.array(camNet.cid2cidread)==cam)[0,0]
         for i_frame in range(0, N_frames, factor_downsample):
-            img = videos[i_cam][i_frame] if saved_as_videos else None
+            img = videos[i_cam][i_frame] if not saved_as_frames else None
             frame = camNet.cam_list[cam_df3d].plot_2d(img_id=i_frame, colors=colors, img=img)
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             yield frame
@@ -470,10 +471,16 @@ def generator_df3d(image_folder, cameras=[5,3,1], font_size=16, print_frame_num=
         generator = utils_video.generators.add_text(generator, text=text, pos=(10,50))
     return generator
 
-def make_video_df3d(trial_dir, out_dir, video_name, frames=None, frame_rate=None, cameras=[5,3,1], 
+def make_video_df3d(trial_dir, out_dir, video_name, frames=None, frame_rate=None, cameras=[5,1], 
                     print_frame_num=True, print_frame_time=True, print_beh_label=False, beh_label_dir=None,
                     downsample=None, speedup=1):
-    image_dir = os.path.join(trial_dir, "behData", "images")
+    images_dir = os.path.join(trial_dir, "images")
+    if not os.path.isdir(images_dir):
+        images_dir = os.path.join(trial_dir, "behData", "images")
+        if not os.path.isdir(images_dir):
+            images_dir = find_file(trial_dir, "images", "images folder")
+            if not os.path.isdir(images_dir):
+                raise FileNotFoundError("Could not find 'images' folder.")
     if frame_rate is None:
         metadata_dir = utils2p.find_seven_camera_metadata_file(trial_dir)
         with open(metadata_dir, "r") as f:
@@ -486,7 +493,13 @@ def make_video_df3d(trial_dir, out_dir, video_name, frames=None, frame_rate=None
     if not video_name.endswith(".mp4"):
         video_name = video_name + ".mp4"
 
-    generator = generator_df3d(image_dir, cameras=cameras, frame_rate=frame_rate, N_frames=frames,
+    if not isinstance(frames, int) and len(frames):
+        if frames[0] != 0 or any(np.diff(frames) != 1):
+            raise NotImplementedError("frames has to be a range of frames starting from 0 or an integer frame length.")
+        else:
+            frames = len(frames)
+
+    generator = generator_df3d(images_dir, cameras=cameras, frame_rate=frame_rate, N_frames=frames,
                                print_frame_time=print_frame_time, print_frame_num=print_frame_num,
                                print_beh_label=print_beh_label, beh_label_dir=beh_label_dir,
                                factor_downsample=factor_downsample, speedup=speedup)
@@ -590,7 +603,7 @@ def find_cam_frames(images_dir, camera, required_n_frames=None):
     image_list = glob(os.path.join(images_dir, f"camera_{camera}_img_*.jpg"))
     image_numbers = np.array([int(os.path.basename(image)[13:-4]) for image in image_list])
     sort_inds = np.argsort(image_numbers)
-    sorted_numbers = image_numbers(sort_inds)
+    sorted_numbers = image_numbers[sort_inds]
     if required_n_frames is not None and isinstance(required_n_frames, int):
         assert len(image_list) == required_n_frames
     # check that frame numbers are monotonically increasing and no frame is missing
@@ -630,6 +643,17 @@ def generator_cam_frames(frames, size=None, start=0, stop=9223372036854775807):
             yield frame
         elif current_frame >= stop:
             break
+
+def make_video_from_cam_frames(images_dir, camera, required_n_frames=None, video_name="camera"):
+    cam_frames = find_cam_frames(images_dir, camera, required_n_frames)
+    generator = generator_cam_frames(cam_frames)
+    seven_camera_metadata_file = utils2p.find_seven_camera_metadata_file(images_dir)
+    with open(seven_camera_metadata_file, "r") as f:
+        metadata = json.load(f)
+    fps = metadata["FPS"]
+    frame_size = (metadata["ROI"]["Height"][f"{camera}"], metadata["ROI"]["Width"][f"{camera}"])
+    utils_video.make_video(os.path.join(images_dir, video_name+f"_{camera}.mp4"), generator,
+                           fps=fps, output_shape=frame_size, n_frames=-1)
 
 def downsample_generator(generator, factor):
     """return every Nth element of a genertor
