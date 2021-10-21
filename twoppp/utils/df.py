@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-def get_multi_index_trial_df(trial_info, N_samples, t=None, twop_index=None):
+def get_multi_index_trial_df(trial_info, N_samples, t=None, twop_index=None, abs_t_start=None):
     """create an empty dataframe for a trial that can later be enriched with data
 
     Parameters
@@ -14,15 +14,20 @@ def get_multi_index_trial_df(trial_info, N_samples, t=None, twop_index=None):
         number of samples in the trial
 
     t : numpy array, optional
-        time vector to be added as "t" column in the data frame, by default None
+        experiment time vector to be added as "t" column in the data frame, by default None
 
     twop_index : numpy array, optional
         synchronisation indices. to be added as "twop_index" column, by default None
 
+    abs_t_start : int or float, optional
+        absolute time of first sample. t + abs_t_start will be added as "abs_t" column
+        in the data frame, by default None
+
     Returns
     -------
     pandas DataFrame
-        multiindex dataframe with the trial_info and potentially a "t" and a "twop_index" column.
+        multiindex dataframe with the trial_info and potentially a "t", "abs_t",
+        and a "twop_index" column.
     """
     frames = np.arange(N_samples)
     indices = pd.MultiIndex.from_arrays(([trial_info["Date"], ] * N_samples,  # e.g 210301
@@ -32,12 +37,14 @@ def get_multi_index_trial_df(trial_info, N_samples, t=None, twop_index=None):
                                             [trial_info["i_trial"], ] * N_samples,  # e.g. 1
                                             frames
                                         ),
-                                        names=[u'Date', u'Genotype', u'Fly', 
+                                        names=[u'Date', u'Genotype', u'Fly',
                                                u'TrialName', u'Trial', u'Frame'])
     df = pd.DataFrame(index=indices)
     if t is not None:
         assert len(t) == N_samples
         df["t"] = t
+        if abs_t_start is not None:
+            df["abs_t"] = abs_t_start + t
     if twop_index is not None:
         assert len(twop_index) == N_samples
         df["twop_index"] = twop_index
@@ -56,8 +63,8 @@ def get_multi_index_fly_df(trial_dfs=None):
     pandas DataFrame
        one dataframe for a fly that unites all trial dataframes
     """
-    multi_index = pd.MultiIndex(levels=[[]] * 5, codes=[[]]  * 5, 
-                                names=[u'Date', u'Genotype', u'Fly', 
+    multi_index = pd.MultiIndex(levels=[[]] * 5, codes=[[]]  * 5,
+                                names=[u'Date', u'Genotype', u'Fly',
                                        u'TrialName', u'Trial', u'Frame'])
     df = pd.DataFrame(index=multi_index)
     if trial_dfs is not None and isinstance(trial_dfs, list):
