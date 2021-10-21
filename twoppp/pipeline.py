@@ -1392,47 +1392,47 @@ class PreProcessFly:
             twop_out_dir = os.path.join(processed_dir, self.params.twop_df_out_dir)
             # if not os.path.isfile(opflow_out_dir) or not os.path.isfile(df3d_out_dir) \
             #     or not os.path.isfile(twop_out_dir) or self.params.overwrite:
-            try:
-                _1, _2, _3 = get_synchronised_trial_dataframes(
-                    trial_dir,
-                    crop_2p_start_end=self.params.denoise_params.pre_post_frame,
-                    beh_trial_dir=self.beh_trial_dirs[i_trial],
-                    sync_trial_dir=self.sync_trial_dirs[i_trial],
-                    trial_info=trial_info,
-                    opflow=True if self.params.ball_tracking == "opflow" else False,
-                    df3d=True,
-                    opflow_out_dir=opflow_out_dir,
-                    df3d_out_dir=df3d_out_dir,
-                    twop_out_dir=twop_out_dir
-                )
-                if self.params.ball_tracking == "opflow":
-                    opflow_df, frac_walk_rest = get_opflow_df(self.beh_trial_dirs[i_trial],
-                                                            index_df=opflow_out_dir,
-                                                            df_out_dir=opflow_out_dir,
-                                                            block_error=True,
-                                                            return_walk_rest=True,
-                                                            winsize=self.params.opflow_win_size,
-                                                            thres_rest=self.params.thres_rest,
-                                                            thres_walk=self.params.thres_walk)
-                    _ = get_opflow_in_twop_df(twop_df=twop_out_dir,
-                                              opflow_df=opflow_df,
-                                              twop_df_out_dir=twop_out_dir,
-                                              thres_walk=self.params.thres_walk,
-                                              thres_rest=self.params.thres_rest)
-                    print("walking, resting: ", frac_walk_rest)
-                elif self.params.ball_tracking == "fictrac":
-                    _ = get_fictrac_df(self.beh_trial_dirs[i_trial],
-                                       index_df=df3d_out_dir,
-                                       df_out_dir=df3d_out_dir)
+            # try:
+            _1, _2, _3 = get_synchronised_trial_dataframes(
+                trial_dir,
+                crop_2p_start_end=self.params.denoise_params.pre_post_frame,
+                beh_trial_dir=self.beh_trial_dirs[i_trial],
+                sync_trial_dir=self.sync_trial_dirs[i_trial],
+                trial_info=trial_info,
+                opflow=True if self.params.ball_tracking == "opflow" else False,
+                df3d=True,
+                opflow_out_dir=opflow_out_dir,
+                df3d_out_dir=df3d_out_dir,
+                twop_out_dir=twop_out_dir
+            )
+            if self.params.ball_tracking == "opflow":
+                opflow_df, frac_walk_rest = get_opflow_df(self.beh_trial_dirs[i_trial],
+                                                        index_df=opflow_out_dir,
+                                                        df_out_dir=opflow_out_dir,
+                                                        block_error=True,
+                                                        return_walk_rest=True,
+                                                        winsize=self.params.opflow_win_size,
+                                                        thres_rest=self.params.thres_rest,
+                                                        thres_walk=self.params.thres_walk)
+                _ = get_opflow_in_twop_df(twop_df=twop_out_dir,
+                                            opflow_df=opflow_df,
+                                            twop_df_out_dir=twop_out_dir,
+                                            thres_walk=self.params.thres_walk,
+                                            thres_rest=self.params.thres_rest)
+                print("walking, resting: ", frac_walk_rest)
+            elif self.params.ball_tracking == "fictrac":
+                _ = get_fictrac_df(self.beh_trial_dirs[i_trial],
+                                    index_df=df3d_out_dir,
+                                    df_out_dir=df3d_out_dir)
 
-                if self.params.add_df3d_to_df:
-                    _ = df3d.get_df3d_dataframe(self.beh_trial_dirs[i_trial],
-                                                index_df=df3d_out_dir,
-                                                out_dir=df3d_out_dir)
-            except KeyboardInterrupt:
-                raise KeyError
-            except:
-                print("Error while getting dfs in trial: " + trial_dir)
+            if self.params.add_df3d_to_df:
+                _ = df3d.get_df3d_dataframe(self.beh_trial_dirs[i_trial],
+                                            index_df=df3d_out_dir,
+                                            out_dir=df3d_out_dir)
+            # except KeyboardInterrupt:
+            #     raise KeyError
+            # except:
+            #     print("Error while getting dfs in trial: " + trial_dir)
 
     def extract_rois(self):
         """extract the regions of interest from manually labelled ROI centers.
