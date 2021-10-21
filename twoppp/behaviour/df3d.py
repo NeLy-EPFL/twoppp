@@ -10,7 +10,7 @@ import pickle
 import numpy as np
 import pandas as pd
 
-from df3dPostProcessing.df3dPostProcessing import df3dPostProcess
+from df3dPostProcessing.df3dPostProcessing import df3dPostProcess, df3d_skeleton
 
 FILE_PATH = os.path.realpath(__file__)
 BEHAVIOUR_PATH, _ = os.path.split(FILE_PATH)
@@ -119,8 +119,20 @@ def postprocess_df3d_trial(trial_dir, overwrite=False):
     overwrite : bool, optional
         whether to overwrite existing results, by default False
     """
-    images_dir = find_file(trial_dir, "images", "images folder")
-    pose_result = glob.glob(os.path.join(images_dir, "df3d", "pose_result*"))[0]
+    images_dir = os.path.join(trial_dir, "images")
+    if not os.path.isdir(images_dir):
+        images_dir = os.path.join(trial_dir, "behData", "images")
+        if not os.path.isdir(images_dir):
+            images_dir = find_file(trial_dir, "images", "images folder")
+            if not os.path.isdir(images_dir):
+                raise FileNotFoundError("Could not find 'images' folder.")
+    df3d_dir = os.path.join(images_dir, "df3d")
+    if not os.path.isdir(images_dir):
+        df3d_dir = find_file(images_dir, "df3d", "df3d folder")
+        if not os.path.isdir(images_dir):
+            raise FileNotFoundError("Could not find 'df3d' folder.")
+
+    pose_result = find_file(df3d_dir, name="pose_result*", file_type="pose result file")
     if overwrite or not len(glob.glob(os.path.join(images_dir, "df3d", "joint_angles*"))):
         try:
             mydf3dPostProcess = df3dPostProcess(exp_dir=pose_result, calculate_3d=True, 
@@ -140,7 +152,7 @@ def postprocess_df3d_trial(trial_dir, overwrite=False):
             pickle.dump(aligned_model, f)
         leg_angles = mydf3dPostProcess.calculate_leg_angles(save_angles=True)
 
-def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
+def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None, add_abdomen=True):
     """load pose estimation data into a dataframe, potentially one that is synchronised
     to the two-photon recordings.
     Adds columns for joint position and joint angles.
@@ -158,6 +170,9 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
     out_dir : str, optional
         if specified, will save the dataframe as .pkl, by default None
 
+    add_abdomen: bool, optional
+        if specified, search for abdominal markers in raw pose results
+
     Returns
     -------
     beh_df: pandas DataFrame
@@ -170,46 +185,84 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
         assert isinstance(index_df, pd.DataFrame)
     beh_df = index_df
 
+    images_dir = os.path.join(trial_dir, "images")
+    if not os.path.isdir(images_dir):
+        images_dir = os.path.join(trial_dir, "behData", "images")
+        if not os.path.isdir(images_dir):
+            images_dir = find_file(trial_dir, "images", "images folder")
+            if not os.path.isdir(images_dir):
+                raise FileNotFoundError("Could not find 'images' folder.")
+    df3d_dir = os.path.join(images_dir, "df3d")
+    if not os.path.isdir(images_dir):
+        df3d_dir = find_file(images_dir, "df3d", "df3d folder")
+        if not os.path.isdir(images_dir):
+            raise FileNotFoundError("Could not find 'df3d' folder.")
+
     # read the angles and convert them into an understandable format
-    angles_file = find_file(trial_dir, name="joint_angles")
+    angles_file = find_file(df3d_dir, name="joint_angles*", file_type="joint angles file")
     with open(angles_file, "rb") as f:
         angles = pickle.load(f)
     leg_keys = []
     _ = [leg_keys.append(key) for key in angles.keys()]
     angle_keys = []
     _ = [angle_keys.append(key) for key in angles[leg_keys[0]].keys()]
-    name_change = {"yaw": "Coxa_yaw",
-                   "pitch": "Coxa",
-                   "roll": "Coxa_roll",
-                   "th_fe": "Femur",
-                   "roll_tr": "Femur_roll",
-                   "th_ti": "Tibia",
-                   "th_ta": "Tarsus"}
-    N_features = len(leg_keys) * len(angle_keys)
+
+    if "Head" in leg_keys:
+        N_features = (len(leg_keys) - 1) * len(angle_keys)
+    else:
+        N_features = len(leg_keys) * len(angle_keys)
+
     N_samples = len(angles[leg_keys[0]][angle_keys[0]])
     X = np.zeros((N_samples, N_features), dtype="float64")
     X_names = []
     for i_leg, leg in enumerate(leg_keys):
+        if leg == "Head":
+            continue
         for i_angle, angle in enumerate(angle_keys):
             X[:, i_angle + i_leg*len(angle_keys)] = np.array(angles[leg][angle])
-            X_names.append("angle_" + leg + "_" + name_change[angle])
+            X_names.append("angle_" + leg + "_" + angle)
 
     # read the joints from df3d after post-processing and convert them into an understandable format
-    joints_file = find_file(trial_dir, name="aligned_pose")
+    joints_file = find_file(df3d_dir, name="aligned_pose*", file_type="aligned pose file")
     with open(joints_file, "rb") as f:
         joints = pickle.load(f)
-    leg_keys = []
-    _ = [leg_keys.append(key) for key in joints.keys()]
-    joint_keys = []
-    _ = [joint_keys.append(key) for key in joints[leg_keys[0]].keys()]
-    N_features = len(leg_keys) * len(joint_keys)
+    leg_keys = list(joints.keys())
+    joint_keys = list(joints[leg_keys[0]].keys())
+    if "Head" in leg_keys:
+        head_keys = list(joints["Head"].keys())
+        N_features = (len(leg_keys) - 1) * len(joint_keys) + len(head_keys)
+    else:
+        head_keys = []
+        N_features = len(leg_keys) * len(joint_keys)
     Y = np.zeros((N_samples, N_features*3), dtype="float64")
     Y_names = []
     for i_leg, leg in enumerate(leg_keys):
+        if leg == "Head":
+            continue
         for i_joint, joint in enumerate(joint_keys):
             Y[:, i_leg*len(joint_keys)*3 + i_joint*3 : i_leg*len(joint_keys)*3 + (i_joint+1)*3] = \
                 np.array(joints[leg][joint]["raw_pos_aligned"])
             Y_names += ["joint_" + leg + "_" + joint + i_ax for i_ax in ["_x", "_y", "_z"]]
+    if "Head" in leg_keys:
+        N_legs = len(leg_keys) - 1
+        for i_key, head_key in enumerate(head_keys):
+            Y[:, N_legs*len(joint_keys)*3 + i_key*3 : N_legs*len(joint_keys)*3 + (i_key+1)*3] = \
+                    np.array(joints["Head"][head_key]["raw_pos_aligned"])
+            Y_names += ["joint_Head_" + head_key + i_ax for i_ax in ["_x", "_y", "_z"]]
+
+    if add_abdomen:
+        pose_file = find_file(df3d_dir, name="pose_result*", file_type="pose result file")
+        with open(pose_file, "rb") as f:
+            pose = pickle.load(f)
+        abdomen_keys = ["RStripe1", "RStripe2", "RStripe3", "LStripe1", "LStripe2", "LStripe3"]
+        abdomen_inds = [df3d_skeleton.index(key) for key in abdomen_keys]
+
+        N_features = len(abdomen_keys)
+        Z = np.zeros((N_samples, N_features*3), dtype="float64")
+        Z_names = []
+        for i_key, (i_abd, abd_key) in enumerate(zip(abdomen_inds, abdomen_keys)):
+            Z[:, i_key*3:(i_key+1)*3] = pose["points3d"][:,i_abd, :]
+            Z_names += ["joint_Abd_" + abd_key + i_ax for i_ax in ["_x", "_y", "_z"]]
 
     if beh_df is None:
         # if no index_df was supplied externally,
@@ -239,6 +292,8 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None):
 
     beh_df[X_names] = X
     beh_df[Y_names] = Y
+    if add_abdomen:
+        beh_df[Z_names] = Z
 
     if out_dir is not None:
         beh_df.to_pickle(out_dir)

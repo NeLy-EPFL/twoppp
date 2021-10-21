@@ -131,6 +131,13 @@ def get_sync_signals_olfaction(trial_dir, rep_time=30, stim_time=10, sync_out_fi
             while i < len(odor_thres)-1:
                 i += 1
                 if odor_thres[i]:
+                    start_stim = int(i + f_s_sync * stim_time * 0.1)
+                    stop_stim = int(i + f_s_sync * stim_time * 0.9)
+                    vals = np.unique(odor_quant[start_stim:stop_stim])
+                    if 0 in vals or len(vals) > 1:
+                        # test for cotinuity during the upcoming stimulation time
+                        # if condition not fulfilled, continue searching
+                        continue
                     list_i_start.append(i)
                     i += int(f_s_sync * (rep_time - 1))
         else:
@@ -174,6 +181,8 @@ def get_sync_signals_olfaction(trial_dir, rep_time=30, stim_time=10, sync_out_fi
                 condition_name_signal[i] = cond
         index_df["olfac_stim"] = binary_cond_signal
         index_df["olfac_cond"] = condition_name_signal
+        index_df["olfac_start"] = np.diff(np.array(binary_cond_signal).astype(int), prepend=0) == 1
+        index_df["olfac_stop"] = np.diff(np.array(binary_cond_signal).astype(int), prepend=0) == -1
 
     if df_out_dir is not None:
         index_df.to_pickle(df_out_dir)

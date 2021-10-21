@@ -17,7 +17,10 @@ from twoppp.utils.df import get_multi_index_trial_df
 def get_frame_times_indices(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
                             sync_trial_dir=None, opflow=False):
     """get the times of different data acquisition modalities from the sync files.
-    Also computes the frame indices to lateron sync between behavioural and two photon data
+    Also computes the frame indices to lateron sync between behavioural and two photon data.
+
+    Attention: the absolute time is only precise to the second because it is based on the 
+    unix time stamp from the metadatafile of the recording.
 
     Parameters
     ----------
@@ -42,6 +45,9 @@ def get_frame_times_indices(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
 
     Returns
     -------
+    unix_t_start: int
+        start time of the experiment as a unix time stamp
+
     frame_times_2p: numpy array
         absolute times when the two photon frames were acquired
 
@@ -68,7 +74,10 @@ def get_frame_times_indices(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
     metadata_file = utils2p.find_metadata_file(trial_dir)
     sync_metadata_file = utils2p.find_sync_metadata_file(sync_trial_dir)
     seven_camera_metadata_file = utils2p.find_seven_camera_metadata_file(beh_trial_dir)
-    processed_lines = utils2p.synchronization.processed_lines(sync_file, sync_metadata_file,
+
+    unix_t_start = int(utils2p.Metadata(metadata_file).get_metadata_value("Date", "uTime"))
+
+    processed_lines = utils2p.synchronization.get_processed_lines(sync_file, sync_metadata_file,
                                                               metadata_file,
                                                               seven_camera_metadata_file)
     frame_times_2p = utils2p.synchronization.get_start_times(processed_lines["Frame Counter"],
@@ -98,9 +107,9 @@ def get_frame_times_indices(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
         opflow_frame_idx -= crop_2p_start_end
         opflow_frame_idx[opflow_frame_idx<0] = -9223372036854775808  # smallest possible uint64
         opflow_frame_idx[opflow_frame_idx>=len(frame_times_2p)] = -9223372036854775808
-        return frame_times_2p, frame_times_beh, beh_frame_idx, frame_times_opflow, opflow_frame_idx
+        return unix_t_start, frame_times_2p, frame_times_beh, beh_frame_idx, frame_times_opflow, opflow_frame_idx
     else:
-        return frame_times_2p, frame_times_beh, beh_frame_idx
+        return unix_t_start, frame_times_2p, frame_times_beh, beh_frame_idx
 
 def get_synchronised_trial_dataframes(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
                                       sync_trial_dir=None, trial_info=None,
@@ -157,28 +166,32 @@ def get_synchronised_trial_dataframes(trial_dir, crop_2p_start_end=0, beh_trial_
         optical flow data DataFrame
     """
     if opflow:
-        frame_times_2p, frame_times_beh, beh_frame_idx, frame_times_opflow, opflow_frame_idx = \
+        unix_t_start, frame_times_2p, frame_times_beh, beh_frame_idx, \
+            frame_times_opflow, opflow_frame_idx = \
             get_frame_times_indices(trial_dir, crop_2p_start_end=crop_2p_start_end,
                                     beh_trial_dir=beh_trial_dir, sync_trial_dir=sync_trial_dir,
                                     opflow=True)
 
     else:
-        frame_times_2p, frame_times_beh, beh_frame_idx = \
+        unix_t_start, frame_times_2p, frame_times_beh, beh_frame_idx = \
             get_frame_times_indices(trial_dir, crop_2p_start_end=crop_2p_start_end,
                                     beh_trial_dir=beh_trial_dir, sync_trial_dir=sync_trial_dir,
                                     opflow=False)
         frame_times_opflow = None
         opflow_frame_idx = None
 
-    twop_df = get_multi_index_trial_df(trial_info, len(frame_times_2p), t=frame_times_2p)
+    twop_df = get_multi_index_trial_df(trial_info, len(frame_times_2p), t=frame_times_2p,
+                                       abs_t_start=unix_t_start)
     if twop_out_dir is not None:
         twop_df.to_pickle(twop_out_dir)
-    df3d_df = get_multi_index_trial_df(trial_info, len(frame_times_beh), t=frame_times_beh,
-                                 twop_index=beh_frame_idx) if df3d else None
+    df3d_df = get_multi_index_trial_df(
+        trial_info, len(frame_times_beh), t=frame_times_beh,
+        twop_index=beh_frame_idx, abs_t_start=unix_t_start) if df3d else None
     if df3d_out_dir is not None:
         df3d_df.to_pickle(df3d_out_dir)
-    opflow_df = get_multi_index_trial_df(trial_info, len(frame_times_opflow), t=frame_times_opflow,
-                                   twop_index=opflow_frame_idx) if opflow else None
+    opflow_df = get_multi_index_trial_df(
+        trial_info, len(frame_times_opflow), t=frame_times_opflow,
+        twop_index=opflow_frame_idx, abs_t_start=unix_t_start) if opflow else None
     if opflow_out_dir is not None and opflow_df is not None:
         opflow_df.to_pickle(opflow_out_dir)
     return twop_df, df3d_df, opflow_df

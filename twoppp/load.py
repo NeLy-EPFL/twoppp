@@ -162,7 +162,7 @@ def load_trial(trial_dir):
     meta_data = utils2p.Metadata(trial_xml)
     green, red = utils2p.load_raw(path=trial_raw, metadata=meta_data)
     
-    return (green, None) if meta_data.get_gainB() == 0 else (green, red)
+    return (green, None) if meta_data.get_gain_b() == 0 else (green, red)
 
 def convert_raw_to_tiff(trial_dir, overwrite=False, return_stacks=True, green_dir=None, red_dir=None):
     """load .raw files from two-photon microscope and save them as tifs.
