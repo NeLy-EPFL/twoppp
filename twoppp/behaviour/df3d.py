@@ -208,11 +208,8 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None, add_abdomen=True)
     _ = [angle_keys.append(key) for key in angles[leg_keys[0]].keys()]
 
     if "Head" in leg_keys:
-        # TODO: implement head angles in case they are available
-        # head_keys = list(joints["Head"].keys())
-        N_features = (len(leg_keys) - 1) * len(angle_keys) #  + len(head_keys)
+        N_features = (len(leg_keys) - 1) * len(angle_keys)
     else:
-        # head_keys = []
         N_features = len(leg_keys) * len(angle_keys)
 
     N_samples = len(angles[leg_keys[0]][angle_keys[0]])
@@ -220,7 +217,7 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None, add_abdomen=True)
     X_names = []
     for i_leg, leg in enumerate(leg_keys):
         if leg == "Head":
-            continue  # TODO: implement head angles once they are in df3d
+            continue
         for i_angle, angle in enumerate(angle_keys):
             X[:, i_angle + i_leg*len(angle_keys)] = np.array(angles[leg][angle])
             X_names.append("angle_" + leg + "_" + angle)
