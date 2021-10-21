@@ -645,6 +645,24 @@ def generator_cam_frames(frames, size=None, start=0, stop=9223372036854775807):
             break
 
 def make_video_from_cam_frames(images_dir, camera, required_n_frames=None, video_name="camera"):
+    """make a video out of a series of frames acquired by one of the cameras of the 7 camera system.
+    Will save in the same folder as where the images are searched
+
+    Parameters
+    ----------
+    images_dir : str
+        folder where the images are to be found
+
+    camera : int
+        number of the camera
+
+    required_n_frames : int, optional
+        if known, procide the expected number of frames. The function will check that all were found.
+        by default None
+
+    video_name : str, optional
+        name base of the output video. Will append "_{camera}.mp4", by default "camera"
+    """
     cam_frames = find_cam_frames(images_dir, camera, required_n_frames)
     generator = generator_cam_frames(cam_frames)
     seven_camera_metadata_file = utils2p.find_seven_camera_metadata_file(images_dir)
