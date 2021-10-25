@@ -78,7 +78,13 @@ def prepare_for_df3d(trial_dirs, videos=True, scope=2, tmp_process_dir=None, ove
     with open(folders_dir, "w") as f:
         f.truncate(0)  # make sure all previous entries are deleted
         for trial_dir in trial_dirs:
-            images_dir = find_file(trial_dir, "images", "images folder")
+            images_dir = os.path.join(trial_dir, "images")
+            if not os.path.isdir(images_dir):
+                images_dir = os.path.join(trial_dir, "behData", "images")
+                if not os.path.isdir(images_dir):
+                    images_dir = find_file(trial_dir, "images", "images folder")
+                    if not os.path.isdir(images_dir):
+                        raise FileNotFoundError("Could not find 'images' folder.")
             if overwrite or not len(glob.glob(os.path.join(images_dir, "df3d", "pose_result*"))):
                 f.write(trial_dir + "\n")
 
