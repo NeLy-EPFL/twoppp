@@ -40,7 +40,7 @@ do
 
             # delete images
             for ((i=0; i<7; i++)); do
-                find "$folder" -name "*.jpg" -maxdepth 1  -delete
+                find "$folder" -maxdepth 1 -name "camera_${i}_img_*.jpg" -type f -delete
             done
         done
 done < "$input"
