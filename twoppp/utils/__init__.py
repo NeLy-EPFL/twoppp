@@ -183,7 +183,7 @@ def makedirs_safe(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def find_file(directory, name, file_type=""):
+def find_file(directory, name, file_type="", raise_error=True):
     """
     This function finds a unique file with a given name in
     in the directory.
@@ -205,12 +205,18 @@ def find_file(directory, name, file_type=""):
     """
     file_names = list(Path(directory).rglob("*" + name))
     if len(file_names) > 1:
-        raise RuntimeError(
-            f"Could not identify {file_type} file unambiguously." + \
-            f"Discovered {len(file_names)} {file_type} files in {directory}."
-        )
+        if raise_error:
+            raise RuntimeError(
+                f"Could not identify {file_type} file unambiguously." + \
+                f"Discovered {len(file_names)} {file_type} files in {directory}."
+            )
+        else:
+            return file_names
     elif len(file_names) == 0:
-        raise FileNotFoundError(f"No {file_type} file found in {directory}")
+        if raise_error:
+            raise FileNotFoundError(f"No {file_type} file found in {directory}")
+        else:
+            return None
     return str(file_names[0])
 
 def readlines_tolist(file, remove_empty=True):
