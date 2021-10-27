@@ -222,6 +222,35 @@ def reduce_behaviour(values, thres=0.75, default=""):
     else:
         return unique_values[i_max]
 
+def reduce_groups(group_index, values, function=reduce_mean):
+    """
+    Reduces all values/arrays belonging to one group to a single value/array.
+    A group can be consecutive samples during an event at lower frame rate
+    or just a random subset of samples in 'values'.
+    Supply -9223372036854775808 for a sample that does not belong to any group.
+
+    Parameters
+    ----------
+    group_index : numpy array
+        1d array holding frame indices of one trial.
+
+    values : numpy array
+        Values upsampled to the frequency of ThorSync,
+        i.e. 1D numpy array of the same length as
+        `group_index` or ND numpy array of the same length.
+
+    function : [function, optional
+        Function used to reduce the value,
+        e.g. np.mean for 1D variables, default is np.mean(values, axis=0)
+
+    Returns
+    -------
+    reduced : numpy array
+        Numpy array with value/array for each low frequency frame.
+    """
+
+    return reduce_during_2p_frame(twop_index=group_index, values=values, function=function)
+
 def reduce_during_2p_frame(twop_index, values, function=reduce_mean):
     """
     Reduces all values occuring during the acquisition of a
@@ -235,11 +264,11 @@ def reduce_during_2p_frame(twop_index, values, function=reduce_mean):
     values : numpy array
         Values upsampled to the frequency of ThorSync,
         i.e. 1D numpy array of the same length as
-        `frame_counter` or 2D numpy array of the same length.
+        `twop_index` or ND numpy array of the same length.
 
-    function : function
+    function : function, optional
         Function used to reduce the value,
-        e.g. np.mean for 1D variables
+        e.g. np.mean for 1D variables, default is np.mean(values, axis=0)
 
     Returns
     -------
@@ -254,7 +283,7 @@ def reduce_during_2p_frame(twop_index, values, function=reduce_mean):
         squeeze = True
     else:
         squeeze = False
-    N_samples, N_variables = values.shape
+    N_samples = values.shape[0]
 
     index_unique = np.unique(twop_index)
     index_unique = np.delete(index_unique, index_unique==-9223372036854775808)
@@ -264,7 +293,7 @@ def reduce_during_2p_frame(twop_index, values, function=reduce_mean):
         dtype = np.float
     else:
         dtype = np.object
-    reduced = np.empty((len(index_unique), N_variables), dtype=dtype)
+    reduced = np.empty((len(index_unique),) + values.shape[1:], dtype=dtype)
 
     for i, index in enumerate(index_unique):
         reduced[i] = function(values[twop_index==index, :])
