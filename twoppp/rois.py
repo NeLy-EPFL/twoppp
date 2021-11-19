@@ -2,6 +2,7 @@ import os, sys
 import numpy as np
 import pandas as pd
 from scipy.ndimage.filters import convolve
+from skimage.morphology import dilation, disk
 
 from twoppp.utils import get_stack, save_stack, readlines_tolist
 from twoppp.utils.df import get_multi_index_trial_df
@@ -307,7 +308,7 @@ def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default
         if isinstance(index_df, str) and os.path.isfile(index_df):
             index_df = pd.read_pickle(index_df)
         else:
-            assert isinstance (index_df, pd.DataFrame)
+            assert isinstance(index_df, pd.DataFrame)
         if len(index_df) > N_samples:
             if len(index_df) - N_samples <= 5:
                 print("Difference between thorsync ticks and two photon data: {} frames \n".format(len(index_df) - N_samples)+\
@@ -324,3 +325,16 @@ def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default
     if df_out_dir is not None:
         df.to_pickle(df_out_dir)
     return df
+
+def make_roi_map(roi_mask, values, setnan=False):
+    roi_map = np.zeros_like(roi_mask)
+    N_rois = len(np.unique(roi_mask)) - 1
+    assert N_rois == values.shape[0]
+    if setnan:
+        roi_map[:] = np.nan
+    for i_roi in range(N_rois):
+        roi_map[roi_mask == (i_roi+1)] = values[i_roi]
+    return roi_map
+
+def widen_roi_map(roi_mask, spread=5):
+    return dilation(roi_mask, selem=disk(spread))
