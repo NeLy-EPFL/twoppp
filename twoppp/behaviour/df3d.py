@@ -113,7 +113,7 @@ def run_df3d(tmp_process_dir):
         os.system("pwd")
         os.system("sh run_df3d.sh")
 
-def postprocess_df3d_trial(trial_dir, overwrite=False):
+def postprocess_df3d_trial(trial_dir, overwrite=False, result_prefix=""):
     """run post-processing of deepfly3d data as defined in the df3dPostProcessing package:
     Align with reference fly template and calculate leg angles.
 
@@ -124,6 +124,9 @@ def postprocess_df3d_trial(trial_dir, overwrite=False):
  
     overwrite : bool, optional
         whether to overwrite existing results, by default False
+    
+    result_prefix: str, optional
+        will pre-pend a string to the output files, by default ""
     """
     images_dir = os.path.join(trial_dir, "images")
     if not os.path.isdir(images_dir):
@@ -139,24 +142,31 @@ def postprocess_df3d_trial(trial_dir, overwrite=False):
             raise FileNotFoundError("Could not find 'df3d' folder.")
 
     pose_result = find_file(df3d_dir, name="pose_result*", file_type="pose result file")
-    if overwrite or not len(glob.glob(os.path.join(images_dir, "df3d", "joint_angles*"))):
+    if overwrite or not len(glob.glob(os.path.join(images_dir, "df3d", result_prefix+"joint_angles*"))):
         try:
-            mydf3dPostProcess = df3dPostProcess(exp_dir=pose_result, calculate_3d=True, 
+            mydf3dPostProcess = df3dPostProcess(exp_dir=pose_result, calculate_3d=True,
                                                 correct_outliers=True)
         except:
-            print("New version of df3d post processing did not work. will not correct outliers")
-            mydf3dPostProcess = df3dPostProcess(exp_dir=pose_result)
+            print("New version of df3d post processing did not work. Will not correct outliers")
+            mydf3dPostProcess = df3dPostProcess(exp_dir=pose_result, calculate_3d=True)
         try:
-            aligned_model = mydf3dPostProcess.align_to_template(interpolate=False, scale=True, 
+            aligned_model = mydf3dPostProcess.align_to_template(interpolate=False, scale=True,
                                                                 all_body=True)
         except:
             print("New version of df3d post processing did not work.",
-                  "will not align antennal markers")
-            aligned_model = mydf3dPostProcess.align_to_template(interpolate=False, scale=True)
-        path = pose_result.replace('pose_result','aligned_pose')
+                  "Will not align antennal markers")
+            aligned_model = mydf3dPostProcess.align_to_template(scale=True)
+        path = pose_result.replace('pose_result',result_prefix+'aligned_pose')
         with open(path, 'wb') as f:
             pickle.dump(aligned_model, f)
-        leg_angles = mydf3dPostProcess.calculate_leg_angles(save_angles=True)
+        try: 
+            leg_angles = mydf3dPostProcess.calculate_leg_angles(save_angles=False)
+        except TypeError:
+            print("Using old version of df3d post processing!")
+            leg_angles = mydf3dPostProcess.calculate_leg_angles()
+        path = pose_result.replace('pose_result', result_prefix+'joint_angles')
+        with open(path, 'wb') as f:
+            pickle.dump(leg_angles, f)
 
 def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None, add_abdomen=True):
     """load pose estimation data into a dataframe, potentially one that is synchronised
