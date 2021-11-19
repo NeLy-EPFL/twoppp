@@ -41,11 +41,11 @@ def plot_sample_pixels(stacks, pixels, legends=[], colors=[], roi_size=2, f_s=16
 
     for i_ax, (ax, pixel) in enumerate(zip(axs, pixels)):
         for i_s, (stack, legend, color) in enumerate(zip(stacks, legends, colors)):
-                if roi_size == 0:
-                    roi_signal = stack[:, pixel[0], pixel[1]]
-                else:
-                    roi_signal = stack[:, pixel[0]-roi_size:pixel[0]+roi_size, pixel[1]-roi_size:pixel[1]+roi_size]
-                ax.plot(x, np.mean(roi_signal, axis=(1,2)), color=color, alpha=alpha, label=legend)
+            if roi_size == 0:
+                roi_signal = stack[:, pixel[0], pixel[1]]
+            else:
+                roi_signal = stack[:, pixel[0]-roi_size:pixel[0]+roi_size, pixel[1]-roi_size:pixel[1]+roi_size]
+            ax.plot(x, np.mean(roi_signal, axis=(1,2)), color=color, alpha=alpha, label=legend)
         
         ax.set_title(pixel)
         if i_ax == 0:
@@ -170,7 +170,7 @@ def shade_walk_rest(walk, rest, x=None, ax=None, alpha=0.2, colors=["red", "blue
         ax.axvspan(x[rest_diff_start[i_stim]], x[rest_diff_end[i_stim]], 
                    alpha=alpha, color=colors[1], ec=None, label="rest" if i_stim==0 else None)
 
-def plot_mu_sem(mu, err, x=None, label="", alpha=0.3, color=None, ax=None):
+def plot_mu_sem(mu, err, x=None, label="", alpha=0.3, color=None, ax=None, linewidth=1):
     """
     plot mean and standard deviation,
 
@@ -204,9 +204,9 @@ def plot_mu_sem(mu, err, x=None, label="", alpha=0.3, color=None, ax=None):
         ax = plt.gca()
     if x is None:
         x = np.arange(mu.shape[0])
-    p = ax.plot(x, mu, lw=1, label=label, color=color)
+    p = ax.plot(x, mu, lw=linewidth, label=label, color=color)
     if len(mu.shape) is 1:
-        ax.fill_between(x, mu - err, mu + err, alpha=alpha, color=p[0].get_color())
+        ax.fill_between(x, mu - err, mu + err, alpha=alpha, facecolor=p[0].get_color(), edgecolor=None)
     else:
         for i in np.arange(mu.shape[1]):
             ax.fill_between(x, mu[:, i] - err[:, i], mu[:, i] + err[:, i],
