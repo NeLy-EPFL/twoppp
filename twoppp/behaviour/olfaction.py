@@ -17,7 +17,7 @@ from utils2p.synchronization import get_lines_from_h5_file, process_cam_line, pr
 
 from twoppp import load, utils
 from twoppp import plot as myplt
-
+from twoppp.behaviour.synchronisation import reduce_during_2p_frame
 
 conditions_old = ["None", "Odor1", "Odor2", "Odor3", "Odor4", "Odor5", "Odor6",
                     "Odor1R", "Odor2R",   # 7,8
@@ -191,7 +191,7 @@ def get_sync_signals_olfaction(trial_dir, rep_time=30, stim_time=10, sync_out_fi
 
 def plot_olfac_conditions(t, signals, conditions, start_indices, t_stim=10, t_plot=(-5,15),
                           trial_name="", signal_names=["v (mm/s)", "orientation (°)"], integrate=False,
-                          return_signals=False):
+                          return_signals=False, colors=None):
     # t = np.arange(len(signals[0])) / 100  # TODO: fix this
     f_s = 100  # int(1 / np.mean(np.diff(t)))
     i_plot = (t_plot[0]*f_s, t_plot[1]*f_s+1)
@@ -203,6 +203,8 @@ def plot_olfac_conditions(t, signals, conditions, start_indices, t_stim=10, t_pl
 
     N_cond = len(np.unique(conditions))
     N_signals = len(signals)
+
+    colors = ["k", "k"] if colors is None else colors
 
     signals_to_avg = [[[] for c in range(N_cond)]
                           for s in range(N_signals)]
@@ -239,11 +241,11 @@ def plot_olfac_conditions(t, signals, conditions, start_indices, t_stim=10, t_pl
                         s_tmp = integrated_signal
                     signals_to_avg[i_s][i_c].append(s_tmp)
 
-                    axs[i_s, i_c].plot(t_vec, s_tmp, "k", alpha=0.1)
+                    axs[i_s, i_c].plot(t_vec, s_tmp, colors[0], alpha=0.1)
 
             myplt.plot_mu_sem(mu=np.mean(signals_to_avg[i_s][i_c], axis=0),
                               err=utils.conf_int(signals_to_avg[i_s][i_c], axis=0),
-                              x=t_vec, ax=axs[i_s,i_c], color="k")
+                              x=t_vec, ax=axs[i_s,i_c], color=colors[1])
 
     for ax in axs.flatten():
         ax.spines['right'].set_visible(False)
@@ -254,7 +256,7 @@ def plot_olfac_conditions(t, signals, conditions, start_indices, t_stim=10, t_pl
         return fig, signals_to_avg
     return fig
 
-def average_neural_across_repetitions(beh_dfs, to_average, output_dir=None, condition="WaterB", t_range=[-5, 15], twop_fs=16):
+def average_neural_across_repetitions(beh_dfs, to_average, output_dir=None, condition="WaterB", t_range=[-5, 15], twop_fs=16.24):
     N_rep = 0
     
     for i_t, (beh_df, stack) in enumerate(tqdm(zip(beh_dfs, to_average))):
@@ -281,3 +283,58 @@ def average_neural_across_repetitions(beh_dfs, to_average, output_dir=None, cond
     if output_dir is not None:
         utils.save_stack(output_dir, output)
     return output
+
+def align_to_stim(signals, beh_df, stype="twop", t_stim=10, t_range=[-10, 20], fs=16.24):
+    beh_df = utils.get_df(beh_df)
+    stim_start = np.argwhere(beh_df.olfac_start.values == 1).flatten()
+    conds = beh_df.olfac_cond.values[stim_start]
+    if stype == "twop":
+        stim_start = beh_df["twop_index"].values[stim_start]
+        N_per_trial = len(np.unique(beh_df["twop_index"].values))
+        i_trial = 0
+        for i_stim in range(1, len(stim_start)):
+            if stim_start[i_stim] < (stim_start[i_stim-1] - i_trial * N_per_trial):
+                i_trial += 1
+            stim_start[i_stim] += i_trial * N_per_trial
+            stim_start[i_stim] += i_trial * N_per_trial
+    elif stype != "beh":
+        raise NotImplementedError(f"stype should be 'twop' or 'beh', but was {stype}")
+
+    i_range = np.array([int(np.floor(t_range[0]*fs)), int(np.ceil(t_range[1]*fs))])
+    i_t0 = np.abs(np.minimum(0, i_range[0]))
+    t = np.round(np.arange(i_range[0]/fs, (i_range[1])/fs, 1/fs)*100)/100
+    stim = np.zeros_like(t)
+    stim[-i_range[0]:int(-i_range[0]+t_stim*fs)] = 1
+
+    stim_signals = np.zeros((len(stim_start), len(t), signals.shape[-1]))
+    for i_stim, start in enumerate(stim_start):
+        stim_signals[i_stim, :, :] = signals[start+i_range[0]:start+i_range[1],:]
+
+    stim_info = {"t": t, "stim": stim, "conds": conds, "i_t0": i_t0,
+                 "t_range": t_range, "i_range": i_range, "fs": fs}
+    return stim_signals, stim_info
+
+def get_regression_features(stim_signals, stim_info, bin_size=0.5, N_signals=None, sort="signal", standardise=True):
+    N_signals = stim_signals.shape[-1] if N_signals is None else N_signals
+    N_rep = stim_signals.shape[0]
+    reduce_ind = stim_info["t"]  / bin_size // 1
+    reduce_ind[0] = reduce_ind[1]
+    i_t0_red = int(-stim_info["t_range"][0] / bin_size)
+    stim_red = reduce_during_2p_frame(
+        values=np.moveaxis(stim_signals, source=[0,1,2],
+                           destination=[2,0,1])[:,:N_signals, :],
+        twop_index=reduce_ind)
+    if sort == "signal":
+        stim_red = np.swapaxes(stim_red, 0, 1)
+        feat_pre = stim_red[:, :i_t0_red, :].reshape((-1, N_rep)).T
+        feat_post = stim_red[:, i_t0_red:, :].reshape((-1, N_rep)).T
+    elif sort == "t":
+        feat_pre = stim_red[:i_t0_red, :, :].reshape((-1, N_rep)).T
+        feat_post = stim_red[i_t0_red:, :, :].reshape((-1, N_rep)).T
+    else:
+        raise NotImplementedError(f"sort must be either 'signal' or 't', but it was {sort}")
+
+    if standardise:
+        feat_pre = utils.standardise(feat_pre)
+        feat_post = utils.standardise(feat_post)
+    return feat_pre, feat_post
