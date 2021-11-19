@@ -903,7 +903,7 @@ class PreProcessFly:
                                         )
         df3d.run_df3d(tmp_dir)
 
-    def _post_process_pose(self, trial_dirs=None):
+    def _post_process_pose(self, trial_dirs=None, result_prefix=""):
         """run deepfly3d pose post processding.
         this aligns the positions to a reference fly and computes the joint angles.
         Uses the following params:
@@ -911,14 +911,19 @@ class PreProcessFly:
 
         Parameters
         ----------
-        trial_dirs : [type], optional
-            [description], by default None
+        trial_dirs : list of str, optional
+            which trial to run post processing on. if not supplied, use self.beh_trial_dirs,
+            by default None
+
+        result_prefix: str, optional
+        will pre-pend a string to the output files, by default ""
         """
         trial_dirs = deepcopy(self.beh_trial_dirs) if trial_dirs is None else trial_dirs
         for trial_dir in trial_dirs:
             if trial_dir != "":
                 print(time.ctime(time.time()), "postprocessing df3d for trial: " + trial_dir)
-                df3d.postprocess_df3d_trial(trial_dir, overwrite=self.params.overwrite)
+                df3d.postprocess_df3d_trial(trial_dir, overwrite=self.params.overwrite,
+                                            result_prefix=result_prefix)
 
     def _make_dff_video_trial(self, i_trial, mask=None):
         """make a video of the DFF for one trial.
