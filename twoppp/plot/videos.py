@@ -1298,6 +1298,7 @@ def stimulus_dot_generator(generator, start_stim, stop_stim):
         if stim_status:
             im_size = frame.shape[0]
             factor = im_size / 480
+            frame = frame.copy()
             cv2.circle(frame, (int(50*factor),int(50*factor)), int(40*factor), (255,0,0), -1)
         yield frame
 
