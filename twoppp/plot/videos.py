@@ -454,7 +454,7 @@ def generator_df3d(image_folder, cameras=[5,3,1], font_size=16, print_frame_num=
         generator = utils_video.generators.add_text(generator, text=text, pos=(10,100))
     if print_frame_time:
         if frame_rate is None:
-            metadata_dir = utils2p.find_seven_camera_metadata_file(trial_dir)
+            metadata_dir = utils2p.find_seven_camera_metadata_file(image_folder)
             with open(metadata_dir, "r") as f:
                 metadata = json.load(f)
             frame_rate = metadata["FPS"]
