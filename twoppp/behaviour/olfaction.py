@@ -68,8 +68,8 @@ def process_lines_olfaction(sync_file, sync_metadata_file, seven_camera_metadata
 
     return processed_lines
 
-def get_sync_signals_olfaction(trial_dir, rep_time=30, stim_time=10, sync_out_file="sync.pkl", paradigm_out_file="paradigm.pkl", 
-                               overwrite=False, sync_to_fall=False, index_df=None, df_out_dir=None):
+def get_sync_signals_olfaction(trial_dir, rep_time=30, stim_time=10, sync_out_file="sync.pkl", paradigm_out_file="paradigm.pkl",
+                               overwrite=False, sync_to_fall=False, index_df=None, df_out_dir=None, new_olfac=False, new_olfac_odour="H2O"):
     sync_file = utils2p.find_sync_file(trial_dir)
     sync_metadata_file = utils2p.find_sync_metadata_file(trial_dir)
     seven_camera_metadata_file = utils2p.find_seven_camera_metadata_file(trial_dir)
@@ -115,35 +115,42 @@ def get_sync_signals_olfaction(trial_dir, rep_time=30, stim_time=10, sync_out_fi
         odor = gaussian_filter1d(processed_lines_crop["odor"], sigma=100)
         t_cam = np.hstack((0, t[np.where(np.diff(cam))[0]]))
 
-        min_pwm = 0  # np.quantile(processed_lines_crop["odor"], 0.001)
-        max_pwm = np.quantile(processed_lines_crop["odor"], 0.99)   
-
-        odor_steps = len(conditions)
-        odor_quant = (np.round((odor-min_pwm) / (max_pwm-min_pwm) * odor_steps)).astype(int)
-
         f_s_sync = 1 / np.mean(np.diff(t))
         f_s_cam = np.mean(np.diff(cam)) / np.mean(np.diff(t))
 
-        if not sync_to_fall:
-            odor_thres = processed_lines_crop["odor"] > 1
-            i = 0
-            list_i_start = []
-            while i < len(odor_thres)-1:
-                i += 1
-                if odor_thres[i]:
-                    start_stim = int(i + f_s_sync * stim_time * 0.1)
-                    stop_stim = int(i + f_s_sync * stim_time * 0.9)
-                    vals = np.unique(odor_quant[start_stim:stop_stim])
-                    if 0 in vals or len(vals) > 1:
-                        # test for cotinuity during the upcoming stimulation time
-                        # if condition not fulfilled, continue searching
-                        continue
-                    list_i_start.append(i)
-                    i += int(f_s_sync * (rep_time - 1))
+        if not new_olfac:
+            min_pwm = 0  # np.quantile(processed_lines_crop["odor"], 0.001)
+            max_pwm = np.quantile(processed_lines_crop["odor"], 0.99)   
+
+            odor_steps = len(conditions)
+            odor_quant = (np.round((odor-min_pwm) / (max_pwm-min_pwm) * odor_steps)).astype(int)
+
+            if not sync_to_fall:
+                odor_thres = processed_lines_crop["odor"] > 1
+                i = 0
+                list_i_start = []
+                while i < len(odor_thres)-1:
+                    i += 1
+                    if odor_thres[i]:
+                        start_stim = int(i + f_s_sync * stim_time * 0.1)
+                        stop_stim = int(i + f_s_sync * stim_time * 0.9)
+                        vals = np.unique(odor_quant[start_stim:stop_stim])
+                        if 0 in vals or len(vals) > 1:
+                            # test for cotinuity during the upcoming stimulation time
+                            # if condition not fulfilled, continue searching
+                            continue
+                        list_i_start.append(i)
+                        i += int(f_s_sync * (rep_time - 1))
+            else:
+                odor_thres = 3.4
+                switch = np.logical_and(odor <= odor_thres, np.roll(odor, shift=1) > odor_thres)
+                list_i_start = np.where(switch)[0][:-1]
         else:
-            odor_thres = 3.4
+            high_value = np.quantile(processed_lines_crop["odor"], 0.99)
+            low_value = np.quantile(processed_lines_crop["odor"], 0.01)
+            odor_thres = np.mean([high_value, low_value])
             switch = np.logical_and(odor <= odor_thres, np.roll(odor, shift=1) > odor_thres)
-            list_i_start = np.where(switch)[0][:-1]
+            list_i_start = np.where(switch)[0]  # [:-1] TODO
 
         list_t_start = t[list_i_start]
         list_i_cam_start = cam[list_i_start]
@@ -152,8 +159,11 @@ def get_sync_signals_olfaction(trial_dir, rep_time=30, stim_time=10, sync_out_fi
         list_t_end = list_t_start + stim_time
         list_i_cam_end = list_i_cam_start + int(f_s_cam)*stim_time
 
-        list_cond = [odor_quant[int(np.mean([start, end]))] for start, end in zip(list_i_start, list_i_end)]
-        list_cond_names = [conditions[cond] for cond in list_cond]
+        if not new_olfac:
+            list_cond = [odor_quant[int(np.mean([start, end]))] for start, end in zip(list_i_start, list_i_end)]
+            list_cond_names = [conditions[cond] for cond in list_cond]
+        else:
+            list_cond_names = [new_olfac_odour for _ in list_i_start]
 
         condition_signals = []
         for c in np.unique(list_cond_names):
