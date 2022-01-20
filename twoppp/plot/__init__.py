@@ -150,25 +150,62 @@ def shade_walk_rest(walk, rest, x=None, ax=None, alpha=0.2, colors=["red", "blue
     colors : list, optional
         colors to shade walking and resting in, by default ["red", "blue"]
     """
+    catvar = np.array(walk).astype(int) + 2 * np.array(rest).astype(int)
+    shade_categorical(catvar=catvar, x=x, ax=ax, labels=["walk", "rest"], alpha=alpha,colors=colors)
+
+def shade_categorical(catvar, x=None, ax=None, labels=None, alpha=0.2, colors=None):
+    """shade ranges of the x axis according to a categorical variable.
+    This could be used for different behavioural labels or for stimulation time points.
+
+    Parameters
+    ----------
+    catvar : np.array
+        categorical variable used to decide upon the shading of the background. 0 is not shaded.
+
+    x : numpy array, optional
+        x values that other data on the axes will be/was plotted against.
+        if not specified: x = np.arange(len(walk)), by default None
+
+    ax : matplotlib.pyplot.Axes, optional
+        axis to be plotted on. if not specified plt.gca(), by default None
+
+    labels : list of str, optional
+        labels to be put into the legend for each category, by default None
+
+    alpha : float, optional
+        transparency of shaded area, by default 0.2
+
+    colors : list, optional
+        colors to shade each category in. Select matplotlib standard if None. by default None
+    """
     ax = plt.gca() if ax is None else ax
-    x = np.arange(len(walk)) if x is None else x
-    
-    walk_diff = np.diff(walk.astype(np.int))
-    walk_diff_start = np.where(walk_diff==1)[0]
-    walk_diff_end = np.where(walk_diff==-1)[0]
+    x = np.arange(len(catvar)) if x is None else x
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color'] if colors is None else colors
+    cats = np.unique(catvar)
+    N_cats = len(cats)
+    labels = [None for _ in range(N_cats)] if labels is None else labels
 
-    rest_diff = np.diff(rest.astype(np.int))
-    rest_diff_start = np.where(rest_diff==1)[0]
-    rest_diff_end = np.where(rest_diff==-1)[0]
-    N_walk = np.sum(walk_diff==1)
-    N_rest = np.sum(rest_diff==1)
+    if N_cats > len(colors):
+        print(f"Warning: Number of colors given: {len(colors)} & number of categories: {N_cats}.",
+              "Will have repeating colors")
 
-    for i_stim in range(N_walk):
-        ax.axvspan(x[walk_diff_start[i_stim]], x[walk_diff_end[i_stim]], 
-                   alpha=alpha, color=colors[0], ec=None, label="walk" if i_stim==0 else None)
-    for i_stim in range(N_rest):
-        ax.axvspan(x[rest_diff_start[i_stim]], x[rest_diff_end[i_stim]], 
-                   alpha=alpha, color=colors[1], ec=None, label="rest" if i_stim==0 else None)
+    cat_signals = [catvar == cat for cat in cats]
+
+    for i_cat, (cat, cat_signal, color, label) in enumerate(zip(cats, cat_signals, colors, labels)):
+        cat_diff = np.diff(cat_signal.astype(np.int))
+        cat_diff_start = np.where(cat_diff==1)[0]
+        if cat_signal[0]:
+            cat_diff_start = np.concatenate(([0], cat_diff_start))
+        cat_diff_end = np.where(cat_diff==-1)[0]
+        if cat_signal[-1]:
+            cat_diff_end = np.concatenate((cat_diff_end, len(cat_signal)))
+        if len(cat_diff_start) != len(cat_diff_end):
+            print(f"Warning: found {len(cat_diff_start)} rising edges and {len(cat_diff_end)}", 
+                  f" falling edges in signal {i_cat} with value {cat} and label {label}.")
+
+        for i_high, (i_start, i_end) in enumerate(zip(cat_diff_start, cat_diff_end)):
+            ax.axvspan(x[i_start], x[i_end], alpha=alpha, color=color, ec=None,
+            label=label if i_high==0 else None)
 
 def plot_mu_sem(mu, err, x=None, label="", alpha=0.3, color=None, ax=None, linewidth=1):
     """
