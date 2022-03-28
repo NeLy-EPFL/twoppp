@@ -1022,7 +1022,7 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
         dff_generator = None
 
     images_dir, _ = os.path.split(seven_camera_metadata_file)
-    beh_video_dir = find_file(images_dir, f"camera_{camera}*.mp4")
+    beh_video_dir = os.path.join(images_dir, f"camera_{camera}*.mp4")  # find_file
     beh_generator = generator_video(beh_video_dir, start=beh_start_ind,
                                     stop=beh_end_ind, required_n_frames=len(frame_times_beh))
 
