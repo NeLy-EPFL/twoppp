@@ -78,8 +78,9 @@ def generator_frames_2p(red_stack, green_stack, percentiles=(5, 95), red_vlim=No
         else:
             v_max.append(red_vlim[1])
             v_min.append(red_vlim[0])
+        ASSIGN_RED_STACK = False
     else:
-        red_stack = [None for i in range(len(green_stack))]
+        ASSIGN_RED_STACK = True
     if green_stack is not None:
         channels.append("g")
         if green_vlim is None:
@@ -93,6 +94,9 @@ def generator_frames_2p(red_stack, green_stack, percentiles=(5, 95), red_vlim=No
         v_min.append(v_min[-1])
     else:
         green_stack = [None for i in range(len(red_stack))]
+
+    if ASSIGN_RED_STACK:
+        red_stack = [None for i in range(len(green_stack))]
 
     for red_frame, green_frame in zip(red_stack, green_stack):
         frame = rgb(red_frame, green_frame, green_frame, None)
@@ -410,7 +414,7 @@ def generator_df3d(image_folder, cameras=[5,3,1], font_size=16, print_frame_num=
                    N_frames=None, frame_rate=None, factor_downsample=1, speedup=None):
     N_frames = -1 if N_frames is None else N_frames
     camNet = CameraNetwork(image_folder=image_folder, output_folder=os.path.join(image_folder, 'df3d'), num_images=N_frames)
-    N_frames = camNet.cam_list[0].points2d.shape[0]
+    N_frames = camNet.cam_list[0].points2d.shape[0] if N_frames == -1 else N_frames
     camNet.num_images = N_frames
 
     cmap = plt.cm.get_cmap("seismic")
@@ -779,7 +783,8 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
                            camera=6, stack_axis=0, green=None, red=None, colorbarlabel="dff",
                            vmin=0, vmax=None, pmin=1, pmax=99, blur=0, mask=None, crop=None,
                            log_lim=False, text=None, text_loc="dff", asgenerator=False,
-                           downsample=None, select_frames=None, max_length=None, time=True):
+                           downsample=None, select_frames=None, max_length=None, time=True,
+                           stim_start=None, stim_stop=None):
     """make a video containing behavioural data and deltaF/F and/or green+red frames.
     Synchronises two photon and behavioural recordings.
     Can be used as a generator, for example when stacking videos of multiple trials
@@ -951,7 +956,7 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
     metadata_file = utils2p.find_metadata_file(trial_dir)
     sync_metadata_file = utils2p.find_sync_metadata_file(sync_dir)
     seven_camera_metadata_file = utils2p.find_seven_camera_metadata_file(beh_dir)
-    processed_lines = utils2p.synchronization.processed_lines(sync_file, sync_metadata_file,
+    processed_lines = utils2p.synchronization.get_processed_lines(sync_file, sync_metadata_file,
                                                               metadata_file,
                                                               seven_camera_metadata_file)
     frame_times_2p = utils2p.synchronization.get_start_times(processed_lines["Frame Counter"],
@@ -1053,6 +1058,8 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
 
     if select_frames is not None:
         generator = selected_frames_generator(generator, select_frames)
+    if stim_start is not None and stim_stop is not None:
+        generator = stimulus_dot_generator(generator, stim_start, stim_stop)
     if downsample is not None and isinstance(downsample, int) and downsample > 1:
         generator = downsample_generator(generator, downsample)
         # N_frames = len(frame_times_beh) // downsample - 1
@@ -1077,7 +1084,7 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
                                     reds=None, colorbarlabel="dff", vmin=0, vmax=None, pmin=1,
                                     pmax=99, share_lim=True, log_lim=False, blur=0, mask=None,
                                     share_mask=False, crop=None, text=None, text_loc="dff",
-                                    downsample=None, select_frames=None, time=True):
+                                    downsample=None, select_frames=None, time=True, stim_starts=None, stim_stops=None):
     """
     Make a synchronised and stacked video of (one behavioural camera + dff and/or red/green) 
     for multiple trials. Running this function can take very long 
@@ -1240,20 +1247,30 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
         select_frames = [None for _ in  dffs]
         max_length = None
 
+    if stim_starts is not None:
+        assert len(stim_starts) == len(dffs)
+    else:
+        stim_starts = [None for _ in dffs]
+    if stim_stops is not None:
+        assert len(stim_stops) == len(dffs)
+    else:
+        stim_stops = [None for _ in dffs]
+
     generators = []
     N_frames = []
     frame_rates = []
     for i_gen, (dff, trial_dir, beh_dir, sync_dir, this_text, this_mask, \
-        green, red, frames, this_log_lim) \
+        green, red, frames, this_log_lim, stim_start, stim_stop) \
         in enumerate(zip(dffs, trial_dirs, beh_dirs, sync_dirs, text, mask, \
-            greens, reds, select_frames, log_lim)):
+            greens, reds, select_frames, log_lim, stim_starts, stim_stops)):
         this_generator, this_N_frames, frame_rate = make_video_raw_dff_beh(
             dff=dff, trial_dir=trial_dir, out_dir=None, video_name=None,
             beh_dir=beh_dir, sync_dir=sync_dir, camera=camera, stack_axis=stack_axes[0],
             green=green, red=red, colorbarlabel=colorbarlabel,
             vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax, blur=blur, mask=this_mask,
             crop=crop, text=this_text, text_loc=text_loc, log_lim = this_log_lim, time=time,
-            asgenerator=True, downsample=downsample, max_length=max_length, select_frames=frames)
+            asgenerator=True, downsample=downsample, max_length=max_length, select_frames=frames,
+            stim_start=stim_start, stim_stop=stim_stop)
         generators.append(this_generator)
         N_frames.append(this_N_frames)
         frame_rates.append(frame_rate)
@@ -1333,7 +1350,8 @@ def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, ou
             video_name = video_name + ".mp4"
     make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=N_frames)
 
-def make_all_odour_condition_videos(video_dirs, paradigm_dirs, out_dir, video_name, frame_range=[-500,1500], stim_length=1000, frame_rate=None, size=None, conditions=None):
+def make_all_odour_condition_videos(video_dirs, paradigm_dirs, out_dir, video_name, frame_range=[-500,1500], stim_length=1000,
+                                    frame_rate=None, size=None, conditions=None, selected_stims=None):
     assert len(video_dirs) == len(paradigm_dirs)
     if video_name.endswith(".mp4"):
         video_name = video_name[:-4]
@@ -1354,13 +1372,19 @@ def make_all_odour_condition_videos(video_dirs, paradigm_dirs, out_dir, video_na
     if conditions is not None:
         unique_conditions = [this_cond for this_cond in unique_conditions if this_cond in conditions]
     
+    if selected_stims is None:
+        selected_stims = [None for _ in paradigm_dirs]
+
     for condition in unique_conditions:
         start_frames = []
-        for trial_conditions, trial_starts in zip(all_conditions, all_starts):
+        for trial_conditions, trial_starts, selected_trial_stims in zip(all_conditions, all_starts, selected_stims):
             trial_start_frames = []
+            i_stim = 0
             for this_condition, this_start in zip(trial_conditions, trial_starts):
                 if this_condition == condition:
-                    trial_start_frames.append(this_start+frame_range[0])
+                    if selected_trial_stims is None or i_stim in selected_trial_stims:
+                        trial_start_frames.append(this_start+frame_range[0])
+                    i_stim += 1
             start_frames.append(trial_start_frames)
 
         this_video_name = video_name + "_" + condition

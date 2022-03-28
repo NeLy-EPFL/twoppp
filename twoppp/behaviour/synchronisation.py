@@ -371,7 +371,7 @@ def get_processed_lines(sync_file,
     processed_lines["Cameras"] = utils2p.synchronization.process_cam_line(processed_lines["Cameras"],  # TODO
                                                   seven_camera_metadata_file)
     if metadata_2p_file is not None:
-        metadata_2p = main.Metadata(metadata_2p_file)
+        metadata_2p = utils2p.Metadata(metadata_2p_file)
         processed_lines["Frame Counter"] = utils2p.synchronization.process_frame_counter(
             processed_lines["Frame Counter"], metadata_2p)
 

@@ -20,17 +20,18 @@ DARKPINK = "#c20c6d"
 DARKBROWN = "#6e4220"
 DARKGRAY = "#7d7b79"
 BLACK = "#000000"
+WHITE = "#FFFFFF"
 DARKPLOT = [DARKBLUE, DARKORANGE, DARKGREEN, DARKRED, DARKCYAN, DARKYELLOW, DARKPURPLE, DARKPINK]
 
 
-def plot_sample_pixels(stacks, pixels, legends=[], colors=[], roi_size=2, f_s=16, figsize=None, alpha=1, spine_outward_shift=3):
+def plot_sample_pixels(stacks, pixels, legends=None, colors=None, roi_size=2, f_s=16, figsize=None, alpha=1, spine_outward_shift=3):
     if not isinstance(stacks, list):
         stacks = [stacks]
-    N_t, N_y, N_x = stacks[0].shape
+    N_t, _, _ = stacks[0].shape
     N_stacks = len(stacks)
-    if len(legends) == 0:
-        legens = [None for _ in range(N_stacks)]
-    if len(colors) == 0:
+    if legends is None:
+        legends = [None for _ in range(N_stacks)]
+    if colors is None:
         colors = ["k"]
         _ = [colors.append(plt.cm.Reds(0.1+0.9*(i_s+1)/(N_stacks-1))) for i_s in range(N_stacks - 1)]
     N_pixels = len(pixels)
@@ -198,7 +199,7 @@ def shade_categorical(catvar, x=None, ax=None, labels=None, alpha=0.2, colors=No
             cat_diff_start = np.concatenate(([0], cat_diff_start))
         cat_diff_end = np.where(cat_diff==-1)[0]
         if cat_signal[-1]:
-            cat_diff_end = np.concatenate((cat_diff_end, len(cat_signal)))
+            cat_diff_end = np.concatenate((cat_diff_end, [len(cat_signal)-1]))
         if len(cat_diff_start) != len(cat_diff_end):
             print(f"Warning: found {len(cat_diff_start)} rising edges and {len(cat_diff_end)}", 
                   f" falling edges in signal {i_cat} with value {cat} and label {label}.")
