@@ -28,19 +28,10 @@ do
         do
             echo "$folder_root"
             echo $file
-            # expand videos
-            # vframes 100
-            # https://unix.stackexchange.com/a/36363
-            for ((i=0; i<7; i++)); do
-                ffmpeg -i ""$folder"/camera_"$i".mp4" -qscale:v 2 -start_number 0 ""$folder"/camera_"$i"_img_%d.jpg"  < /dev/null
-            done
 
             # run df3d
-	        CUDA_VISIBLE_DEVICES=0 df3d-cli -vv -o $folder --output-folder df3d  --camera-ids 0, 6, 5, 4, 3, 2, 1
-            # CUDA_VISIBLE_DEVICES=1 
-            # delete images
-            for ((i=0; i<7; i++)); do
-                find "$folder" -maxdepth 1 -name "camera_${i}_img_*.jpg" -type f -delete
-            done
+	         CUDA_VISIBLE_DEVICES=0 df3d-cli -vv -o $folder --output-folder df3d  --camera-ids 6 5 4 3 2 1 0
+            # for first scope: camera order 0, 6, 5, 4, 3, 2, 1
+
         done
 done < "$input"
