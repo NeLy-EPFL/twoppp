@@ -4,12 +4,12 @@ try:
     import utils2p
 except ImportError or ModuleNotFoundError:
     raise ImportError("utils2p must be installed in environment.")
-
+"""
 try:
     from deepfly.CameraNetwork import CameraNetwork
 except ImportError or ModuleNotFoundError:
     raise ImportError("deepfly must be installed in environment.")
-
+"""
 try:
     from deepinterpolation import interface as denoise
 

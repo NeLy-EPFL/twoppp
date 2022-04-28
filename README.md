@@ -31,8 +31,8 @@ Installation instructions:
     - ```conda create -n twoppp37 python=3.7```
     - ```conda activate twoppp37```
     - ```conda install jupyter```
-    - DeepFly3D: https://github.com/NeLy-EPFL/DeepFly3D
-    - deepinterpolation: https://github.com/NeLy-EPFL/deepinterpolation/tree/adapttoR57C10
+    - DeepFly3D: https://github.com/NeLy-EPFL/DeepFly3D (install in current entironment instead of making new one using ```pip install nely-df3d```)
+    - deepinterpolation: https://github.com/NeLy-EPFL/deepinterpolation/tree/adapttoR57C10 (install in current environment instead of makeing a new environment)
         - this might throw an error like: "ERROR: pip's dependency resolver does not currently take into account all the packages that are installed." ... for incompatibilities of numpy and scipy version, but this can be ignored.
     - ```conda install pandas```
     - ```conda install numpy```
@@ -41,6 +41,7 @@ Installation instructions:
         - this might again throw a dependency error about numpy and scipy, but it can be ignored.
     - utils_video: https://github.com/NeLy-EPFL/utils_video
     - df3dPostProcessing: https://github.com/NeLy-EPFL/df3dPostProcessing
+        - use ```git clone https://github.com/NeLy-EPFL/df3dPostProcessing``` and ```pip install -e df3dPostProcessing``` if no install instructions are inside the repository
     - ```pip install behavelet```
     - try whether the pandas instruction works:
         - type ```python -c "import pandas as pd; print(pd.__version__)"```
