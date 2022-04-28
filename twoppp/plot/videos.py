@@ -70,11 +70,18 @@ def generator_frames_2p(red_stack, green_stack, percentiles=(5, 95), red_vlim=No
     channels = []
     v_max = []
     v_min = []
+    if isinstance(percentiles[0], list) or isinstance(percentiles[0], tuple):
+        red_percentiles = percentiles[0]
+        green_percentiles = percentiles[1]
+    else:
+        red_percentiles = percentiles
+        green_percentiles = percentiles
+
     if red_stack is not None:
         channels.append("r")
         if red_vlim is None:
-            v_max.append(np.percentile(red_stack, percentiles[1]))
-            v_min.append(np.percentile(red_stack, percentiles[0]))
+            v_max.append(np.percentile(red_stack, red_percentiles[1]))
+            v_min.append(np.percentile(red_stack, red_percentiles[0]))
         else:
             v_max.append(red_vlim[1])
             v_min.append(red_vlim[0])
@@ -84,8 +91,8 @@ def generator_frames_2p(red_stack, green_stack, percentiles=(5, 95), red_vlim=No
     if green_stack is not None:
         channels.append("g")
         if green_vlim is None:
-            v_max.append(np.percentile(green_stack, percentiles[1]))
-            v_min.append(np.percentile(green_stack, percentiles[0]))
+            v_max.append(np.percentile(green_stack, green_percentiles[1]))
+            v_min.append(np.percentile(green_stack, green_percentiles[0]))
         else:
             v_max.append(green_vlim[1])
             v_min.append(green_vlim[0])
@@ -567,11 +574,12 @@ def generator_video(path, size=None, start=0, stop=9223372036854775807, try_fram
         print("Video file not found. Will try to find .jpg frames instead.")
         try:
             images_dir, file_name = os.path.split(path)
-            camera = int(file_name[:-5])  # assume file is named 'camera_5.mp4' for example
+            camera = int(file_name[-5])  # assume file is named 'camera_5.mp4' for example
             image_list_sorted = find_cam_frames(images_dir, camera, required_n_frames)
             beh_generator = generator_cam_frames(image_list_sorted, start=start,
                                                  stop=stop, size=size)
-            return beh_generator
+            for frame in beh_generator:
+                yield frame
         except:
             raise FileNotFoundError(f"Could neither find video {path} nor .jpg frames in same path")
     else:
@@ -784,7 +792,7 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
                            vmin=0, vmax=None, pmin=1, pmax=99, blur=0, mask=None, crop=None,
                            log_lim=False, text=None, text_loc="dff", asgenerator=False,
                            downsample=None, select_frames=None, max_length=None, time=True,
-                           stim_start=None, stim_stop=None):
+                           stim_start=None, stim_stop=None, twop_percentiles=(5,99)):
     """make a video containing behavioural data and deltaF/F and/or green+red frames.
     Synchronises two photon and behavioural recordings.
     Can be used as a generator, for example when stacking videos of multiple trials
@@ -877,6 +885,10 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
         whether or not to show the current time of the recording in the behaviour video,
         by default True
 
+    twop_percentiles : tuple, optional
+        which percentiles to apply to the 2p video,
+        by default (5,99)
+
     Returns
     -------
     (generator: generator)
@@ -922,7 +934,7 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
             shape2 = (0,0)
         seven_camera_metadata_file = utils2p.find_seven_camera_metadata_file(beh_dir)
         images_dir, _ = os.path.split(seven_camera_metadata_file)
-        beh_video_dir = find_file(images_dir, "camera_{}*.mp4".format(camera))
+        beh_video_dir = os.path.join(images_dir, "camera_{}.mp4".format(camera))  # find_file  *
         beh_generator = generator_video(beh_video_dir)
         shape3, beh_generator = get_generator_shape(beh_generator)
         del beh_generator
@@ -1003,7 +1015,8 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
             crop_x = (green_x - dff_x) // 2
             green = green[:, crop_y:crop_y+dff_y, crop_x:crop_x+dff_x]
             red = red[:, crop_y:crop_y+dff_y, crop_x:crop_x+dff_x]
-        twop_generator = utils_video.generators.frames_2p(red, green, percentiles=(5,99))
+        # twop_generator = utils_video.generators.frames_2p(red, green, percentiles=(5,99))
+        twop_generator = generator_frames_2p(red, green, percentiles=twop_percentiles)
     else:
         twop_generator = None
 
@@ -1022,7 +1035,7 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
         dff_generator = None
 
     images_dir, _ = os.path.split(seven_camera_metadata_file)
-    beh_video_dir = os.path.join(images_dir, f"camera_{camera}*.mp4")  # find_file
+    beh_video_dir = os.path.join(images_dir, f"camera_{camera}.mp4")  # find_file  *
     beh_generator = generator_video(beh_video_dir, start=beh_start_ind,
                                     stop=beh_end_ind, required_n_frames=len(frame_times_beh))
 
@@ -1084,7 +1097,8 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
                                     reds=None, colorbarlabel="dff", vmin=0, vmax=None, pmin=1,
                                     pmax=99, share_lim=True, log_lim=False, blur=0, mask=None,
                                     share_mask=False, crop=None, text=None, text_loc="dff",
-                                    downsample=None, select_frames=None, time=True, stim_starts=None, stim_stops=None):
+                                    downsample=None, select_frames=None, time=True,
+                                    stim_starts=None, stim_stops=None, twop_percentiles=(5,99)):
     """
     Make a synchronised and stacked video of (one behavioural camera + dff and/or red/green) 
     for multiple trials. Running this function can take very long 
@@ -1179,6 +1193,10 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
     time : bool, optional
         whether or not to show the current time of the recording in the behaviour video,
         by default True
+
+    twop_percentiles : tuple, optional
+        which percentiles to apply to the 2p video,
+        by default (5,99)
     """
     if not isinstance(dffs, list):
         dffs = [dffs]
@@ -1270,7 +1288,7 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
             vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax, blur=blur, mask=this_mask,
             crop=crop, text=this_text, text_loc=text_loc, log_lim = this_log_lim, time=time,
             asgenerator=True, downsample=downsample, max_length=max_length, select_frames=frames,
-            stim_start=stim_start, stim_stop=stim_stop)
+            stim_start=stim_start, stim_stop=stim_stop, twop_percentiles=twop_percentiles)
         generators.append(this_generator)
         N_frames.append(this_N_frames)
         frame_rates.append(frame_rate)
