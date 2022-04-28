@@ -23,7 +23,7 @@ import utils2p.synchronization
 import utils_video.generators
 # from utils_video import make_video
 from utils_video.utils import resize_shape, colorbar, add_colorbar, rgb, process_2p_rgb, get_generator_shape
-from deepfly.CameraNetwork import CameraNetwork
+# from deepfly.CameraNetwork import CameraNetwork
 
 from twoppp.utils import get_stack, find_file, crop_img, crop_stack
 from twoppp import load
@@ -415,7 +415,7 @@ def make_multiple_video_motion_field(motion_fields, out_dir, video_name, frames=
         raise NotImplementedError("Currently only 'grid' is implemented.")
     generator = utils_video.generators.stack(generators, axis=1)
     make_video(os.path.join(out_dir, video_name), generator, frame_rate)
-
+"""
 def generator_df3d(image_folder, cameras=[5,3,1], font_size=16, print_frame_num=True, print_frame_time=True, 
                    print_beh_label=False, beh_label_dir=None,
                    N_frames=None, frame_rate=None, factor_downsample=1, speedup=None):
@@ -515,7 +515,7 @@ def make_video_df3d(trial_dir, out_dir, video_name, frames=None, frame_rate=None
                                print_beh_label=print_beh_label, beh_label_dir=beh_label_dir,
                                factor_downsample=factor_downsample, speedup=speedup)
     make_video(os.path.join(out_dir, video_name), generator, frame_rate/factor_downsample*speedup)
-
+"""
 def generator_video(path, size=None, start=0, stop=9223372036854775807, try_frames=True,
                     required_n_frames=None):
     """load video from file and return as generator
