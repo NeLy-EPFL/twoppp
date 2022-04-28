@@ -19,7 +19,7 @@ from deepinterpolation import interface as denoise
 
 from twoppp import load, dff, OUTPUT_PATH
 from twoppp.utils import makedirs_safe, get_stack, save_stack, readlines_tolist
-from twoppp.register import warping
+from twoppp.register import warping, twoway_align
 from twoppp.denoise import prepare_corrected_data
 from twoppp.behaviour import df3d
 from twoppp.plot.videos import make_video_dff, make_multiple_video_dff, make_video_raw_dff_beh, make_multiple_video_raw_dff_beh
@@ -56,6 +56,7 @@ class PreProcessParams:
         self.drr_baseline = "drr_baseline.tif"
         self.dff_mask = "dff_mask.tif"
 
+        self.shift_file = "shift.npy"
         self.ref_frame = "ref_frame_com.tif"
         self.com_offset = "com_offset.npy"
         self.motion_field = "w.npy"
@@ -89,6 +90,9 @@ class PreProcessParams:
         self.make_summary_stats = True  # whether to save mean/std/... for each trial
         self.ball_tracking = "opflow"  # "opflow", "fictrac", or None
         self.add_df3d_to_df = False  # whether to add pose estimation results to data frame
+
+        self.twoway_align = False  # whether to perform twoway alignment prior to registration
+        self.twoway_shift = None  # which shift to apply for twoway alignment
 
         # ofco (optical flow motion correction) params
         self.i_ref_trial = 0  # in which trial to search for reference frame
@@ -343,11 +347,16 @@ class PreProcessFly:
         """
         if self.params.ref_frame == "":
             return
+        elif os.path.isfile(join(self.fly_processed_dir, self.params.ref_frame)) and \
+            not self.params.overwrite:
+            self.ref_frame = join(self.fly_processed_dir, self.params.ref_frame)
+            return
         ref_trial_dir = self.trial_dirs[self.params.i_ref_trial]
         ref_processed_dir = self.trial_processed_dirs[self.params.i_ref_trial]
-        _ = load.convert_raw_to_tiff(ref_trial_dir,
-                                     overwrite=self.params.overwrite,
-                                     return_stacks=False)
+        self._convert_raw_to_tiff_trial(ref_trial_dir, ref_processed_dir)
+        # _ = load.convert_raw_to_tiff(ref_trial_dir,
+        #                              overwrite=self.params.overwrite,
+        #                              return_stacks=False)
         ref_stack = join(ref_processed_dir, self.params.red_raw)
         self.ref_frame = join(self.fly_processed_dir, self.params.ref_frame)
         #TODO: leave a note which ref frame is saved
@@ -507,6 +516,8 @@ class PreProcessFly:
             overwrite
             green_raw
             red_raw
+            twoway_align
+            twoway_shift
         Parameters
         ----------
         trial_dir : str
@@ -521,6 +532,29 @@ class PreProcessFly:
                                         green_dir=join(processed_dir, self.params.green_raw),
                                         red_dir=join(processed_dir, self.params.red_raw)
                                         )
+            if self.params.twoway_align:
+                if self.params.twoway_shift is None and \
+                    os.path.isfile(join(self.fly_processed_dir, self.params.shift_file)):
+                    shift = np.load(join(self.fly_processed_dir, self.params.shift_file))
+                else:
+                    shift = self.params.twoway_shift
+                if not os.path.isfile(join(processed_dir, self.params.shift_file)) \
+                    or self.params.overwrite:
+                    _ = twoway_align.align_stacks(
+                        stack1=join(processed_dir, self.params.red_raw),
+                        stack1_out=join(processed_dir, self.params.red_raw),
+                        stack2=join(processed_dir, self.params.green_raw),
+                        stack2_out=join(processed_dir, self.params.green_raw),
+                        shift=shift,
+                        shift_out=join(processed_dir, self.params.shift_file),
+                        overwrite=True,  # TODO: solve overwrite problem
+                        return_stacks=False)
+                    print(time.ctime(time.time()), f"applied 2way-shift {shift} to trial: " + trial_dir)
+                    if not os.path.isfile(join(self.fly_processed_dir, self.params.shift_file)):
+                        shift = np.load(join(processed_dir, self.params.shift_file))
+                        np.save(join(self.fly_processed_dir, self.params.shift_file), shift)
+                        self.params.twoway_shift = shift
+
 
     def _com_correct_trial(self, processed_dir):
         """apply center of mass correction to a trial
@@ -568,6 +602,8 @@ class PreProcessFly:
             motion_field
             save_motion_field
             ofco_param
+            twoway_align
+            twoway_shift
         Parameters
         ----------
         processed_dir : str
@@ -903,7 +939,7 @@ class PreProcessFly:
                                         )
         df3d.run_df3d(tmp_dir)
 
-    def _post_process_pose(self, trial_dirs=None):
+    def _post_process_pose(self, trial_dirs=None, result_prefix=""):
         """run deepfly3d pose post processding.
         this aligns the positions to a reference fly and computes the joint angles.
         Uses the following params:
@@ -911,14 +947,19 @@ class PreProcessFly:
 
         Parameters
         ----------
-        trial_dirs : [type], optional
-            [description], by default None
+        trial_dirs : list of str, optional
+            which trial to run post processing on. if not supplied, use self.beh_trial_dirs,
+            by default None
+
+        result_prefix: str, optional
+        will pre-pend a string to the output files, by default ""
         """
         trial_dirs = deepcopy(self.beh_trial_dirs) if trial_dirs is None else trial_dirs
         for trial_dir in trial_dirs:
             if trial_dir != "":
                 print(time.ctime(time.time()), "postprocessing df3d for trial: " + trial_dir)
-                df3d.postprocess_df3d_trial(trial_dir, overwrite=self.params.overwrite)
+                df3d.postprocess_df3d_trial(trial_dir, overwrite=self.params.overwrite,
+                                            result_prefix=result_prefix)
 
     def _make_dff_video_trial(self, i_trial, mask=None):
         """make a video of the DFF for one trial.

@@ -465,8 +465,8 @@ def get_fictrac_df(trial_dir, index_df=None, df_out_dir=None, med_filt_size=5, s
     fictrac_df["v"] = filter_fictrac(fictrac_df["v_raw"], med_filt_size, sigma_gauss_size)
     fictrac_df["th"] = filter_fictrac(fictrac_df["th_raw"], med_filt_size, sigma_gauss_size)
 
-    fictrac_df = fictrac_df[["v_raw", "th_raw", "x", "y", "integrated_forward_movement", 
-                             "integrated_side_movement","delta_rot_lab_side", 
+    fictrac_df = fictrac_df[["v_raw", "th_raw", "x", "y", "integrated_forward_movement",
+                             "integrated_side_movement", "delta_rot_lab_side",
                              "delta_rot_lab_forward", "delta_rot_lab_turn", "v", "th"]]
 
     if index_df is not None:

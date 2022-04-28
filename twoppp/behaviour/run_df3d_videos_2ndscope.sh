@@ -36,12 +36,13 @@ do
             done
 
             # run df3d
-	        CUDA_VISIBLE_DEVICES=1 df3d-cli -vv -o $folder --output-folder df3d  # --camera-ids 6 5 4 3 2 1 0
+	        CUDA_VISIBLE_DEVICES=0 df3d-cli -vv -o $folder --output-folder df3d  # --camera-ids 6 5 4 3 2 1 0
+            # CUDA_VISIBLE_DEVICES=1 
             # for first scope: camera order 0, 6, 5, 4, 3, 2, 1
 
-            delete images
+            # delete images
             for ((i=0; i<7; i++)); do
-                find "$folder" -name "*.jpg" -maxdepth 1  -delete
+                find "$folder" -maxdepth 1 -name "camera_${i}_img_*.jpg" -type f -delete
             done
         done
 done < "$input"

@@ -11,8 +11,16 @@ import scipy.stats
 import types
 import subprocess
 import signal
+import pandas as pd
 
 from utils2p import load_img, save_img
+
+def get_df(df):
+    if isinstance(df, str) and os.path.isfile(df):
+        df = pd.read_pickle(df)
+    if df is not None:
+        assert isinstance (df, pd.DataFrame)
+    return df
 
 def get_stack(stack):
     """load a .tif image from file
@@ -183,7 +191,7 @@ def makedirs_safe(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def find_file(directory, name, file_type=""):
+def find_file(directory, name, file_type="", raise_error=True):
     """
     This function finds a unique file with a given name in
     in the directory.
@@ -205,12 +213,18 @@ def find_file(directory, name, file_type=""):
     """
     file_names = list(Path(directory).rglob("*" + name))
     if len(file_names) > 1:
-        raise RuntimeError(
-            f"Could not identify {file_type} file unambiguously." + \
-            f"Discovered {len(file_names)} {file_type} files in {directory}."
-        )
+        if raise_error:
+            raise RuntimeError(
+                f"Could not identify {file_type} file unambiguously." + \
+                f"Discovered {len(file_names)} {file_type} files in {directory}."
+            )
+        else:
+            return file_names
     elif len(file_names) == 0:
-        raise FileNotFoundError(f"No {file_type} file found in {directory}")
+        if raise_error:
+            raise FileNotFoundError(f"No {file_type} file found in {directory}")
+        else:
+            return None
     return str(file_names[0])
 
 def readlines_tolist(file, remove_empty=True):
@@ -328,3 +342,26 @@ def run_shell_command(command, allow_ctrl_c=True, suppress_output=False):
         else:
             process = subprocess.Popen(command, shell=True)
         process.communicate()
+
+def standardise(array, axis=0):
+    repeats = array.shape[axis] if isinstance(axis, int) else [array.shape[ax] for ax in axis]
+    mu = np.repeat(np.mean(array, axis=axis, keepdims=True), repeats=repeats, axis=axis)
+    std = np.repeat(np.std(array, axis=axis, keepdims=True), repeats=repeats, axis=axis)
+    return (array - mu) / std
+
+def zscore(array, axis=0):
+    return standardise(array, axis=axis)
+
+def normalise(array, arange=[0, 1], axis=0):
+    repeats = array.shape[axis] if isinstance(axis, int) else [array.shape[ax] for ax in axis]
+    amin = np.repeat(np.min(array, axis=axis, keepdims=True), repeats=repeats, axis=axis)
+    amax = np.repeat(np.max(array, axis=axis, keepdims=True), repeats=repeats, axis=axis)
+    array_norm = (array - amin) / (amax - amin)
+    return array_norm * (arange[1] - arange[0]) + arange[0]
+
+def normalise_quantile(array, q=0.99, arange=[0, 1], axis=0):
+    repeats = array.shape[axis] if isinstance(axis, int) else [array.shape[ax] for ax in axis]
+    qmin = np.repeat(np.quantile(array, q=0.5*(1-q), axis=axis, keepdims=True), repeats=repeats, axis=axis)
+    qmax = np.repeat(np.quantile(array, q=0.5*(1+q), axis=axis, keepdims=True), repeats=repeats, axis=axis)
+    array_norm = (array - qmin) / (qmax - qmin)
+    return array_norm * (arange[1] - arange[0]) + arange[0]
