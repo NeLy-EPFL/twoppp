@@ -53,3 +53,4 @@ Installation instructions:
     - clone repository: ```git clone https://github.com/NeLy-EPFL/twoppp```
     - change directory: ```cd twoppp```
     - install using pip: ```pip install -e .```
+        - if the install throws an error like "ImportError: cannot import name '_registerMatType' from 'cv2.cv2'", uninstall opencv and reinstall it. this is due to an opencv version incompatibility: ```pip uninstall opencv-python``` and ```pip install opencv-python```
