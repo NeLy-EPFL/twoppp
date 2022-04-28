@@ -32,6 +32,12 @@ Installation instructions:
     - ```conda activate twoppp37```
     - ```conda install jupyter```
     - DeepFly3D: https://github.com/NeLy-EPFL/DeepFly3D (install in current entironment instead of making new one using ```pip install nely-df3d```)
+        - WARNING: because of a new version of DeepFly3D with incompatibilities to multiple other packages. You have to install an older version as follows:
+            - ```git clone https://github.com/NeLy-EPFL/DeepFly3D```
+            - ```cd DeepFly3D```
+            - ```pip install -e .```
+            - ```git checkout bd8faca1980518f67d4c26fa85381ff7a6546598```
+            - This reverts the version back to an older version, which is compatible with this package.
     - deepinterpolation: https://github.com/NeLy-EPFL/deepinterpolation/tree/adapttoR57C10 (install in current environment instead of makeing a new environment)
         - this might throw an error like: "ERROR: pip's dependency resolver does not currently take into account all the packages that are installed." ... for incompatibilities of numpy and scipy version, but this can be ignored.
     - ```conda install pandas```
