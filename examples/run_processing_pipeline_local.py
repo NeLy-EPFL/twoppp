@@ -1,7 +1,7 @@
 import os.path
 
-from longterm import load
-from longterm.pipeline import PreProcessFly, PreProcessParams
+from twoppp import load
+from twoppp.pipeline import PreProcessFly, PreProcessParams
 
 if __name__ == "__main__":
     fly_dir = os.path.join(load.NAS2_DIR_JB, "211005_J1M5", "Fly1")
