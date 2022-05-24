@@ -1395,7 +1395,7 @@ class PreProcessFly:
         with open(output, "wb") as f:
             pickle.dump(output_dict, f)
 
-    def get_dfs(self):
+    def get_dfs(self, skip_trials=None):
         """Get synchronised data frames including the frame times for two photon
         and behavioural data.
         Get as much behavioural data into these data frames as possible.
@@ -1416,8 +1416,11 @@ class PreProcessFly:
         KeyError
             if keyboard interrupt during processing is sent, otherwise ignores errors and continues
         """
+        skip_trials = [] if skip_trials is None else skip_trials
         for i_trial, (trial_dir, processed_dir, trial_name) \
             in enumerate(zip(self.trial_dirs, self.trial_processed_dirs, self.trial_names)):
+            if i_trial in skip_trials:
+                continue
             print(time.ctime(time.time()), " creating data frames: " + trial_dir)
 
             trial_info = {"Date": self.date,
