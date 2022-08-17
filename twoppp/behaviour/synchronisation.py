@@ -85,8 +85,8 @@ def get_frame_times_indices(trial_dir, crop_2p_start_end=0, beh_trial_dir=None,
     unix_t_start = int(utils2p.Metadata(metadata_file).get_metadata_value("Date", "uTime")) if twop_present else 0
     # don't use utils2p.synchronization, but temporarily use the one below to keep flexibility if twop was not recorded
     processed_lines = get_processed_lines(sync_file, sync_metadata_file,
-                                                              metadata_file,
-                                                              seven_camera_metadata_file)
+                                          metadata_file, seven_camera_metadata_file,
+                                          additional_lines=[])
     frame_times_beh = utils2p.synchronization.get_start_times(processed_lines["Cameras"],
                                                               processed_lines["Times"])
     if twop_present:
@@ -318,7 +318,12 @@ def reduce_during_2p_frame(twop_index, values, function=reduce_mean):
 def get_processed_lines(sync_file,
                         sync_metadata_file,
                         metadata_2p_file,
-                        seven_camera_metadata_file=None):
+                        seven_camera_metadata_file=None,
+                        read_cams=True,
+                        additional_lines=["LightSheetGalvoPosition",
+                                          "LightSheetLaserOn",
+                                          "LightSheetLaserPower",
+                                          "odor", "pid"]):
     """
     This function extracts all the standard lines and processes them.
     It works for both microscopes.
@@ -332,6 +337,8 @@ def get_processed_lines(sync_file,
         Path to the ThorImage metadata file.
     seven_camera_metadata_file : str
         Path to the metadata file of the 7 camera system.
+    additional_lines : list
+        Line names of additional synchronisation lines to load.
     Returns
     -------
     processed_lines : dictionary
@@ -354,32 +361,50 @@ def get_processed_lines(sync_file,
 
     try:
         # For microscope 1
-        processed_lines["CO2"], processed_lines["Cameras"], processed_lines[
-            "Optical flow"] = utils2p.synchronization.get_lines_from_sync_file(sync_file, [
-                "CO2_Stim",
-                "Basler",
-                "OpFlow",
-            ])
+        if read_cams:
+            processed_lines["CO2"], processed_lines["Cameras"], processed_lines[
+                "Optical flow"] = utils2p.synchronization.get_lines_from_sync_file(sync_file, [
+                    "CO2_Stim",
+                    "Basler",
+                    "OpFlow",
+                ])
+        else:
+            processed_lines["CO2"], processed_lines[
+                "Optical flow"] = utils2p.synchronization.get_lines_from_sync_file(sync_file, [
+                    "CO2_Stim",
+                    "OpFlow",
+                ])
     except KeyError:
         # For microscope 2
-        processed_lines["CO2"], processed_lines[
-            "Cameras"] = utils2p.synchronization.get_lines_from_h5_file(sync_file, [
-                "CO2",
-                "Cameras",
-            ])
+        if read_cams:
+            processed_lines["CO2"], processed_lines[
+                "Cameras"] = utils2p.synchronization.get_lines_from_h5_file(sync_file, [
+                    "CO2",
+                    "Cameras",
+                ])
+        else:
+            processed_lines["CO2"] = utils2p.synchronization.get_lines_from_h5_file(sync_file, ["CO2"])
 
-    processed_lines["Cameras"] = utils2p.synchronization.process_cam_line(processed_lines["Cameras"],  # TODO
-                                                  seven_camera_metadata_file)
+    if read_cams:
+        processed_lines["Cameras"] = utils2p.synchronization.process_cam_line(processed_lines["Cameras"],  # TODO
+                                                    seven_camera_metadata_file)
     if metadata_2p_file is not None:
         metadata_2p = utils2p.Metadata(metadata_2p_file)
         processed_lines["Frame Counter"] = utils2p.synchronization.process_frame_counter(
             processed_lines["Frame Counter"], metadata_2p)
-
-    processed_lines["CO2"] = utils2p.synchronization.process_stimulus_line(processed_lines["CO2"])
+    if len(np.unique(processed_lines["CO2"])) > 1:  # i.e. the CO2 line was actually used
+        processed_lines["CO2"] = utils2p.synchronization.process_stimulus_line(processed_lines["CO2"])
 
     if "Optical flow" in processed_lines.keys():
         processed_lines["Optical flow"] = utils2p.synchronization.process_optical_flow_line(
             processed_lines["Optical flow"])
+
+    for add_key in additional_lines:
+        try:
+            processed_lines[add_key] = utils2p.synchronization.get_lines_from_h5_file(sync_file,
+                [add_key])[0]
+        except:
+            print(f"Could not load line {add_key} from sync file {sync_file}")
 
     if metadata_2p_file is not None:
         mask = np.logical_and(processed_lines["Capture On"],
