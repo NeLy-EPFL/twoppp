@@ -2,6 +2,7 @@
 time="16:00:00"
 partition="parallel"
 output="./outputs/slurm-%j.out"    
+mkdir -p ./outputs
 
 convert_to_fidis_dir () {
     fidis_dir=${1//mnt\/NAS\/JB/scratch\/jbraun}
