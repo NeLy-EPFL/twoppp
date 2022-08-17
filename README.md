@@ -59,7 +59,7 @@ Installation instructions:
         - ```pip uninstall numpy```
         - ```conda install pandas```
     - install fictrac according to the instructions here: https://github.com/rjdmoore/fictrac
-        - make sure the executable "fictrac" is installed in this directory: "~/bin/fictrac/bin". This means you'll have to specify "~/bin/" as a basedir for installation.
+        - make sure the executable "fictrac" is installed in this directory: "\~/bin/fictrac/bin". This means you'll have to specify "\~/bin/" as a basedir for installation.
 2. Finally, we can install the twoppp package:
     - clone repository: ```git clone https://github.com/NeLy-EPFL/twoppp```
     - change directory: ```cd twoppp```
