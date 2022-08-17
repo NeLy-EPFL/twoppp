@@ -93,6 +93,7 @@ class PreProcessParams:
 
         self.twoway_align = False  # whether to perform twoway alignment prior to registration
         self.twoway_shift = None  # which shift to apply for twoway alignment
+        self.correct_red_avg_baseline = False  # whether to correct the baseline fluorescence of the mean of the red channel
 
         # ofco (optical flow motion correction) params
         self.i_ref_trial = 0  # in which trial to search for reference frame
@@ -147,7 +148,7 @@ class PreProcessParams:
         self.dff_video_log_lim = False  # whether to use a logarithmic scale/limit in video
         self.dff_video_downsample = 2  # temporal downsampling of dff videos to reduce size
         self.default_video_camera = 6  # which video camera to use. 5 for set-up 2 and 6 for setup 1
-
+        self.dff_video_max_length = None  # maximum length of the dff_behaviour_trial video to be made
         # deepfly3d params
         self.behaviour_as_videos = True  # whether 7 cam data is available as .mp4 videos
         self.twop_scope = 2  # which of the two set-ups you used (1=LH&CLC, 2=FA+JB)
@@ -308,11 +309,12 @@ class PreProcessFly:
             self.date = 123456
         try:
             if len(date) > 7:
-                self.genotpye = date[7:]
+                self.genotype = date[7:]
             else:
-                self.genotpye = self.params.genotype
+                self.genotype = self.params.genotype
         except:
-            self.genotpye = self.params.genotype
+            self.genotype = self.params.genotype
+        self.genotpye = self.genotype  # for backward compatibility after typo correction
 
     def _match_trials_and_beh_trials(self):
         """check that the same number of two-photon, behavioural and sync trials exist
@@ -554,7 +556,8 @@ class PreProcessFly:
                         shift = np.load(join(processed_dir, self.params.shift_file))
                         np.save(join(self.fly_processed_dir, self.params.shift_file), shift)
                         self.params.twoway_shift = shift
-
+            if self.params.correct_red_avg_baseline:
+                pass
 
     def _com_correct_trial(self, processed_dir):
         """apply center of mass correction to a trial
@@ -1009,10 +1012,10 @@ class PreProcessFly:
                     else:
                         mask = get_stack(mask_dir)
                         mask = mask > 0
-
+            video_name = f"{self.date}_{self.genotype}_Fly{self.fly}_{trial_name}_{self.params.dff_video_name}"
             make_video_dff(dff=join(processed_dir, self.params.dff),
                             out_dir=processed_dir,
-                            video_name=self.params.dff_video_name,
+                            video_name=video_name,
                             trial_dir=trial_dir,
                             vmin=self.params.dff_video_vmin,
                             vmax=self.params.dff_video_vmax,
@@ -1065,10 +1068,11 @@ class PreProcessFly:
         if not os.path.isfile(join(self.fly_processed_dir,
                                    self.params.dff_video_name+"_multiple.mp4")) \
             or self.params.overwrite:
+            video_name = f"{self.date}_{self.genotype}_Fly{self.fly}_{self.params.dff_video_name}_multiple"
             make_multiple_video_dff(dffs=[join(processed_dir, self.params.dff)
                                         for processed_dir in self.trial_processed_dirs],
                                     out_dir=self.fly_processed_dir,
-                                    video_name=self.params.dff_video_name+"_multiple",
+                                    video_name=video_name,
                                     trial_dir=self.trial_dirs[0],
                                     vmin=self.params.dff_video_vmin,
                                     vmax=self.params.dff_video_vmax,
@@ -1139,10 +1143,11 @@ class PreProcessFly:
                     else:
                         mask = get_stack(mask_dir)
 
+            video_name = f"{self.date}_{self.genotype}_Fly{self.fly}_{trial_name}_{self.params.dff_beh_video_name}"
             make_video_raw_dff_beh(dff=join(processed_dir, self.params.dff),
                             trial_dir=trial_dir,
                             out_dir=processed_dir,
-                            video_name=self.params.dff_beh_video_name,
+                            video_name=video_name,
                             beh_dir=beh_trial_dir,
                             sync_dir=sync_trial_dir,
                             camera=self.params.default_video_camera,
@@ -1154,7 +1159,9 @@ class PreProcessFly:
                             pmin=self.params.dff_video_pmin,
                             pmax=self.params.dff_video_pmax,
                             blur=0, mask=mask, crop=None, text=trial_name,
-                            asgenerator=False, downsample=10)
+                            asgenerator=False,
+                            downsample=self.params.dff_video_downsample, 
+                            max_length=self.params.dff_video_max_length)
 
     def _make_dff_behaviour_video_multiple_trials(self, i_trials=None, mask=None, include_2p=False,
                                                   select_frames=None):
@@ -1231,10 +1238,11 @@ class PreProcessFly:
         if not os.path.isfile(join(self.fly_processed_dir,
                                    self.params.dff_beh_video_name+"_multiple.mp4")) \
             or self.params.overwrite:
+            video_name = f"{self.date}_{self.genotype}_Fly{self.fly}_{self.params.dff_beh_video_name}_multiple"
             make_multiple_video_raw_dff_beh(dffs=dffs,
                                         trial_dirs=trial_dirs,
                                         out_dir=self.fly_processed_dir,
-                                        video_name=self.params.dff_beh_video_name+"_multiple",
+                                        video_name=video_name,
                                         beh_dirs=beh_dirs,
                                         sync_dirs=sync_dirs,
                                         camera=self.params.default_video_camera,
@@ -1251,7 +1259,8 @@ class PreProcessFly:
                                         blur=0, mask=mask, crop=None,
                                         text=text,
                                         select_frames=select_frames,
-                                        downsample=self.params.dff_video_downsample)  # 10)
+                                        downsample=self.params.dff_video_downsample,
+                                        max_length=self.params.dff_video_max_length)
 
     def _compute_summary_stats(self, i_trials=None, raw_only=False, force_overwrite=False):
         """compute summary statistics for every trial and save them for quick access.
@@ -1424,7 +1433,7 @@ class PreProcessFly:
             print(time.ctime(time.time()), " creating data frames: " + trial_dir)
 
             trial_info = {"Date": self.date,
-                        "Genotype": self.genotpye,
+                        "Genotype": self.genotype,
                         "Fly": self.fly,
                         "TrialName": trial_name,
                         "i_trial": self.selected_trials[i_trial]

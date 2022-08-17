@@ -112,7 +112,7 @@ def get_ball_parameters(img, output_dir=None):
         radius in pixels
     """
     img = cv2.medianBlur(img, 5)
-    canny_params = dict(threshold1 = 40, threshold2 = 50)
+    canny_params = dict(threshold1 = 120, threshold2 = 60)  # Florian's original params: 40 & 50
     edges = cv2.Canny(img, **canny_params)
     
     circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, 2, 200, param1=120, param2=10, minRadius=200, maxRadius=300)
@@ -122,8 +122,12 @@ def get_ball_parameters(img, output_dir=None):
         inside = np.inf
         x_min, y_min, r_min = np.nan, np.nan, np.nan
         for x, y, r in circles:
-            if x + r > img.shape[1] or x - r < 0:
-                pass  # continue
+            if x + r > img.shape[1] or x - r < 0:  # check that ball completely in the image in x
+                continue
+            elif x < img.shape[1] * 3 / 8 or x > img.shape[1] * 5 / 8:  # check that ball center in central quarter of x axis
+                continue
+            elif y - r <= img.shape[0] / 10:  # check that top of the ball is below 1/10 of the image
+                continue
             xx, yy = np.meshgrid(np.arange(img.shape[1]), np.arange(img.shape[0]))
             xx = xx - x
             yy = yy - y

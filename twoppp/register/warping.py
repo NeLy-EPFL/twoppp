@@ -112,13 +112,13 @@ def center_and_crop(stack1, stack2=None, crop=None, stack1_out_dir=None, stack2_
     stack2_shifted = apply_offset(stack2, offsets) if stack2 is not None else None
 
     stack1_shifted = utils.crop_stack(stack1_shifted, crop)
-    stack2_shifted = utils.crop_stack(stack2_shifted, crop)
+    stack2_shifted = utils.crop_stack(stack2_shifted, crop) if stack2 is not None else None
 
     if offset_dir is not None:
         np.save(offset_dir, offsets)
     if stack1_out_dir is not None:
         utils2p.save_img(stack1_out_dir, stack1_shifted)
-    if stack2_out_dir is not None:
+    if stack2_out_dir is not None and stack2 is not None:
         utils2p.save_img(stack2_out_dir, stack2_shifted)
 
     return stack1_shifted, stack2_shifted if return_stacks else None, None

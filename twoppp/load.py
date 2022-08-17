@@ -160,10 +160,13 @@ def load_trial(trial_dir):
     trial_raw = utils2p.find_raw_file(trial_dir)
 
     meta_data = utils2p.Metadata(trial_xml)
-    green, red = utils2p.load_raw(path=trial_raw, metadata=meta_data)
+    if meta_data.get_gain_b() == 0:
+        green = utils2p.load_raw(path=trial_raw, metadata=meta_data)
+        return (green[0], None)
+    else:
+        green, red = utils2p.load_raw(path=trial_raw, metadata=meta_data)
+        return (green, red)
     
-    return (green, None) if meta_data.get_gain_b() == 0 else (green, red)
-
 def convert_raw_to_tiff(trial_dir, overwrite=False, return_stacks=True, green_dir=None, red_dir=None):
     """load .raw files from two-photon microscope and save them as tifs.
 
@@ -226,7 +229,8 @@ def convert_raw_to_tiff(trial_dir, overwrite=False, return_stacks=True, green_di
     elif len(stacks) == 2:
         green, red = stacks
         utils2p.save_img(green_dir, green)
-        utils2p.save_img(red_dir, red)
+        if red is not None:
+            utils2p.save_img(red_dir, red)
     else:
         raise NotImplementedError("More than two stacks are not implemented in load_experiment.")
 
