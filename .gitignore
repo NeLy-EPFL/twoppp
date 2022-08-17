@@ -3,6 +3,8 @@ outputs/
 .workspace*
 tmp/
 
+# ignore password files
+*.pwd
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
