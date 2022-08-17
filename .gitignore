@@ -3,8 +3,9 @@ outputs/
 .workspace*
 tmp/
 
-# ignore password files
+# ignore password files and to run file
 *.pwd
+*_fly_dirs_to_process.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
