@@ -35,10 +35,11 @@ Installation instructions:
         - WARNING: because of a new version of DeepFly3D with incompatibilities to multiple other packages. You have to install an older version as follows:
             - ```git clone https://github.com/NeLy-EPFL/DeepFly3D```
             - ```cd DeepFly3D```
-            - ```pip install -e .```
             - ```git checkout bd8faca1980518f67d4c26fa85381ff7a6546598```
             - This reverts the version back to an older version, which is compatible with this package.
-    - deepinterpolation: https://github.com/NeLy-EPFL/deepinterpolation/tree/adapttoR57C10 (install in current environment instead of makeing a new environment)
+            - ```pip install -e .```
+    - deepinterpolation: https://github.com/NeLy-EPFL/deepinterpolation/tree/adapttoR57C10 (install in current environment instead of making a new environment)
+        - make sure you install the adapttoR57C10 branch and confirm that you are on it using ```git status```. If not: use ```git checkout adapttoR57C10```.
         - this might throw an error like: "ERROR: pip's dependency resolver does not currently take into account all the packages that are installed." ... for incompatibilities of numpy and scipy version, but this can be ignored.
     - ```conda install pandas```
     - ```conda install numpy```
@@ -55,6 +56,8 @@ Installation instructions:
         - ```pip uninstall pandas```
         - ```pip uninstall numpy```
         - ```conda install pandas```
+    - install fictrac according to the instructions here: https://github.com/rjdmoore/fictrac
+        - make sure the executable "fictrac" is installed in this directory: "~/bin/fictrac/bin". This means you'll have to specify "~/bin/" as a basedir for installation.
 2. Finally, we can install the twoppp package:
     - clone repository: ```git clone https://github.com/NeLy-EPFL/twoppp```
     - change directory: ```cd twoppp```
