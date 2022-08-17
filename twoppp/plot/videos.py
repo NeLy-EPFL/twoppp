@@ -29,7 +29,7 @@ from twoppp.utils import get_stack, find_file, crop_img, crop_stack
 from twoppp import load
 from twoppp.register.warping import apply_motion_field, apply_offset
 
-def make_video(video_path, frame_generator, fps, output_shape=(-1, 1920), n_frames=-1):
+def make_video(video_path, frame_generator, fps, output_shape=(-1, 1920), n_frames=-1, use_handbrake=True):
     """Wrapper around utils_video.make_video() changing the frame rate to be a non-integer value
     to avoid warning and potential error.
     """
@@ -38,6 +38,54 @@ def make_video(video_path, frame_generator, fps, output_shape=(-1, 1920), n_fram
         fps += 0.01
     utils_video.make_video(video_path, frame_generator, fps,
                            output_shape=output_shape, n_frames=n_frames)
+
+    if use_handbrake:
+        handbrake(video_path)
+
+
+def handbrake(video_path, output_path=None):
+    """apply HandBrake to a video to compress it.
+    This is an EXPERIMENTAL FEATURE and requires that the Handbrake command line
+    interface is installed!
+    For installation follow the following steps:
+    Download the command line interface (CLI) from here:
+    https://handbrake.fr/downloads2.php
+    using the following instructions:
+    https://handbrake.fr/docs/en/1.5.0/get-handbrake/download-and-install.html
+    >>> flatpak --user install HandBrakeCLI-1.4.2-x86_64.flatpak
+    You might have to install flatpak with apt-get first.
+    If error about unacceptable TLS certificate pops up:
+    >>> sudo apt install --reinstall ca-certificates
+    Add flatpak to your PATH. This way you can use the commands below
+    >>> export PATH=$PATH:$HOME/.local/share/flatpak/exports/bin:/var/lib/flatpak/exports/bin
+    Now the CLI can be run as follows:
+    https://handbrake.fr/docs/en/latest/cli/cli-options.html
+    >>> fr.handbrake.HandBrakeCLI -i source -o destination
+    Parameters
+    ----------
+    video_path : str
+        path to your .mp4 video file
+    output_path : str, optional
+        where the compressed video should be saved to. If None, overwrite original video, by default None
+    """
+    if output_path is None:
+        REPLACE = True
+        folder, file_name = os.path.split(video_path)
+        output_path = os.path.join(folder, "tmp_" + file_name)
+    else:
+        REPLACE = False
+    
+    export_path = "export PATH=$PATH:$HOME/.local/share/flatpak/exports/bin:/var/lib/flatpak/exports/bin"
+    # check whether handbrake CLI is installed
+    if os.system(export_path+" && fr.handbrake.HandBrakeCLI -h >/dev/null 2>&1"):
+        print("HandBrakeCLI is not installed.\n",
+              "Install files can be found here: https://handbrake.fr/downloads2.php \n",
+              "Install instructions here: https://handbrake.fr/docs/en/1.5.0/get-handbrake/download-and-install.html")
+        return
+    # run the client on the video
+    os.system(export_path+f" && fr.handbrake.HandBrakeCLI -i {video_path} -o {output_path}")
+    if REPLACE:
+        os.system(f"mv {output_path} {video_path}")
 
 def make_video_2p(green, out_dir, video_name, red=None, percentiles=(5,99),
                   frames=None, frame_rate=None, trial_dir=None):
@@ -815,7 +863,7 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
          directory containing the 7 camera data. If not specified, will be set equal
         to trial_dir, by default None
 
-    sync_trial_dir : str, optional
+    sync_dir : str, optional
         directory containing the output of ThorSync. If not specified, will be set equal
         to trial_dir, by default None
 
@@ -1078,7 +1126,7 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
         # N_frames = len(frame_times_beh) // downsample - 1
         N_frames = len(edges) // downsample - 1
         frame_rate = frame_rate / downsample
-        if select_frames is not None:
+        if max_length is not None:
             N_frames = max_length // downsample - 1
     else:
         # N_frames = len(frame_times_beh) - 1
@@ -1097,11 +1145,11 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
                                     reds=None, colorbarlabel="dff", vmin=0, vmax=None, pmin=1,
                                     pmax=99, share_lim=True, log_lim=False, blur=0, mask=None,
                                     share_mask=False, crop=None, text=None, text_loc="dff",
-                                    downsample=None, select_frames=None, time=True,
+                                    downsample=None, select_frames=None, max_length=None, time=True,
                                     stim_starts=None, stim_stops=None, twop_percentiles=(5,99)):
     """
-    Make a synchronised and stacked video of (one behavioural camera + dff and/or red/green) 
-    for multiple trials. Running this function can take very long 
+    Make a synchronised and stacked video of (one behavioural camera + dff and/or red/green)
+    for multiple trials. Running this function can take very long
     because large amounts of data are involved.
 
     Parameters
@@ -1190,6 +1238,9 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
         for each trial, list containing a sequence of selected two-photon frame inidices.
         if an empty list, generate a black frame. If None, use all frames, by default None
 
+    max_length : int, optional
+        maximum length of the video in frames, by default None
+
     time : bool, optional
         whether or not to show the current time of the recording in the behaviour video,
         by default True
@@ -1260,10 +1311,10 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
         sync_dirs = [None for _ in  dffs]
     if select_frames is not None:
         assert len(select_frames) == len(dffs)
-        max_length = np.max([len(frames) for frames in select_frames])
+        tmp_max_length = np.max([len(frames) for frames in select_frames])
+        max_length = tmp_max_length if max_length is None else np.min([max_length, tmp_max_length])
     else:
         select_frames = [None for _ in  dffs]
-        max_length = None
 
     if stim_starts is not None:
         assert len(stim_starts) == len(dffs)
