@@ -7,7 +7,7 @@ import numpy as np
 
 from typing import Union, Any
 
-from twoppp import load, utils, MODULE_PATH
+from twoppp import load, utils, MODULE_PATH, TWOPPP_PATH
 from twoppp.pipeline import PreProcessFly, PreProcessParams
 from twoppp.behaviour.fictrac import config_and_run_fictrac
 from twoppp.behaviour.stimulation import get_sync_signals_stimulation
@@ -176,7 +176,7 @@ class PreClusterTask(Task):
         preprocess.run_all_trials()
         
         print("COPYING TO CLUSTER: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(MODULE_PATH, "register",
+        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_to_cluster.sh") + " " + fly_dict["dir"])
         
         return True
@@ -268,7 +268,7 @@ class PostClusterTask(Task):
 
 
         print("COPYING BACK FLY: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(MODULE_PATH, "register",
+        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_from_cluster.sh") + " " + fly_dict["dir"])
 
         print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
