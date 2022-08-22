@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 import numpy as np
+import time
 
 from typing import List, Any, Optional, Dict
 
@@ -15,11 +16,11 @@ class TaskManager():
         self.task_collection = task_collection
         self.params = deepcopy(params)
         self.user_config=user_config
-        self.send_status_emails = self.user_config["send_emails"]
         self.txt_file_to_process = self.user_config["txt_file_to_process"]
         self.txt_file_running = self.user_config["txt_file_running"]
         self.clean_exit = False
         self.flies_to_process = []
+        self.t_wait_s = 60
 
         self.check_fly_dirs_to_process()
         for fly_dict in self.flies_to_process:
@@ -71,24 +72,12 @@ class TaskManager():
             if task not in self.task_collection.keys():
                 print(f"{task} is not an available pre-processing step.\n" +
                     f"Available tasks: {self.task_collection.keys()}")
-            elif check_task_running(fly_dict, task, running_tasks):
+            elif check_task_running(fly_dict, task, running_tasks) and self.user_config["check_tasks_running"]:
                 print(f"{task} is already running for fly {fly_dict['dir']}.")
             else:
                 if force or self.task_collection[task].test_todo(fly_dict):
                     todos.append(task_orig)
         return todos
-
-    def send_email_todo(self, todo: dict) -> None:
-        if self.send_status_emails:
-            try:
-                status = todo["status"].upper()
-                fly_name = " ".join(todo["dir"].split(os.sep)[-2:])
-                subject = f"{status}: {todo['tasks']} {fly_name}"
-                message = f"{todo['dir']} \n{todo['selected_trials']} \n{todo['args']}"
-                send_email(subject, message, receiver_email=self.user_config["email"])
-            except Exception as e:
-                print("Error while sending status mail. Will proceed with processing.")
-                print(e)
 
     def add_todo(self, todo: dict) -> None:
         todo["status"] = "ready"
@@ -110,17 +99,18 @@ class TaskManager():
             task_name = next_todo["tasks"]
             write_running_tasks(next_todo, add=True)
             self.todo_dicts[i_todo]["status"] = "running"
-            self.send_email_todo(next_todo)
-            print(f"TASK MANAGER: starting {task_name} task for fly {next_todo['dir']}")
             result = self.task_collection[task_name].run(fly_dict=next_todo, params=self.params)
             if result:
                 self.todo_dicts[i_todo]["status"] = "done"
-                self.send_email_todo(next_todo)
                 self.remove_todo(i_todo)
-                if np.sum([status == "waiting" for status in self.status]):
+                N_waiting = np.sum([status == "waiting" for status in self.status])
+                if N_waiting > 0 and N_waiting < self.n_todos:
                     break
                     # break in order to check again for the highest priority tasks that were waiting
                     # otherwise continue with task of next priority
+                elif N_waiting == self.n_todos:
+                    time.sleep(self.t_wait_s)
+                    # if all tasks are pending wait before checking from start again
             else:
                 self.todo_dicts[i_todo]["status"] = "waiting"
                 write_running_tasks(next_todo, add=False)
@@ -128,21 +118,21 @@ class TaskManager():
     def run(self) -> None:
         try:
             while self.n_todos:
+                """
                 if all([todo["tasks"] == "fictrac" for todo in self.todo_dicts]):
                     self.rank_todos()
                     for i_todo, todo in enumerate(self.todo_dicts):
                         self.todo_dicts[i_todo]["status"] = "running"
-                        self.send_email_todo(todo)
                         print(f"TASK MANAGER: starting fictrac task for fly {todo['dir']}")
                     result = self.task_collection["fictrac"].run_multiple_flies(fly_dicts=self.todo_dicts, params=self.params)
                     if result:
                         for i_todo, todo in enumerate(self.todo_dicts):
                             self.todo_dicts[i_todo]["status"] = "done"
-                            self.send_email_todo(todo)
                             self.remove_todo(i_todo)
                             #TODO: confirm that de-registration of fictrac tasks works
                 else:
-                    self.execute_next_task()
+                """
+                self.execute_next_task()
             self.clean_exit = True
         finally:
             print("TASK MANAGER clean up: removing tasks from _tasks_running.txt")
@@ -150,4 +140,5 @@ class TaskManager():
                 if todo["status"] == "running":
                     write_running_tasks(todo, add=False)
             subject = "TASK MANAGER clean exit" if self.clean_exit else "TASK MANAGER error exit"
-            send_email(subject, "no msg", receiver_email=self.user_config["email"])
+            if self.user_config["send_emails"]:
+                send_email(subject, "no msg", receiver_email=self.user_config["email"])
