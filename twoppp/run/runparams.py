@@ -11,18 +11,19 @@ USER_JB = {
     "labserver": os.path.join(load.LABSERVER_DIR, "BRAUN_Jonas", "Experimental_data", "2p"),
     "nas": os.path.join(load.NAS_DIR, "JB"),
     "nas2": os.path.join(load.NAS2_DIR, "JB"),
-    "video_dir": os.path.join(load.NAS2_DIR, "JB", "_videos"),
+    "video_dir": os.path.join(load.NAS2_DIR, "JB", "_videos"),  # will copy generated videos to this folder
     "name": "Jonas Braun",
-    "email": "nelydebugging@outlook.com",
+    "email": "nelydebugging@outlook.com",  # under which e-mail to receive status messages
     "send_emails": True,
-    "scratch_dir": "/mnt/scratch",
+    "scratch_dir": "/mnt/scratch",  # where the FIDIS scratch directory is mounted locally
     "ignore_scratch": False,
-    "check_2plinux_trials": True,
-    "fictrac_cam": 3,
-    "video_cam": 5,
-    "2p_scope": 2,
-    "txt_file_to_process": os.path.join(LOCAL_DIR, "_fly_dirs_to_process.txt"),
-    "txt_file_running": os.path.join(LOCAL_DIR, "_tasks_running.txt"),
+    "check_2plinux_trials": True,  # whether to ssh into the 2plinux machine to check whether some data might not yet be copied
+    "fictrac_cam": 3,  # which camera should be used for fictrac
+    "video_cam": 5,  # which camera should be used for making summary videos
+    "2p_scope": 2,  # which 2pscope you're using
+    "txt_file_to_process": os.path.join(LOCAL_DIR, "_fly_dirs_to_process.txt"),  # fill this file with fly_dirs that should be processed
+    "txt_file_running": os.path.join(LOCAL_DIR, "_tasks_running.txt"),  # where to store which tasks are currently running
+    "check_tasks_running": False,
 }
 
 CURRENT_USER = USER_JB
@@ -34,13 +35,7 @@ global_params.genotype = ""
 
 global_params.breadth_first = True
 global_params.overwrite = False
-
-global_params.use_df3d = False
-global_params.use_df3dPostProcess = False
-global_params.use_behaviour_classifier = False
 global_params.select_trials = False
-global_params.cleanup_files = False
-global_params.make_dff_videos = False
 
 global_params.i_ref_trial = 0
 global_params.i_ref_frame = 0
@@ -57,6 +52,7 @@ global_params.default_video_camera = CURRENT_USER["video_cam"]
 global_params.behaviour_as_videos = True
 global_params.twop_scope = CURRENT_USER["2p_scope"]
 
+# select all False because they will be manually selected in the different Tasks
 global_params.use_com = False
 global_params.use_warp = False
 global_params.use_denoise = False
@@ -64,3 +60,6 @@ global_params.use_dff = False
 global_params.make_summary_stats = False
 global_params.use_df3d = False
 global_params.use_df3dPostProcess = False
+global_params.use_behaviour_classifier = False
+global_params.cleanup_files = False
+global_params.make_dff_videos = False
