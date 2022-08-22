@@ -614,6 +614,9 @@ class PreProcessFly:
             tif will be saved to
         """
         if processed_dir != "":
+            if not hasattr(self, "ref_frame"):
+                self._save_ref_frame()
+
             if self.params.use_com and self.params.post_com_crop:
                 # if to be cropped, perform COM outside of the warping.warp() call
                 # otherwise, perform COM inside warping.warp
