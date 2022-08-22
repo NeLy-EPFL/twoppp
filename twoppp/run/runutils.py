@@ -93,16 +93,19 @@ def write_running_tasks(task, add=True, txt_file=os.path.join(LOCAL_DIR, "_tasks
     else:
         with open(txt_file) as file:
             lines = file.readlines()
+            lines = [line.rstrip() for line in lines]
         lines_to_write = []
         for line in lines:
             if task["dir"] in line and task["tasks"] in line:
                 #TODO: check for correct selected trials
                 continue
+            if line == "":
+                continue
             else:
                 lines_to_write.append(line)
         with open(txt_file, "w") as file:
             for line in lines_to_write:
-                file.write(line)
+                file.write(line+"\n")
 
 def check_task_running(fly_dict, task, running_tasks):
     fly_tasks = [this_task for this_task in running_tasks if this_task["dir"] == fly_dict["dir"]]
@@ -193,3 +196,11 @@ def find_trials_2plinux(fly_dir: str, user_folder: str, twop: bool=False) -> Lis
         print("pxssh failed while logging into the 2plinux computer.")
         print(e)
         return []
+
+if __name__ == "__main__":
+    task = {
+        "dir": "abc",
+        "task": "def",
+    }
+
+    write_running_tasks(task, add=False)
