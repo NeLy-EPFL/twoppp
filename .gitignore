@@ -6,6 +6,7 @@ tmp/
 # ignore password files and to run file
 *.pwd
 *_fly_dirs_to_process.txt
+*_tasks_running.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -43,6 +43,7 @@ setup(
     name="twoppp",
     version="0.0.1",
     packages=["twoppp", "twoppp.analysis", "twoppp.behaviour", "twoppp.plot", "twoppp.register", "twoppp.utils",
+              "twoppp.run",
               # "twoppp.behaviour.classification", "twoppp.behaviour.df3d", "twoppp.behaviour.fictrac",
               # "twoppp.behaviour.olfaction", "twoppp.behaviour.optic_flow", "twoppp.behaviour.synchronisation",
               # "twoppp.plot.videos", "twoppp.register.warping", "twoppp.register.warping_cluster",
