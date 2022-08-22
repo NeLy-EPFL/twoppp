@@ -10,7 +10,7 @@ LOCAL_DIR, _ = os.path.split(os.path.realpath(__file__))
 
 
 def get_selected_trials(fly_dict: dict, twoplinux_trial_names: List[str]=None) -> List[str]:
-    trial_dirs = load.get_trials_from_fly(fly_dict["dir"])[0]
+    trial_dirs = load.get_trials_from_fly(fly_dict["dir"], ignore_error=True)[0]
     if twoplinux_trial_names is not None:
         for trial_name in twoplinux_trial_names:
             if not any([trial_dir.split(os.sep)[-1] == trial_name for trial_dir in trial_dirs]):
