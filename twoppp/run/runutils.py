@@ -196,11 +196,3 @@ def find_trials_2plinux(fly_dir: str, user_folder: str, twop: bool=False) -> Lis
         print("pxssh failed while logging into the 2plinux computer.")
         print(e)
         return []
-
-if __name__ == "__main__":
-    task = {
-        "dir": "abc",
-        "task": "def",
-    }
-
-    write_running_tasks(task, add=False)
