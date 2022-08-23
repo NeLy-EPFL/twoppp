@@ -5,6 +5,7 @@ from pexpect import pxssh
 from typing import List
 
 from twoppp import load
+from twoppp.run.runparams import CURRENT_USER
 
 LOCAL_DIR, _ = os.path.split(os.path.realpath(__file__))
 
@@ -153,8 +154,8 @@ def send_email(subject, message, receiver_email):
         server.quit()
 
 def find_trials_2plinux(fly_dir: str, user_folder: str, twop: bool=False) -> List[str]:
-    IP = "128.178.198.12"
-    user = "dalco"
+    IP = CURRENT_USER["2p_linux_ip"]
+    user = CURRENT_USER["2p_linux_user"]
     try:
         with open(os.path.join(LOCAL_DIR, ".pwd")) as file:
             lines = file.readlines()

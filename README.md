@@ -26,7 +26,7 @@ The "examples" folder showcases example usecases of each of the sub-modules.
 
 If you want to run the entire processing pipeline in one go, look at the run_processing_pipeline_local.py script.
 
-**NEW: checkout the new interface to automatically run the entire pipeline or subsets of it on multiple flies in twoppp/run**
+**NEW: checkout the new interface to automatically run the entire pipeline or subsets of it on multiple flies [here](twoppp/run/README.md):**
 
 Installation instructions:
 1. Create conda environment and install required packages according to their respective install instructions:

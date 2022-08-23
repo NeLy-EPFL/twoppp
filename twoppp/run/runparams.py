@@ -18,6 +18,8 @@ USER_JB = {
     "scratch_dir": "/mnt/scratch",  # where the FIDIS scratch directory is mounted locally
     "ignore_scratch": False,
     "check_2plinux_trials": True,  # whether to ssh into the 2plinux machine to check whether some data might not yet be copied
+    "2p_linux_ip": "128.178.198.12",  # the IP address of the linux computer used for recording
+    "2p_linux_user": "dalco",  # the user name of the linuc computer used for recording
     "fictrac_cam": 3,  # which camera should be used for fictrac
     "video_cam": 5,  # which camera should be used for making summary videos
     "2p_scope": 2,  # which 2pscope you're using

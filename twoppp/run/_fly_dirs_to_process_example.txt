@@ -3,7 +3,8 @@
 # general format:
 # fly_dir||selected trials (either 'all_trials' or a comma separated list of the beginning sequence of the trials without spaces)||task1,task2,!task3
 # if a task is to be run again even if it has previously been completed, place a '!' before the task name
-# example:
-# /mnt/NAS2/JB/220721_ABCxGCaMP6s_tdTom/Fly1||001,002,003||pre_cluster,fictrac,post_cluster,denoise,dff,!video
+# examples:
+# /mnt/NAS2/JB/220721_ABCxGCaMP6s_tdTom/Fly1||001,002,003||pre_cluster,fictrac,cluster,post_cluster,denoise,dff,!video
+# /mnt/NAS2/JB/220721_ABCxGCaMP6s_tdTom/Fly1||001,002,003||df3d
 
 
