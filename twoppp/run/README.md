@@ -9,13 +9,14 @@
 4. run the [run.py](run.py) script: ```python run.py```
 
 ## Additional Requirements:
-1. Mount the the server where your data is located, to your workstation, for example at /mnt/NAS2.
+1. Mount the the server where your data is located, to your workstation, for example at /mnt/NAS2. (Refer to the lab manual for details.)
 2. Mount your scratch server from the cluster to your workstation, for example as follows for the user jbraun:
-    - sudo sshfs -o allow_other jbraun@fidis.epfl.ch:/scratch/jbraun /mnt/scratch
-    - make sure to either permanently mount the scratch or to tun the command again when you reboot your workstation
+    - ```sudo sshfs -o allow_other jbraun@fidis.epfl.ch:/scratch/jbraun /mnt/scratch```
+    - make sure to either permanently mount the scratch or to run the command again when you reboot your workstation
 3. save the user password for the twop_linux machine in a file called .pwd
     - not required if you don't want to check for trials on the twop linux machine and don't want to send status e-mails
         - set "check_2plinux_trials" and "send_emails" to False in your user parameters in [runparams.py](runparams.py)
+4. If you want to automatically run HandBrake on all videos created, install it [according to the instractions in the docstring of the handbrake function](../plot/videos.py). HandBrake reduces the file size of the video and makes sure they can be easily shown in PowerPoint or Keynote. This is optional and will not throw errors in case it is not installed.
 
 ## running motion correction on the cluster:
 Also check out the [documentation pages of scitas](https://scitas-data.epfl.ch/kb)
