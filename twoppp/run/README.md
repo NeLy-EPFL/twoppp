@@ -35,9 +35,11 @@ Also check out the [documentation pages of scitas](https://scitas-data.epfl.ch/k
         -  --> update your username in the file (i.e., replace jbraun by your username)
         - adjust the time that you want to request the cluster for. You will only pay for what you actually use, but your job starts faster when you only request shorter jobs. trials of 10000 frames (\~10 mins) usually finish in less than 40h and trials of 4100 frames (\~4minutes) usually finish in less than 16h
     - [run_one_folder.sh](../register/run_one_folder.sh): This shell script only submits one job to the cluster for one specific folder
-6. Start submitting jobs in one of the two ways:
+6. Run the "pre_cluster" task (see [tasks.py](tasks.py)) to perform center of mass registration and copy the necessary data to your scratch directory 
+7. Start submitting cluster jobs in one of the two ways:
     - ```sh /registration/run_all_folders.sh``` --> carefull: this will also re-start jobs that are already running, because they are not yet completed.
     - ```sh /registration/run_one_folder.sh /scratch/YOUR_USERNAME/DATE_GENOTPYE/FLYX/00X_TRIAL_DIR/processed```
-7. Checking the status of your jobs: ```squeue -u YOUR_USERNAME```
-8. Cancelling jobs if something was not correct: ```scancel JOB_ID``` or ```scancel -u YOUR_USERNAME```
-9. If you have the "cluster" task added to your tasks in [_fly_dirs_to_process.txt](_fly_dirs_to_process.txt) (see [tasks.py](tasks.py)), then this will regularly print how far along the cluster registration is.
+8. Checking the status of your jobs: ```squeue -u YOUR_USERNAME```
+9. Cancelling jobs if something was not correct: ```scancel JOB_ID``` or ```scancel -u YOUR_USERNAME```
+10. If you have the "cluster" task added to your tasks in [_fly_dirs_to_process.txt](_fly_dirs_to_process.txt) (see [tasks.py](tasks.py)), then this will regularly print how far along the cluster registration is.
+11. Run the "post_cluster" task (see [tasks.py](tasks.py)) to copy the results back from the cluster and finalise the motion correction.
