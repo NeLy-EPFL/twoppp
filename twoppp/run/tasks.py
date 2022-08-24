@@ -435,6 +435,39 @@ class DffTask(Task):
         # preprocess.run_all_trials()
         return True
 
+class SummaryStatsTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "summary_stats"
+        self.previous_tasks = [DffTask()]
+
+    def test_todo(self, fly_dict):
+        return super().test_todo(fly_dict, file_name=global_params.summary_stats)
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        self.params.use_com = True
+        self.params.use_warp = True
+        self.params.use_denoise = True
+        self.params.use_dff = True
+        self.params.make_summary_stats = True
+        self.params.overwrite = fly_dict["overwrite"]
+
+        print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params, trial_dirs=trial_dirs)
+        preprocess._compute_summary_stats()
+        # preprocess.run_all_trials()
+        return True
+
 class FictracTask(Task):
     def __init__(self, prio=0):
         super().__init__(prio)
@@ -445,8 +478,8 @@ class FictracTask(Task):
         # print("TODO: implement FictracTask.test_todo() method!!!")
         TODO1 = super().test_todo(fly_dict, file_name=global_params.df3d_df_out_dir)
         trial_dirs_todo = get_selected_trials(fly_dict)
-        # TODO2 = not all([bool(len(utils.find_file(os.path.join(trial_dir, "behData", "images"), name=f"camera_{CURRENT_USER['fictrac_cam']}-*.dat", raise_error=False))) for trial_dir in trial_dirs_todo])
-        return TODO1  #  or TODO2
+        TODO2 = not all([bool(len(utils.find_file(os.path.join(trial_dir, "behData", "images"), name=f"camera_{CURRENT_USER['fictrac_cam']}-*.dat", raise_error=False))) for trial_dir in trial_dirs_todo])
+        return TODO1  or TODO2
 
     def run(self, fly_dict, params=None):
         if not self.wait_for_previous_task(fly_dict):
@@ -493,7 +526,12 @@ class Df3dTask(Task):
         self.previous_tasks = [BehDataTransferTask(), SyncDataTransfer()]
 
     def test_todo(self, fly_dict: dict) -> bool:
-        return True  # TODO!
+        TODO1 = super().test_todo(fly_dict, file_name=global_params.df3d_df_out_dir)
+        trial_dirs_todo = get_selected_trials(fly_dict)
+        TODO2 = not all([os.path.isdir(os.path.join(trial_dir, "behData", "images", "df3d")) for trial_dir in trial_dirs_todo])
+        if not TODO2:
+            TODO2 = not all([bool(len(utils.find_file(os.path.join(trial_dir, "behData", "images", "df3d"), name=f"aligned_pose__*.pkl", raise_error=False))) for trial_dir in trial_dirs_todo])
+        return TODO1  or TODO2
 
     def run(self, fly_dict: dict, params: PreProcessParams=None) -> bool:
         if not self.wait_for_previous_task(fly_dict):
@@ -596,6 +634,7 @@ task_collection = {
     "post_cluster": PostClusterTask(prio=-5),
     "denoise": DenoiseTask(prio=-6),
     "dff": DffTask(prio=-10),
+    "summary_stats": SummaryStatsTask(prio=-16),
     "fictrac": FictracTask(prio=0),
     "df3d": Df3dTask(prio=-20),
     "video": VideoTask(prio=-15),
