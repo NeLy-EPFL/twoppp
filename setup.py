@@ -1,43 +1,11 @@
 from setuptools import setup, find_packages
 
-try:
-    import utils2p
-except ImportError or ModuleNotFoundError:
-    raise ImportError("utils2p must be installed in environment.")
-
-try:
-    from deepfly.CameraNetwork import CameraNetwork
-except ImportError or ModuleNotFoundError:
-    raise ImportError("deepfly must be installed in environment.")
-
-try:
-    from deepinterpolation import interface as denoise
-
-except ImportError or ModuleNotFoundError:
-    raise ImportError("DeepInterpolation must be installed in environment.")
-
-try:
-    import ofco
-except ImportError or ModuleNotFoundError:
-    raise ImportError("ofco must be installed in environment.")
-
-try:
-    import utils_video
-except ImportError or ModuleNotFoundError:
-    raise ImportError("utils_video must be installed in environment.")
-
-try:
-    import df3dPostProcessing
-except ImportError or ModuleNotFoundError:
-    raise ImportError("df3dPostProcessing must be installed in environment.")
-
-try:
-    import behavelet
-except ImportError or ModuleNotFoundError:
-    raise ImportError("behavelet must be installed in environment.")
-
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+with open("requirements.txt", "r") as f:
+    requirements = f.read().splitlines()
+    requirements = [l for l in requirements if not l.startswith('#')]
 
 setup(
     name="twoppp",
@@ -57,4 +25,5 @@ setup(
     # long_description=long_description,
     long_description_content_type="text/x-rst",
     url="https://github.com/NeLy-EPFL/twoppp",
+    install_requires=requirements,
 )
