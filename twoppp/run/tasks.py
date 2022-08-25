@@ -11,7 +11,8 @@ from twoppp import load, utils, MODULE_PATH, TWOPPP_PATH
 from twoppp.pipeline import PreProcessFly, PreProcessParams
 from twoppp.behaviour.fictrac import config_and_run_fictrac
 from twoppp.behaviour.stimulation import get_sync_signals_stimulation
-
+from twoppp.rois import prepare_roi_selection
+from twoppp.plot import show3d
 from twoppp.run.runparams import global_params, CURRENT_USER
 from twoppp.run.runutils import get_selected_trials, get_scratch_fly_dict, find_trials_2plinux, send_email
 
@@ -442,7 +443,7 @@ class SummaryStatsTask(Task):
         self.previous_tasks = [DffTask()]
 
     def test_todo(self, fly_dict):
-        return super().test_todo(fly_dict, file_name=global_params.summary_stats)
+        return not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.summary_stats))
 
     def run(self, fly_dict, params=None):
         if not self.wait_for_previous_task(fly_dict):
@@ -467,6 +468,76 @@ class SummaryStatsTask(Task):
         preprocess._compute_summary_stats()
         # preprocess.run_all_trials()
         return True
+
+class PrepareROISelectionTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "prepare_roi_selection"
+        self.previous_tasks = [SummaryStatsTask()]
+
+    def test_todo(self, fly_dict):
+        TODO1 = not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.pca_maps))
+        TODO2 = not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.pca_maps_plot))
+        return TODO1 or TODO2
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        prepare_roi_selection(fly_dict["dir"], trial_dirs, self.params)
+
+        return True
+
+class ROISelectionTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "roi_selection"
+        self.previous_tasks = [PrepareROISelectionTask()]
+
+    def test_todo(self, fly_dict):
+        return not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.roi_centers))
+
+    def run(self,fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            print("You'll have to do the ROI detection manually.")
+            return False
+
+class ROISignalsTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "roi_signals"
+        self.previous_tasks = [ROISelectionTask()]
+
+    def test_todo(self, fly_dict):
+        return not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.roi_mask))
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        self.params.overwrite = fly_dict["overwrite"]
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params, trial_dirs=trial_dirs)
+        preprocess.extract_rois()
+        return True
+
+    
 
 class FictracTask(Task):
     def __init__(self, prio=0):
@@ -625,6 +696,70 @@ class LaserStimProcessTask(Task):
                                              df_out_dir=beh_df)
         return True
 
+class VideoPlot3DTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "video_plot_3d"
+        self.previous_tasks = [TifTask()]
+
+    def test_todo(self, fly_dict):
+        TODO1 = super().test_todo(fly_dict, file_name="zstack.mp4") or \
+            super().test_todo(fly_dict, file_name="ystack.mp4") or \
+            super().test_todo(fly_dict, file_name="xstack.mp4")
+        TODO2 = super().test_todo(fly_dict, file_name="3dproject.png")
+        return True  # TODO1 or TODO2
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        self.params.overwrite = self.params.overwrite = fly_dict["overwrite"]
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params, trial_dirs=trial_dirs)
+
+        for i, processed_dir in enumerate(preprocess.trial_processed_dirs):
+            
+            red_tif = os.path.join(processed_dir, self.params.red_raw)
+            show3d.make_avg_videos_3d(
+                green=os.path.join(processed_dir, self.params.green_raw),
+                red=red_tif if os.path.isfile(red_tif) else None,
+                green_avg=os.path.join(processed_dir, "green_avg.tif"),
+                red_avg=os.path.join(processed_dir, "red_avg.tif") if os.path.isfile(red_tif) else None,
+                out_dir=processed_dir
+            )
+            show3d.plot_projections_3d(
+                green=os.path.join(processed_dir, self.params.green_raw),
+                red=red_tif if os.path.isfile(red_tif) else None,
+                green_avg=os.path.join(processed_dir, "green_avg.tif"),
+                red_avg=os.path.join(processed_dir, "red_avg.tif") if os.path.isfile(red_tif) else None,
+                out_dir=processed_dir
+            )
+            
+            shutil.copy2(
+                os.path.join(processed_dir, "zstack.mp4"),
+                os.path.join(CURRENT_USER["video_dir"], f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_{preprocess.trial_names[i]}_zstack.mp4")
+            )
+            shutil.copy2(
+                os.path.join(processed_dir, "ystack.mp4"),
+                os.path.join(CURRENT_USER["video_dir"], f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_{preprocess.trial_names[i]}_ystack.mp4")
+            )
+            shutil.copy2(
+                os.path.join(processed_dir, "xstack.mp4"),
+                os.path.join(CURRENT_USER["video_dir"], f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_{preprocess.trial_names[i]}_xstack.mp4")
+            )
+            shutil.copy2(
+                os.path.join(processed_dir, "3dproject.png"),
+                os.path.join(CURRENT_USER["video_dir"], f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_{preprocess.trial_names[i]}_3dproject.png")
+            )
+
+        return True
+
 task_collection = {
     "twop_data_transfer": TwopDataTransferTask(prio=-100),
     "beh_data_transfer": BehDataTransferTask(prio=-100),
@@ -635,8 +770,12 @@ task_collection = {
     "denoise": DenoiseTask(prio=-6),
     "dff": DffTask(prio=-10),
     "summary_stats": SummaryStatsTask(prio=-16),
+    "prepare_roi_selection": PrepareROISelectionTask(prio=-17),
+    "roi_selection": ROISelectionTask(prio=-100),
+    "roi_signals": ROISignalsTask(prio=-18),
     "fictrac": FictracTask(prio=0),
     "df3d": Df3dTask(prio=-20),
     "video": VideoTask(prio=-15),
-    "laser_stim_process": LaserStimProcessTask(prio=-1)
+    "laser_stim_process": LaserStimProcessTask(prio=-1),
+    "video_plot_3d": VideoPlot3DTask(prio=-15)
 }
