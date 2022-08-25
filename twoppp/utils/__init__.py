@@ -360,8 +360,22 @@ def normalise(array, arange=[0, 1], axis=0):
     return array_norm * (arange[1] - arange[0]) + arange[0]
 
 def normalise_quantile(array, q=0.99, arange=[0, 1], axis=0):
-    repeats = array.shape[axis] if isinstance(axis, int) else [array.shape[ax] for ax in axis]
-    qmin = np.repeat(np.quantile(array, q=0.5*(1-q), axis=axis, keepdims=True), repeats=repeats, axis=axis)
-    qmax = np.repeat(np.quantile(array, q=0.5*(1+q), axis=axis, keepdims=True), repeats=repeats, axis=axis)
+    if axis is None:
+        if isinstance(q, list) or isinstance(q, tuple):
+            qmin = np.quantile(array, q=q[0], axis=axis, keepdims=True)
+            qmax = np.quantile(array, q=q[1], axis=axis, keepdims=True)
+        else:
+            qmin = np.quantile(array, q=0.5*(1-q), axis=axis, keepdims=True)
+            qmax = np.quantile(array, q=0.5*(1+q), axis=axis, keepdims=True)
+    elif isinstance(axis, int):
+        repeats = array.shape[axis]
+        if isinstance(q, list) or isinstance(q, tuple):
+            qmin = np.repeat(np.quantile(array, q=q[0], axis=axis, keepdims=True), repeats=repeats, axis=axis)
+            qmax = np.repeat(np.quantile(array, q=q[1], axis=axis, keepdims=True), repeats=repeats, axis=axis)
+        else:
+            qmin = np.repeat(np.quantile(array, q=0.5*(1-q), axis=axis, keepdims=True), repeats=repeats, axis=axis)
+            qmax = np.repeat(np.quantile(array, q=0.5*(1+q), axis=axis, keepdims=True), repeats=repeats, axis=axis)
+    else:
+        raise NotImplementedError(f"axis mus be either None or of type int, but it was {type(axis)}")
     array_norm = (array - qmin) / (qmax - qmin)
     return array_norm * (arange[1] - arange[0]) + arange[0]

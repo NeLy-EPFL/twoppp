@@ -7,13 +7,14 @@ import numpy as np
 
 from typing import Union, Any
 
-from twoppp import load, utils, MODULE_PATH
+from twoppp import load, utils, MODULE_PATH, TWOPPP_PATH
 from twoppp.pipeline import PreProcessFly, PreProcessParams
 from twoppp.behaviour.fictrac import config_and_run_fictrac
 from twoppp.behaviour.stimulation import get_sync_signals_stimulation
-
+from twoppp.rois import prepare_roi_selection
+from twoppp.plot import show3d
 from twoppp.run.runparams import global_params, CURRENT_USER
-from twoppp.run.runutils import get_selected_trials, get_scratch_fly_dict, find_trials_2plinux
+from twoppp.run.runutils import get_selected_trials, get_scratch_fly_dict, find_trials_2plinux, send_email
 
 class Task:
     def __init__(self, prio: int=0) -> None:
@@ -22,6 +23,7 @@ class Task:
         self.params = None
         self.previous_tasks = []
         self.t_wait_s = 0
+        self.send_status_emails = CURRENT_USER["send_emails"]
 
     def test_todo(self, fly_dict: dict, file_name: str) -> bool:
         TODO = False
@@ -43,6 +45,18 @@ class Task:
 
         return TODO
 
+    def send_start_email(self, fly_dict: dict) -> None:
+        if self.send_status_emails:
+            try:
+                status = fly_dict["status"].upper()
+                fly_name = " ".join(fly_dict["dir"].split(os.sep)[-2:])
+                subject = f"{status}: {fly_dict['tasks']} {fly_name}"
+                message = f"{fly_dict['dir']} \n{fly_dict['selected_trials']} \n{fly_dict['args']}"
+                send_email(subject, message, receiver_email=CURRENT_USER["email"])
+            except Exception as e:
+                print("Error while sending status mail. Will proceed with processing.")
+                print(e)
+
     def run(self, fly_dict: dict, params: PreProcessParams = None) -> bool:
         raise NotImplementedError
 
@@ -50,12 +64,43 @@ class Task:
         raise NotImplementedError
 
     def test_previous_task_ready(self, fly_dict: dict) -> bool:
+        """returns True if previous task is ready and False otherwise
+
+        Parameters
+        ----------
+        fly_dict : dict
+            [description]
+
+        Returns
+        -------
+        bool
+            [description]
+
+        Raises
+        ------
+        NotImplementedError
+            [description]
+        """
         if isinstance(self.previous_tasks, list):
             return not any([task.test_todo(fly_dict) for task in self.previous_tasks])
         else:
             raise NotImplementedError
 
     def wait_for_previous_task(self, fly_dict: dict) -> bool:
+        """returns True if previous task is ready.
+        If previous task is not ready, waits for self.t_wait_s and checks again whether previous task is ready
+        if previous task is still not ready, return False. If ready, returns True
+
+        Parameters
+        ----------
+        fly_dict : dict
+            [description]
+
+        Returns
+        -------
+        bool
+            [description]
+        """
         if self.t_wait_s:
             if not self.test_previous_task_ready(fly_dict):
                 names = [task.name for task in self.previous_tasks]
@@ -135,6 +180,10 @@ class TifTask(Task):
     def run(self, fly_dict, params=None):
         if not self.wait_for_previous_task(fly_dict):
             return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
 
         trial_dirs = get_selected_trials(fly_dict)
@@ -157,12 +206,19 @@ class PreClusterTask(Task):
     def test_todo(self, fly_dict):
         TODO1 = super().test_todo(fly_dict, file_name=global_params.red_com_crop)
         scratch_fly_dict = get_scratch_fly_dict(fly_dict, scratch_base=CURRENT_USER["scratch_dir"])
-        TODO2 = super().test_todo(scratch_fly_dict, file_name=global_params.red_com_crop) if not CURRENT_USER["ignore_scratch"] else False
+        if not os.path.isdir(scratch_fly_dict["dir"]) or len(os.listdir(scratch_fly_dict["dir"])) == 0:
+            TODO2 = True
+        else:
+            TODO2 = super().test_todo(scratch_fly_dict, file_name=global_params.red_com_crop) if not CURRENT_USER["ignore_scratch"] else False
         return TODO1 or TODO2
 
     def run(self, fly_dict, params=None):
         if not self.wait_for_previous_task(fly_dict):
             return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
 
         trial_dirs = get_selected_trials(fly_dict)
@@ -176,7 +232,7 @@ class PreClusterTask(Task):
         preprocess.run_all_trials()
         
         print("COPYING TO CLUSTER: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(MODULE_PATH, "register",
+        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_to_cluster.sh") + " " + fly_dict["dir"])
         
         return True
@@ -190,23 +246,57 @@ class ClusterTask(Task):
         self.t_sleep_s = 60
 
     def test_todo(self, fly_dict):
-        local_fly_dict = get_scratch_fly_dict(fly_dict, scratch_base=CURRENT_USER["scratch_dir"])
-        return super().test_todo(local_fly_dict, file_name=global_params.red_com_warped) if not CURRENT_USER["ignore_scratch"] else False
+        scratch_fly_dict = get_scratch_fly_dict(fly_dict, scratch_base=CURRENT_USER["scratch_dir"])
+        if not os.path.isdir(scratch_fly_dict["dir"]) or len(os.listdir(scratch_fly_dict["dir"])) == 0:
+            return True
+        else:
+            return super().test_todo(scratch_fly_dict, file_name=global_params.red_com_warped) if not CURRENT_USER["ignore_scratch"] else False
 
     def run(self, fly_dict, params):
         if not self.wait_for_previous_task(fly_dict):
             return False
-        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
 
-        local_fly_dict = get_scratch_fly_dict(fly_dict, scratch_base=CURRENT_USER["scratch_dir"])
-        trial_dirs = get_selected_trials(fly_dict)
-        scratch_trial_dirs = get_selected_trials(local_fly_dict)
-        red_com_crop = utils.get_stack(os.path.join(trial_dirs[0], load.PROCESSED_FOLDER, self.params.red_com_crop))
-        N_frames = red_com_crop.size[0]
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        scratch_fly_dict = get_scratch_fly_dict(fly_dict, scratch_base=CURRENT_USER["scratch_dir"])
+        scratch_trial_dirs = get_selected_trials(scratch_fly_dict)
+        red_com_crop = utils.get_stack(os.path.join(scratch_trial_dirs[0], load.PROCESSED_FOLDER, self.params.red_com_crop))
+        N_frames = red_com_crop.shape[0]
         del red_com_crop
         N_batches = np.ceil(N_frames/self.N_per_batch).astype(int)
 
-        status_files = np.zeros(len(trial_dirs)).astype(int)
+        status_files = np.zeros(len(scratch_trial_dirs)).astype(int)
+        status_file_name_split = self.params.motion_field.split(".")
+        file_base = status_file_name_split[0] + "_"
+        file_end = "." + status_file_name_split[1]
+
+        for i_trial, trial_dir in enumerate(scratch_trial_dirs):
+            for i_file in np.arange(status_files[i_trial], N_batches):
+                if os.path.isfile(os.path.join(trial_dir, load.PROCESSED_FOLDER, file_base+f"{i_file}"+file_end)):
+                    status_files[i_trial] = i_file + 1
+                else:
+                    continue
+    
+        print(time.ctime(time.time()), scratch_fly_dict["dir"], "cluster status:", status_files, f"/{N_batches}")
+        if any(np.array(status_files) < N_batches):
+            time.sleep(self.t_sleep_s)
+            return False  # cluster is not yet finished
+        else:
+            return True  # cluster is finished. Next task can begin
+
+    def run_multiple_flies(self, fly_dicts, params):
+        if not all([self.wait_for_previous_task(fly_dict) for fly_dict in fly_dicts]):
+            return False
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        scratch_trial_dirs = []
+        for fly_dict in fly_dicts:
+            scratch_fly_dict = get_scratch_fly_dict(fly_dict, scratch_base=CURRENT_USER["scratch_dir"])
+            scratch_trial_dirs += get_selected_trials(scratch_fly_dict)
+        red_com_crop = utils.get_stack(os.path.join(scratch_trial_dirs[0], load.PROCESSED_FOLDER, self.params.red_com_crop))
+        N_frames = red_com_crop.shape[0]
+        del red_com_crop
+        N_batches = np.ceil(N_frames/self.N_per_batch).astype(int)
+
+        status_files = np.zeros(len(scratch_trial_dirs)).astype(int)
         status_file_name_split = self.params.motion_field.split(".")
         file_base = status_file_name_split[0] + "_"
         file_end = "." + status_file_name_split[1]
@@ -218,7 +308,7 @@ class ClusterTask(Task):
         while self.test_todo(fly_dict):
             for i_trial, trial_dir in enumerate(scratch_trial_dirs):
                 for i_file in np.arange(status_files[i_trial], N_batches):
-                    if os.path.isfile(os.path.join(trial_dir, file_base+f"{i_file}"+file_end)):
+                    if os.path.isfile(os.path.join(trial_dir, load.PROCESSED_FOLDER, file_base+f"{i_file}"+file_end)):
                         status_files[i_trial] = i_file + 1
                     else:
                         continue
@@ -253,6 +343,9 @@ class PostClusterTask(Task):
         # wait_for_previous_task
         if not self.wait_for_previous_task(fly_dict):
             return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
 
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
 
@@ -268,7 +361,7 @@ class PostClusterTask(Task):
 
 
         print("COPYING BACK FLY: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(MODULE_PATH, "register",
+        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_from_cluster.sh") + " " + fly_dict["dir"])
 
         print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
@@ -290,6 +383,10 @@ class DenoiseTask(Task):
     def run(self, fly_dict, params=None):
         if not self.wait_for_previous_task(fly_dict):
             return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
 
         trial_dirs = get_selected_trials(fly_dict)
@@ -318,6 +415,10 @@ class DffTask(Task):
     def run(self, fly_dict, params=None):
         if not self.wait_for_previous_task(fly_dict):
             return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
 
         trial_dirs = get_selected_trials(fly_dict)
@@ -331,9 +432,112 @@ class DffTask(Task):
 
         print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
         preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params, trial_dirs=trial_dirs)
-        preprocess._denoise_all_trials()
+        preprocess._compute_dff_alltrials()
         # preprocess.run_all_trials()
         return True
+
+class SummaryStatsTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "summary_stats"
+        self.previous_tasks = [DffTask()]
+
+    def test_todo(self, fly_dict):
+        return not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.summary_stats))
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        self.params.use_com = True
+        self.params.use_warp = True
+        self.params.use_denoise = True
+        self.params.use_dff = True
+        self.params.make_summary_stats = True
+        self.params.overwrite = fly_dict["overwrite"]
+
+        print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params, trial_dirs=trial_dirs)
+        preprocess._compute_summary_stats()
+        # preprocess.run_all_trials()
+        return True
+
+class PrepareROISelectionTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "prepare_roi_selection"
+        self.previous_tasks = [SummaryStatsTask()]
+
+    def test_todo(self, fly_dict):
+        TODO1 = not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.pca_maps))
+        TODO2 = not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.pca_maps_plot))
+        return TODO1 or TODO2
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        prepare_roi_selection(fly_dict["dir"], trial_dirs, self.params)
+
+        return True
+
+class ROISelectionTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "roi_selection"
+        self.previous_tasks = [PrepareROISelectionTask()]
+
+    def test_todo(self, fly_dict):
+        return not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.roi_centers))
+
+    def run(self,fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            print("You'll have to do the ROI detection manually.")
+            return False
+
+class ROISignalsTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "roi_signals"
+        self.previous_tasks = [ROISelectionTask()]
+
+    def test_todo(self, fly_dict):
+        return not os.path.isfile(os.path.join(fly_dict["dir"], load.PROCESSED_FOLDER, global_params.roi_mask))
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        self.params.overwrite = fly_dict["overwrite"]
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params, trial_dirs=trial_dirs)
+        preprocess.extract_rois()
+        return True
+
+    
 
 class FictracTask(Task):
     def __init__(self, prio=0):
@@ -345,12 +549,16 @@ class FictracTask(Task):
         # print("TODO: implement FictracTask.test_todo() method!!!")
         TODO1 = super().test_todo(fly_dict, file_name=global_params.df3d_df_out_dir)
         trial_dirs_todo = get_selected_trials(fly_dict)
-        # TODO2 = not all([bool(len(utils.find_file(os.path.join(trial_dir, "behData", "images"), name=f"camera_{CURRENT_USER['fictrac_cam']}-*.dat", raise_error=False))) for trial_dir in trial_dirs_todo])
-        return TODO1  #  or TODO2
+        TODO2 = not all([bool(len(utils.find_file(os.path.join(trial_dir, "behData", "images"), name=f"camera_{CURRENT_USER['fictrac_cam']}-*.dat", raise_error=False))) for trial_dir in trial_dirs_todo])
+        return TODO1  or TODO2
 
     def run(self, fly_dict, params=None):
         if not self.wait_for_previous_task(fly_dict):
             return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
         self.params.overwrite = fly_dict["overwrite"]
 
@@ -382,6 +590,39 @@ class FictracTask(Task):
             preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=params, trial_dirs=trial_dirs)
             preprocess.get_dfs()
 
+class Df3dTask(Task):
+    def __init__(self, prio: int=0) -> None:
+        super().__init__(prio)
+        self.name = "df3d"
+        self.previous_tasks = [BehDataTransferTask(), SyncDataTransfer()]
+
+    def test_todo(self, fly_dict: dict) -> bool:
+        TODO1 = super().test_todo(fly_dict, file_name=global_params.df3d_df_out_dir)
+        trial_dirs_todo = get_selected_trials(fly_dict)
+        TODO2 = not all([os.path.isdir(os.path.join(trial_dir, "behData", "images", "df3d")) for trial_dir in trial_dirs_todo])
+        if not TODO2:
+            TODO2 = not all([bool(len(utils.find_file(os.path.join(trial_dir, "behData", "images", "df3d"), name=f"aligned_pose__*.pkl", raise_error=False))) for trial_dir in trial_dirs_todo])
+        return TODO1  or TODO2
+
+    def run(self, fly_dict: dict, params: PreProcessParams=None) -> bool:
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        self.params.overwrite = fly_dict["overwrite"]
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params, trial_dirs=trial_dirs)
+        preprocess._pose_estimate()
+        preprocess._post_process_pose()
+
+        return True
+
 class VideoTask(Task):
     def __init__(self, prio=0):
         super().__init__(prio)
@@ -401,6 +642,10 @@ class VideoTask(Task):
     def run(self, fly_dict, params=None):
         if not self.wait_for_previous_task(fly_dict):
             return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
 
         trial_dirs = get_selected_trials(fly_dict)
@@ -432,6 +677,10 @@ class LaserStimProcessTask(Task):
     def run(self, fly_dict, params=None):
         if not self.wait_for_previous_task(fly_dict):
             return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
         self.params.overwrite = fly_dict["overwrite"]
 
@@ -447,6 +696,70 @@ class LaserStimProcessTask(Task):
                                              df_out_dir=beh_df)
         return True
 
+class VideoPlot3DTask(Task):
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "video_plot_3d"
+        self.previous_tasks = [TifTask()]
+
+    def test_todo(self, fly_dict):
+        TODO1 = super().test_todo(fly_dict, file_name="zstack.mp4") or \
+            super().test_todo(fly_dict, file_name="ystack.mp4") or \
+            super().test_todo(fly_dict, file_name="xstack.mp4")
+        TODO2 = super().test_todo(fly_dict, file_name="3dproject.png")
+        return True  # TODO1 or TODO2
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_start_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        self.params.overwrite = self.params.overwrite = fly_dict["overwrite"]
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params, trial_dirs=trial_dirs)
+
+        for i, processed_dir in enumerate(preprocess.trial_processed_dirs):
+            
+            red_tif = os.path.join(processed_dir, self.params.red_raw)
+            show3d.make_avg_videos_3d(
+                green=os.path.join(processed_dir, self.params.green_raw),
+                red=red_tif if os.path.isfile(red_tif) else None,
+                green_avg=os.path.join(processed_dir, "green_avg.tif"),
+                red_avg=os.path.join(processed_dir, "red_avg.tif") if os.path.isfile(red_tif) else None,
+                out_dir=processed_dir
+            )
+            show3d.plot_projections_3d(
+                green=os.path.join(processed_dir, self.params.green_raw),
+                red=red_tif if os.path.isfile(red_tif) else None,
+                green_avg=os.path.join(processed_dir, "green_avg.tif"),
+                red_avg=os.path.join(processed_dir, "red_avg.tif") if os.path.isfile(red_tif) else None,
+                out_dir=processed_dir
+            )
+            
+            shutil.copy2(
+                os.path.join(processed_dir, "zstack.mp4"),
+                os.path.join(CURRENT_USER["video_dir"], f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_{preprocess.trial_names[i]}_zstack.mp4")
+            )
+            shutil.copy2(
+                os.path.join(processed_dir, "ystack.mp4"),
+                os.path.join(CURRENT_USER["video_dir"], f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_{preprocess.trial_names[i]}_ystack.mp4")
+            )
+            shutil.copy2(
+                os.path.join(processed_dir, "xstack.mp4"),
+                os.path.join(CURRENT_USER["video_dir"], f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_{preprocess.trial_names[i]}_xstack.mp4")
+            )
+            shutil.copy2(
+                os.path.join(processed_dir, "3dproject.png"),
+                os.path.join(CURRENT_USER["video_dir"], f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_{preprocess.trial_names[i]}_3dproject.png")
+            )
+
+        return True
+
 task_collection = {
     "twop_data_transfer": TwopDataTransferTask(prio=-100),
     "beh_data_transfer": BehDataTransferTask(prio=-100),
@@ -456,7 +769,13 @@ task_collection = {
     "post_cluster": PostClusterTask(prio=-5),
     "denoise": DenoiseTask(prio=-6),
     "dff": DffTask(prio=-10),
+    "summary_stats": SummaryStatsTask(prio=-16),
+    "prepare_roi_selection": PrepareROISelectionTask(prio=-17),
+    "roi_selection": ROISelectionTask(prio=-100),
+    "roi_signals": ROISignalsTask(prio=-18),
     "fictrac": FictracTask(prio=0),
+    "df3d": Df3dTask(prio=-20),
     "video": VideoTask(prio=-15),
-    "laser_stim_process": LaserStimProcessTask(prio=-1)
+    "laser_stim_process": LaserStimProcessTask(prio=-1),
+    "video_plot_3d": VideoPlot3DTask(prio=-15)
 }

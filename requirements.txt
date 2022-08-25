@@ -1,0 +1,10 @@
+jupyter
+deepfly @ https://github.com/NeLy-EPFL/DeepFly3D/archive/JB_stable.tar.gz
+deepinterpolation @ https://github.com/NeLy-EPFL/deepinterpolation/archive/adapttoR57C10.tar.gz
+numpy
+pandas
+ofco @ git+https://github.com/NeLy-EPFL/ofco.git
+utils_video @ git+https://github.com/NeLy-EPFL/utils_video.git
+df3dPostProcessing @ https://github.com/NeLy-EPFL/df3dPostProcessing/archive/fix-setup.tar.gz
+behavelet
+utils2p @ git+https://github.com/NeLy-EPFL/utils2p.git

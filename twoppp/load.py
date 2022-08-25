@@ -97,7 +97,7 @@ def get_flies_from_datedir(date_dir, endswith="", contains=""):
                ]
     return sorted(fly_dirs)
 
-def get_trials_from_fly(fly_dir, startswith="", endswith="", contains="", exclude="processed"):
+def get_trials_from_fly(fly_dir, startswith="", endswith="", contains="", exclude="processed", ignore_error=False):
     """get all sub-directories of a fly directory that are trial directories.
     By default, excludes the "processed" folder.
     Attention: this function returns a list of a lists even if only one fly is supplied.
@@ -119,6 +119,9 @@ def get_trials_from_fly(fly_dir, startswith="", endswith="", contains="", exclud
     exclude : str, optional
         exclude folders that contain this string, by default "processed"
 
+    ignore_error : bool, otional
+        return empty list in case function thorws an error. default False
+
     Returns
     -------
     all_trial_dirs: list of lists (even when only one fly_dir supplied)
@@ -126,19 +129,29 @@ def get_trials_from_fly(fly_dir, startswith="", endswith="", contains="", exclud
     """
     if not isinstance(fly_dir, list):
         fly_dir = [fly_dir]
+    try:
 
-    dir_list = [os.listdir(this_dir) for this_dir in fly_dir]
-    # return every subfolder that starts with "startswith" and ends with "endswith"
-    trial_dirs = [[os.path.join(fly_dir[i_dir], folder) for folder in fly_dir_list 
-                            if not os.path.isfile(os.path.join(fly_dir[i_dir], folder))
-                            and folder.endswith(endswith)
-                            and folder.startswith(startswith)
-                            and contains in folder
-                            and not exclude in folder
+        dir_list = [os.listdir(this_dir) for this_dir in fly_dir]
+        # return every subfolder that starts with "startswith" and ends with "endswith"
+        trial_dirs = [[os.path.join(fly_dir[i_dir], folder) for folder in fly_dir_list 
+                                if not os.path.isfile(os.path.join(fly_dir[i_dir], folder))
+                                and folder.endswith(endswith)
+                                and folder.startswith(startswith)
+                                and contains in folder
+                                and not exclude in folder
+                            ]
+                        for i_dir, fly_dir_list in enumerate(dir_list)
                         ]
-                       for i_dir, fly_dir_list in enumerate(dir_list)
-                       ]
-    return [sorted(this_dir) for this_dir in trial_dirs]
+        return [sorted(this_dir) for this_dir in trial_dirs]
+    except FileNotFoundError as e:
+        if ignore_error:
+            print(f"WARNING: could not find directory {fly_dir}. Will return emppy trial list.")
+            # print(e)
+            return [[]]
+        else:
+            raise e
+
+
 
 def load_trial(trial_dir):
     """load the .raw data of a trial

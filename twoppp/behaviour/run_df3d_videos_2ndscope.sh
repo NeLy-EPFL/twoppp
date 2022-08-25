@@ -7,18 +7,18 @@ echo "will source conda base directory: ${BASE}"
 source $BASE
 
 # activate the deepfly conda environment
-TARGET="deepfly"
-ENVS=$(conda env list | cut -d' ' -f 1 )
-if [[ $ENVS = *"$TARGET"* ]]; then
-   echo "Found environment. Will activate it."
-   echo "previous environment: $CONDA_DEFAULT_ENV"
-   conda activate $TARGET
-   echo "switched to: $CONDA_DEFAULT_ENV"
-else 
-   echo "Please create a conda environment called deepfly and install deepfly3d as specified here:"
-   echo "https://github.com/NeLy-EPFL/DeepFly3D/blob/master/docs/install.md"
-exit
-fi;
+# TARGET="deepfly"
+# ENVS=$(conda env list | cut -d' ' -f 1 )
+# if [[ $ENVS = *"$TARGET"* ]]; then
+#    echo "Found environment. Will activate it."
+#    echo "previous environment: $CONDA_DEFAULT_ENV"
+#    conda activate $TARGET
+#    echo "switched to: $CONDA_DEFAULT_ENV"
+# else 
+#    echo "Please create a conda environment called deepfly and install deepfly3d as specified here:"
+#    echo "https://github.com/NeLy-EPFL/DeepFly3D/blob/master/docs/install.md"
+# exit
+# fi;
 
 # perform deepfly3d on the specified folders
 input="folders.txt"
@@ -34,7 +34,6 @@ do
             for ((i=0; i<7; i++)); do
                 ffmpeg -i ""$folder"/camera_"$i".mp4" -qscale:v 2 -start_number 0 ""$folder"/camera_"$i"_img_%d.jpg"  < /dev/null
             done
-
             # run df3d
 	        CUDA_VISIBLE_DEVICES=0 df3d-cli -vv -o $folder --output-folder df3d  # --camera-ids 6 5 4 3 2 1 0
             # CUDA_VISIBLE_DEVICES=1 

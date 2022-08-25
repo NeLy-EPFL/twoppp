@@ -1,11 +1,19 @@
 import os, sys
 import numpy as np
 import pandas as pd
+import pickle
+import matplotlib.pyplot as plt
 from scipy.ndimage.filters import convolve
-from skimage.morphology import dilation, disk
+from scipy.ndimage import gaussian_filter
+from skimage.morphology import dilation, disk, binary_erosion
+from skimage.filters import threshold_local, threshold_otsu
+from numpy.random import default_rng
+rng = default_rng(seed=1234567890)
 
-from twoppp.utils import get_stack, save_stack, readlines_tolist
+from twoppp.utils import get_stack, save_stack, readlines_tolist, list_join
 from twoppp.utils.df import get_multi_index_trial_df
+from twoppp.analysis import pca
+from twoppp import load
 
 # copying from nely_suite because of an import error
 def local_correlations(Y, eight_neighbours=True, swap_dim=False, order_mean=1):
@@ -262,7 +270,7 @@ def read_roi_center_file(filename):
     return roi_centers
 
 def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default",
-                       index_df=None, df_out_dir=None, mask_out_dir=None):
+                       index_df=None, df_out_dir=None, mask_out_dir=None, raw=False):
     """extract the temporal signals from manually selected regions of interest
     using a fixed shape
 
@@ -291,6 +299,9 @@ def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default
     mask_out_dir : str, optional
         where to store the mask including all the ROIs, by default None
 
+    raw : bool, optional
+        whether the data handed over is raw, i.e. not denoised with DeepInterpolation
+
     Returns
     -------
     pandas DataFrame
@@ -309,6 +320,9 @@ def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default
             index_df = pd.read_pickle(index_df)
         else:
             assert isinstance(index_df, pd.DataFrame)
+        if N_samples > len(index_df) and raw:
+            roi_signals = roi_signals[30:-30]
+            N_samples -= 60
         if len(index_df) > N_samples:
             if len(index_df) - N_samples <= 5:
                 print("Difference between thorsync ticks and two photon data: {} frames \n".format(len(index_df) - N_samples)+\
@@ -321,7 +335,10 @@ def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default
     else:
         df = pd.DataFrame()
     for i_roi in range(N_rois):
+        if raw:
             df["neuron_{}".format(i_roi)] = roi_signals[:, i_roi]
+        else:
+            df["neuron_denoised_{}".format(i_roi)] = roi_signals[:, i_roi]
     if df_out_dir is not None:
         df.to_pickle(df_out_dir)
     return df
@@ -338,3 +355,123 @@ def make_roi_map(roi_mask, values, setnan=False):
 
 def widen_roi_map(roi_mask, spread=5):
     return dilation(roi_mask, selem=disk(spread))
+
+def prepare_roi_selection(fly_dir, trial_dirs, params=None, std="raw", signals="denoised", N_samples=5000):
+    fly_processed_dir = os.path.join(fly_dir, load.PROCESSED_FOLDER)
+    processed_dirs = list_join(trial_dirs, load.PROCESSED_FOLDER)
+    if signals == "raw":
+        greens = [get_stack(os.path.join(processed_dir, params.green_com_warped)) for processed_dir in processed_dirs]
+    elif signals == "denoised":
+        greens = [get_stack(os.path.join(processed_dir, params.green_denoised)) for processed_dir in processed_dirs]
+    else:
+        raise NotImplementedError
+
+    with open(os.path.join(fly_processed_dir, params.summary_stats), "rb") as f:
+        summary_dict = pickle.load(f)
+    green_stds = summary_dict["green_stds"]
+    green_stds_raw =  summary_dict["green_stds_raw"]
+
+    green_std = np.mean(green_stds, axis=0)
+    green_std_raw = np.mean(green_stds_raw, axis=0)
+
+    sz_diff = (np.array(green_std_raw.shape) - np.array(green_std.shape)) // 2
+
+    if std == "raw":
+        if sz_diff[0]:
+            green_stds_raw = [green_raw[sz_diff[0]:-sz_diff[0], :] for green_raw in green_stds_raw]
+            green_std_raw = green_std_raw[sz_diff[0]:-sz_diff[0], :]
+        if sz_diff[1]:
+            green_stds_raw = [green_raw[:, sz_diff[1]:-sz_diff[1]] for green_raw in green_stds_raw]
+            green_std_raw = green_std_raw[:, sz_diff[1]:-sz_diff[1]]
+        std = green_std_raw
+        del green_std_raw
+    elif std == "denoised":
+        std = green_std
+    else:
+        raise NotImplementedError
+    if signals == "raw":
+        if sz_diff[0]:
+            greens = [greens[:, sz_diff[0]:-sz_diff[0], :] for green_raw in greens]
+        if sz_diff[1]:
+            greens = [greens[:, :, sz_diff[1]:-sz_diff[1]] for green_raw in greens]
+
+    thres = threshold_local(np.log10(std), block_size=51, method="gaussian")
+    std_log_smooth = gaussian_filter(np.log10(std), sigma=10)
+    thres_global = threshold_otsu(image=std_log_smooth)  # np.median(std_log_smooth)  # 
+
+    mask_local = np.log10(std) > thres
+    mask_global = std_log_smooth > thres_global
+    mask = np.logical_and(mask_local, mask_global)
+    mask_erode = binary_erosion(mask, selem=disk(2))
+
+    def get_pixels_from_mask(stack, mask):
+        pixels = np.where(mask)
+        return np.array([stack[:, pixel_y, pixel_x] for pixel_y, pixel_x in zip(pixels[0], pixels[1])]).T
+
+    green_pixels = [get_pixels_from_mask(green, mask_erode) for green in greens]
+
+    green_pixel_means = [np.mean(stack, axis=0) for stack in green_pixels]
+    green_pixel_stds = [np.std(stack, axis=0) for stack in green_pixels]
+
+    green_pixels_z = np.concatenate([(green_p - green_pixel_mean) / green_pixel_std  
+                                    for green_p, green_pixel_mean, green_pixel_std  
+                                    in zip(green_pixels, green_pixel_means, green_pixel_stds)], axis=0)
+    green_pixel_std = np.mean(green_pixel_stds, axis=0)
+    i_samples = rng.choice(np.arange(len(green_pixel_stds[0])), size=N_samples, replace=False, 
+                           p=green_pixel_std/np.sum(green_pixel_std))
+    # i_samples_rand = rng.choice(np.arange(len(green_pixel_stds[0])), size=N_samples, replace=False)
+
+    green_pixels_z_select = green_pixels_z[:, i_samples]
+
+    mask_sampled = np.zeros_like(mask_erode.flatten())
+    for i_m, m in enumerate(np.where(mask_erode.flatten())[0]):
+        if i_m in i_samples:
+            mask_sampled[m] = True
+    mask_sampled = mask_sampled.reshape(mask_erode.shape)
+
+    v_pca = pca(green_pixels_z_select, zscore=False)
+
+    def make_pca_map(mask, i_samples, values):
+        pca_map = np.zeros((mask.size))
+        for i_m, m in enumerate(np.where(mask.flatten())[0]):
+            if i_m in i_samples:
+                pca_map[m] = values[int(np.where(i_samples==i_m)[0])]
+        pca_map = pca_map.reshape(mask.shape)
+        return pca_map
+
+    pca_maps = [make_pca_map(mask_erode, i_samples, v_pca[:, i]) for i in range(6)]
+
+    save_data = {
+        "green_std": std,
+        "mask": mask_erode,
+        "i_samples": i_samples,
+        "green_pixels_z": green_pixels_z,
+        "green_pixel_means": green_pixel_means,
+        "green_pixel_stds": green_pixel_stds,
+        "v_pca": v_pca,
+        "pca_maps": pca_maps,
+    }
+    with open(os.path.join(fly_processed_dir, params.pca_maps), "wb") as f:
+        pickle.dump(save_data, f, protocol=4)
+
+    fig, axs = plt.subplots(3,3, figsize=(9.5, 6), sharex=True, sharey=True)
+    axs = axs.flatten()
+    axs[0].imshow(np.log10(std), clim=[np.quantile(np.log10(std), 0.5), np.quantile(np.log10(std), 0.99)])
+    axs[0].set_title("standard deviation across pixels")
+    axs[1].imshow(mask_erode)
+    axs[1].set_title("eroded mask")
+
+    axs[2].imshow(mask_sampled)
+    axs[2].set_title("5000 samples from eroded mask")
+
+    for i_ax, ax in enumerate(axs[3:]):
+        ax.imshow(gaussian_filter(pca_maps[i_ax], sigma=3), cmap=plt.cm.get_cmap("seismic"), clim=[-1e-2, 1e-2])
+        ax.set_title(f"PC {i_ax}")
+        ax.spines['right'].set_color('none')
+        ax.spines['top'].set_color('none')
+        ax.spines['left'].set_color('none')
+        ax.spines['bottom'].set_color('none')
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.tight_layout()
+    fig.savefig(os.path.join(fly_processed_dir, params.pca_maps_plot), dpi=300)

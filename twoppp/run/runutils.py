@@ -5,12 +5,13 @@ from pexpect import pxssh
 from typing import List
 
 from twoppp import load
+from twoppp.run.runparams import CURRENT_USER
 
 LOCAL_DIR, _ = os.path.split(os.path.realpath(__file__))
 
 
 def get_selected_trials(fly_dict: dict, twoplinux_trial_names: List[str]=None) -> List[str]:
-    trial_dirs = load.get_trials_from_fly(fly_dict["dir"])[0]
+    trial_dirs = load.get_trials_from_fly(fly_dict["dir"], ignore_error=True)[0]
     if twoplinux_trial_names is not None:
         for trial_name in twoplinux_trial_names:
             if not any([trial_dir.split(os.sep)[-1] == trial_name for trial_dir in trial_dirs]):
@@ -93,16 +94,19 @@ def write_running_tasks(task, add=True, txt_file=os.path.join(LOCAL_DIR, "_tasks
     else:
         with open(txt_file) as file:
             lines = file.readlines()
+            lines = [line.rstrip() for line in lines]
         lines_to_write = []
         for line in lines:
             if task["dir"] in line and task["tasks"] in line:
                 #TODO: check for correct selected trials
                 continue
+            if line == "":
+                continue
             else:
                 lines_to_write.append(line)
         with open(txt_file, "w") as file:
             for line in lines_to_write:
-                file.write(line)
+                file.write(line+"\n")
 
 def check_task_running(fly_dict, task, running_tasks):
     fly_tasks = [this_task for this_task in running_tasks if this_task["dir"] == fly_dict["dir"]]
@@ -150,8 +154,8 @@ def send_email(subject, message, receiver_email):
         server.quit()
 
 def find_trials_2plinux(fly_dir: str, user_folder: str, twop: bool=False) -> List[str]:
-    IP = "128.178.198.12"
-    user = "dalco"
+    IP = CURRENT_USER["2p_linux_ip"]
+    user = CURRENT_USER["2p_linux_user"]
     try:
         with open(os.path.join(LOCAL_DIR, ".pwd")) as file:
             lines = file.readlines()

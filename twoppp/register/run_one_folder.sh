@@ -5,18 +5,6 @@ time="16:00:00"
 partition="parallel"  # "debug"  # "parallel"
 output="./outputs/slurm-%j.out"
 mkdir -p ./outputs
-    
-convert_to_fidis_dir () {
-    fidis_dir=${1//mnt\/NAS\/JB/scratch\/jbraun}
-    fidis_dir=${fidis_dir//mnt\/NAS2\/JB/scratch\/jbraun}
-    fidis_dir=${fidis_dir//mnt\/NAS\/LH/scratch\/jbraun}
-    fidis_dir=${fidis_dir//mnt\/NAS2\/LH/scratch\/jbraun}
-    fidis_dir=${fidis_dir//mnt\/data\/JB/scratch\/jbraun}
-    fidis_dir=${fidis_dir//mnt\/data2\/JB/scratch\/jbraun}
-    fidis_dir=${fidis_dir//mnt\/data\/LH/scratch\/jbraun}
-    fidis_dir=${fidis_dir//mnt\/data2\/LH/scratch\/jbraun}
-    echo ${fidis_dir}
-}
 
 # while read dir; do 
 if [[ -e ${folder} ]] && [[ ! -f "${folder}/red_com_warped.tif" ]] && [[ ! -f "${folder}/w.npy" ]]; then

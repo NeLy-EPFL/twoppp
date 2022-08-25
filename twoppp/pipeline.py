@@ -73,6 +73,8 @@ class PreProcessParams:
 
         self.roi_centers = "ROI_centers.txt"
         self.roi_mask = "ROI_mask.tif"
+        self.pca_maps = "green_pixels_pca_map.pkl"
+        self.pca_maps_plot = "ROI_selection_pca_maps.png"
 
         # mode of pre-processing: if True, perfom one processing step
         # on each trial before moving to next processing step
@@ -614,6 +616,9 @@ class PreProcessFly:
             tif will be saved to
         """
         if processed_dir != "":
+            if not hasattr(self, "ref_frame"):
+                self._save_ref_frame()
+
             if self.params.use_com and self.params.post_com_crop:
                 # if to be cropped, perform COM outside of the warping.warp() call
                 # otherwise, perform COM inside warping.warp
@@ -1494,6 +1499,7 @@ class PreProcessFly:
             roi_mask
             twop_df_out_dir
             green_denoised
+            green_com_warped
             roi_size
             roi_pattern
         """
@@ -1507,3 +1513,9 @@ class PreProcessFly:
                                     size=self.params.roi_size, pattern=self.params.roi_pattern,
                                     index_df=twop_out_dir, df_out_dir=twop_out_dir,
                                     mask_out_dir=mask_out_dir)
+            stack = os.path.join(processed_dir, self.params.green_com_warped)
+            _ = get_roi_signals_df(stack, roi_file,
+                                    size=self.params.roi_size, pattern=self.params.roi_pattern,
+                                    index_df=twop_out_dir, df_out_dir=twop_out_dir,
+                                    mask_out_dir=mask_out_dir,
+                                    raw=True)

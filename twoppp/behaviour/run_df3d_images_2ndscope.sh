@@ -7,18 +7,18 @@ echo "will source conda base directory: ${BASE}"
 source $BASE
 
 # activate the deepfly conda environment
-TARGET="deepfly"
-ENVS=$(conda env list | cut -d' ' -f 1 )
-if [[ $ENVS = *"$TARGET"* ]]; then
-   echo "Found environment. Will activate it."
-   echo "previous environment: $CONDA_DEFAULT_ENV"
-   conda activate $TARGET
-   echo "switched to: $CONDA_DEFAULT_ENV"
-else 
-   echo "Please create a conda environment called deepfly and install deepfly3d as specified here:"
-   echo "https://github.com/NeLy-EPFL/DeepFly3D/blob/master/docs/install.md"
-exit
-fi;
+# TARGET="deepfly"
+# ENVS=$(conda env list | cut -d' ' -f 1 )
+# if [[ $ENVS = *"$TARGET"* ]]; then
+#    echo "Found environment. Will activate it."
+#    echo "previous environment: $CONDA_DEFAULT_ENV"
+#    conda activate $TARGET
+#    echo "switched to: $CONDA_DEFAULT_ENV"
+# else 
+#    echo "Please create a conda environment called deepfly and install deepfly3d as specified here:"
+#    echo "https://github.com/NeLy-EPFL/DeepFly3D/blob/master/docs/install.md"
+# exit
+# fi;
 
 # perform deepfly3d on the specified folders
 input="folders.txt"
