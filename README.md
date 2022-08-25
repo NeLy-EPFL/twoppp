@@ -30,7 +30,13 @@ If you want to run the entire processing pipeline in one go, look at the run_pro
 
 **NEW: checkout the new interface to automatically run the entire pipeline or subsets of it on multiple flies [here](twoppp/run/README.md):**
 
-Installation instructions:
+## Installation instructions:
+### pure pip
+
+   pip install numpy
+   pip install -e .
+
+### conda
 1. Create conda environment and install required packages according to their respective install instructions:
     - ```conda create -n twoppp37 python=3.7```
     - ```conda activate twoppp37```
