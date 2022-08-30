@@ -1,7 +1,12 @@
-import os, sys
+"""
+sub module with utilties for ROI extraction
+"""
+import os
+import pickle
+from typing import List
 import numpy as np
 import pandas as pd
-import pickle
+
 import matplotlib.pyplot as plt
 from scipy.ndimage.filters import convolve
 from scipy.ndimage import gaussian_filter
@@ -11,7 +16,6 @@ from numpy.random import default_rng
 rng = default_rng(seed=1234567890)
 
 from twoppp.utils import get_stack, save_stack, readlines_tolist, list_join
-from twoppp.utils.df import get_multi_index_trial_df
 from twoppp.analysis import pca
 from twoppp import load
 
@@ -356,17 +360,59 @@ def make_roi_map(roi_mask, values, setnan=False):
 def widen_roi_map(roi_mask, spread=5):
     return dilation(roi_mask, selem=disk(spread))
 
-def prepare_roi_selection(fly_dir, trial_dirs, params=None, std="raw", signals="denoised", N_samples=5000):
+def prepare_roi_selection(fly_dir: str, trial_dirs: List[str], std: str="raw", signals: str="denoised",
+                          green_com_warped: str="green_com_warped.tif",
+                          green_denoised: str="green_denoised.tif",
+                          summary_stats: str="compare_trials.pkl",
+                          out_file_name: str="green_pixels_pca_map.pkl",
+                          out_plot_file_name: str="ROI_selection_pca_maps.png",
+                          N_samples: int=5000) -> None:
+    """
+    prepares file for manual ROI selection by performing PCA on the imaging stacks.
+    Also plots the resulting PCA maps.
+    instead of performing PCA on the entire stack, a few pixels are sampled based on their
+    standard deviation and then their PCA components are projected back into the image space.
+
+    Parameters
+    ----------
+    fly_dir : str
+        base directory for data related to the fly
+    trial_dirs : List[str]
+        directory of each trial
+    std : str, optional
+        [description], by default "raw"
+    signals : str, optional
+        [description], by default "denoised"
+    green_com_warped : str
+        file name of the green warped file, by default "green_com_warped.tif"
+    green_denoised : str
+        file name of the green denoised file, by default "green_denoised.tif"
+    summary_stats : str
+        file name of the summary stats, by default "compare_trials.pkl"
+    out_file_name : str
+        file name of the pca maps to be calculated, by default "green_pixels_pca_map.pkl"
+    out_plot_file_name : str
+        file name of the plots of the pca maps to be created, by default "ROI_selection_pca_maps.png"
+    N_samples : int, optional
+        [description], by default 5000
+
+    Raises
+    ------
+    NotImplementedError
+        if signals not in ["raw", "denoised"]
+    """
     fly_processed_dir = os.path.join(fly_dir, load.PROCESSED_FOLDER)
     processed_dirs = list_join(trial_dirs, load.PROCESSED_FOLDER)
     if signals == "raw":
-        greens = [get_stack(os.path.join(processed_dir, params.green_com_warped)) for processed_dir in processed_dirs]
+        greens = [get_stack(os.path.join(processed_dir, green_com_warped))
+                  for processed_dir in processed_dirs]
     elif signals == "denoised":
-        greens = [get_stack(os.path.join(processed_dir, params.green_denoised)) for processed_dir in processed_dirs]
+        greens = [get_stack(os.path.join(processed_dir, green_denoised))
+                  for processed_dir in processed_dirs]
     else:
         raise NotImplementedError
 
-    with open(os.path.join(fly_processed_dir, params.summary_stats), "rb") as f:
+    with open(os.path.join(fly_processed_dir, summary_stats), "rb") as f:
         summary_dict = pickle.load(f)
     green_stds = summary_dict["green_stds"]
     green_stds_raw =  summary_dict["green_stds_raw"]
@@ -397,7 +443,7 @@ def prepare_roi_selection(fly_dir, trial_dirs, params=None, std="raw", signals="
 
     thres = threshold_local(np.log10(std), block_size=51, method="gaussian")
     std_log_smooth = gaussian_filter(np.log10(std), sigma=10)
-    thres_global = threshold_otsu(image=std_log_smooth)  # np.median(std_log_smooth)  # 
+    thres_global = threshold_otsu(image=std_log_smooth)  # np.median(std_log_smooth)
 
     mask_local = np.log10(std) > thres
     mask_global = std_log_smooth > thres_global
@@ -406,20 +452,23 @@ def prepare_roi_selection(fly_dir, trial_dirs, params=None, std="raw", signals="
 
     def get_pixels_from_mask(stack, mask):
         pixels = np.where(mask)
-        return np.array([stack[:, pixel_y, pixel_x] for pixel_y, pixel_x in zip(pixels[0], pixels[1])]).T
+        pixel_values = np.array([stack[:, pixel_y, pixel_x]
+                                 for pixel_y, pixel_x in zip(pixels[0], pixels[1])]).T
+        return pixel_values
 
     green_pixels = [get_pixels_from_mask(green, mask_erode) for green in greens]
 
     green_pixel_means = [np.mean(stack, axis=0) for stack in green_pixels]
     green_pixel_stds = [np.std(stack, axis=0) for stack in green_pixels]
 
-    green_pixels_z = np.concatenate([(green_p - green_pixel_mean) / green_pixel_std  
-                                    for green_p, green_pixel_mean, green_pixel_std  
-                                    in zip(green_pixels, green_pixel_means, green_pixel_stds)], axis=0)
+    green_pixels_z = np.concatenate([(green_p - green_pixel_mean) / green_pixel_std
+                                    for green_p, green_pixel_mean, green_pixel_std
+                                    in zip(green_pixels, green_pixel_means, green_pixel_stds)],
+                                    axis=0)
     green_pixel_std = np.mean(green_pixel_stds, axis=0)
-    i_samples = rng.choice(np.arange(len(green_pixel_stds[0])), size=N_samples, replace=False, 
+    i_samples = rng.choice(np.arange(len(green_pixel_stds[0])), size=N_samples, replace=False,
                            p=green_pixel_std/np.sum(green_pixel_std))
-    # i_samples_rand = rng.choice(np.arange(len(green_pixel_stds[0])), size=N_samples, replace=False)
+    # i_samples_rand = rng.choice(np.arange(len(green_pixel_stds[0])), size=N_samples,replace=False)
 
     green_pixels_z_select = green_pixels_z[:, i_samples]
 
@@ -451,12 +500,13 @@ def prepare_roi_selection(fly_dir, trial_dirs, params=None, std="raw", signals="
         "v_pca": v_pca,
         "pca_maps": pca_maps,
     }
-    with open(os.path.join(fly_processed_dir, params.pca_maps), "wb") as f:
+    with open(os.path.join(fly_processed_dir, out_file_name), "wb") as f:
         pickle.dump(save_data, f, protocol=4)
 
     fig, axs = plt.subplots(3,3, figsize=(9.5, 6), sharex=True, sharey=True)
     axs = axs.flatten()
-    axs[0].imshow(np.log10(std), clim=[np.quantile(np.log10(std), 0.5), np.quantile(np.log10(std), 0.99)])
+    axs[0].imshow(np.log10(std),
+                  clim=[np.quantile(np.log10(std), 0.5), np.quantile(np.log10(std), 0.99)])
     axs[0].set_title("standard deviation across pixels")
     axs[1].imshow(mask_erode)
     axs[1].set_title("eroded mask")
@@ -465,7 +515,8 @@ def prepare_roi_selection(fly_dir, trial_dirs, params=None, std="raw", signals="
     axs[2].set_title("5000 samples from eroded mask")
 
     for i_ax, ax in enumerate(axs[3:]):
-        ax.imshow(gaussian_filter(pca_maps[i_ax], sigma=3), cmap=plt.cm.get_cmap("seismic"), clim=[-1e-2, 1e-2])
+        ax.imshow(gaussian_filter(pca_maps[i_ax], sigma=3),
+                  cmap=plt.cm.get_cmap("seismic"), clim=[-1e-2, 1e-2])
         ax.set_title(f"PC {i_ax}")
         ax.spines['right'].set_color('none')
         ax.spines['top'].set_color('none')
@@ -474,4 +525,4 @@ def prepare_roi_selection(fly_dir, trial_dirs, params=None, std="raw", signals="
         ax.set_xticks([])
         ax.set_yticks([])
     fig.tight_layout()
-    fig.savefig(os.path.join(fly_processed_dir, params.pca_maps_plot), dpi=300)
+    fig.savefig(os.path.join(fly_processed_dir, out_plot_file_name), dpi=300)

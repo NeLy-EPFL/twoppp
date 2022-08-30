@@ -1,8 +1,15 @@
+"""
+run script to run processing with the TaskManager class.
+See the README.md file in the same folder for usage instructions
+"""
 from twoppp.run.runparams import global_params, CURRENT_USER
 from twoppp.run.tasks import task_collection
 from twoppp.run.taskmanager import TaskManager
 
 def main() -> None:
+    """
+    main function to initialise and run processing
+    """
     task_manager = TaskManager(task_collection, params=global_params, user_config=CURRENT_USER)
     task_manager.run()
 
