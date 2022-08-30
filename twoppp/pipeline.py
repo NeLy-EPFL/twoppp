@@ -18,7 +18,7 @@ from ofco.utils import default_parameters
 from deepinterpolation import interface as denoise
 
 from twoppp import load, dff, OUTPUT_PATH
-from twoppp.utils import makedirs_safe, get_stack, save_stack, readlines_tolist
+from twoppp.utils import makedirs_safe, get_stack, save_stack, readlines_tolist, crop_img
 from twoppp.register import warping, twoway_align
 from twoppp.denoise import prepare_corrected_data
 from twoppp.behaviour import df3d
@@ -1502,6 +1502,7 @@ class PreProcessFly:
             green_com_warped
             roi_size
             roi_pattern
+            denoise_crop_size
         """
         roi_file = os.path.join(self.fly_processed_dir, self.params.roi_centers)
         mask_out_dir = os.path.join(self.fly_processed_dir, self.params.roi_mask)
@@ -1513,7 +1514,13 @@ class PreProcessFly:
                                     size=self.params.roi_size, pattern=self.params.roi_pattern,
                                     index_df=twop_out_dir, df_out_dir=twop_out_dir,
                                     mask_out_dir=mask_out_dir)
-            stack = os.path.join(processed_dir, self.params.green_com_warped)
+            stack = get_stack(os.path.join(processed_dir, self.params.green_com_warped))
+            N_y, N_x = stack.shape[1:]
+            crop = np.array((N_y-self.params.denoise_crop_size[0],
+                             N_x-self.params.denoise_crop_size[1])) // 2
+            stack = stack[:, crop[0]:crop[0]+self.params.denoise_crop_size[0],
+                             crop[1]:crop[1]+self.params.denoise_crop_size[1]]
+            # self.params.denoise_crop_size
             _ = get_roi_signals_df(stack, roi_file,
                                     size=self.params.roi_size, pattern=self.params.roi_pattern,
                                     index_df=twop_out_dir, df_out_dir=twop_out_dir,

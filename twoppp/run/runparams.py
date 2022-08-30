@@ -1,5 +1,16 @@
+"""
+sub-module to define parameters for running pre-processing with.
+
+to adapt the parameters for your use:
+1. create a dictionary for your user and define the paths and parameters accordingly
+2. set CURRENT_USER equal to the dictionary you just created
+3. set the run_params according to your use. The major parameters are definde below.
+    For more parameters available, e.g. file names,
+    see the class definition in the twoppp/pipeline.py file.
+
+also see README.md in the twoppp/run folder for run instructions
+"""
 import os
-from copy import deepcopy
 
 from twoppp import load
 from twoppp.pipeline import PreProcessParams
@@ -11,28 +22,42 @@ USER_JB = {
     "labserver": os.path.join(load.LABSERVER_DIR, "BRAUN_Jonas", "Experimental_data", "2p"),
     "nas": os.path.join(load.NAS_DIR, "JB"),
     "nas2": os.path.join(load.NAS2_DIR, "JB"),
-    "video_dir": os.path.join(load.NAS2_DIR, "JB", "_videos"),  # will copy generated videos to this folder
+    # will copy generated videos to this folder
+    "video_dir": os.path.join(load.NAS2_DIR, "JB", "_videos"),
+    # user name
     "name": "Jonas Braun",
-    "email": "nelydebugging@outlook.com",  # under which e-mail to receive status messages
+    # under which e-mail to receive status messages
+    "email": "nelydebugging@outlook.com",
     "send_emails": True,
-    "scratch_dir": "/mnt/scratch",  # where the FIDIS scratch directory is mounted locally
+    # where the FIDIS scratch directory is mounted locally
+    "scratch_dir": "/mnt/scratch",
+    # whether to check on the scratch directory if files are present or not
     "ignore_scratch": False,
-    "check_2plinux_trials": True,  # whether to ssh into the 2plinux machine to check whether some data might not yet be copied
-    "2p_linux_ip": "128.178.198.12",  # the IP address of the linux computer used for recording
-    "2p_linux_user": "dalco",  # the user name of the linuc computer used for recording
-    "fictrac_cam": 3,  # which camera should be used for fictrac
-    "video_cam": 5,  # which camera should be used for making summary videos
-    "2p_scope": 2,  # which 2pscope you're using
-    "txt_file_to_process": os.path.join(LOCAL_DIR, "_fly_dirs_to_process.txt"),  # fill this file with fly_dirs that should be processed
-    "txt_file_running": os.path.join(LOCAL_DIR, "_tasks_running.txt"),  # where to store which tasks are currently running
+    # whether to ssh into the 2plinux machine to check whether some data might not yet be copied
+    "check_2plinux_trials": True,
+    # the IP address of the linux computer used for recording
+    "2p_linux_ip": "128.178.198.12",
+    # the user name of the linuc computer used for recording
+    "2p_linux_user": "dalco",
+    # which camera should be used for fictrac
+    "fictrac_cam": 3,
+    # which camera should be used for making summary videos
+    "video_cam": 5,
+    # which 2pscope you're using
+    "2p_scope": 2,
+    # fill this file with fly_dirs that should be processed
+    "txt_file_to_process": os.path.join(LOCAL_DIR, "_fly_dirs_to_process.txt"),
+    # where to store which tasks are currently running
+    "txt_file_running": os.path.join(LOCAL_DIR, "_tasks_running.txt"),
+    # whether to check if a task is already running in the _tasks_running.txt before starting it
     "check_tasks_running": False,
 }
 
+# SET CURRENT_USER TO YOUR USER HERE!!!
 CURRENT_USER = USER_JB
 
 
 global_params = PreProcessParams()
-
 global_params.genotype = ""
 
 global_params.breadth_first = True
