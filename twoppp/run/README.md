@@ -1,4 +1,5 @@
 # New interface to automatically run multiple processing steps
+these instructions are specific to the infrastructure available at the Neuroengineering Laboratory at EPFL
 
 ## General procedure:
 1. specify fly directories and the tasks you want to perform in [_fly_dirs_to_process.txt](_fly_dirs_to_process.txt) according to the examples specified therein
