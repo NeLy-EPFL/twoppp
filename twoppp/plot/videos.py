@@ -90,6 +90,9 @@ def handbrake(video_path, output_path=None):
 def make_video_2p(green, out_dir, video_name, red=None, percentiles=(5,99),
                   frames=None, frame_rate=None, trial_dir=None):
     green = get_stack(green)
+    if green is None:
+        red = get_stack(red)
+        green = np.zeros_like(red)
     if frames is None:
         frames = np.arange(green.shape[0])
     else:

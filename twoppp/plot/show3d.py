@@ -20,10 +20,15 @@ def tmp_avg_3d_stacks(green, red, green_avg=None, red_avg=None):
 
     green = get_stack(green)
     red = get_stack(red)
-    green_avg_T = np.mean(green, axis=0)
-    red_avg_T = np.mean(red, axis=0) if red is not None else np.zeros_like(green_avg_T)
+    if green is None:
+        red_avg_T = np.mean(red, axis=0)
+        green_avg_T = np.zeros_like(red_avg_T)
+    else:
+        green_avg_T = np.mean(green, axis=0)
+        red_avg_T = np.mean(red, axis=0) if red is not None else np.zeros_like(green_avg_T)
     if save_avgs:
-        save_stack(green_avg, green_avg_T)
+        if green is not None:
+            save_stack(green_avg, green_avg_T)
         if red is not None:
             save_stack(red_avg, red_avg_T)
 
@@ -43,15 +48,26 @@ def make_avg_videos_3d(green, red, out_dir, green_avg=None, red_avg=None):
 
 def plot_projections_3d(green, red, out_dir, green_avg=None, red_avg=None):
     green_avg_T, red_avg_T = tmp_avg_3d_stacks(green, red, green_avg, red_avg)
+    if np.sum(green_avg_T) == 0:
+        use_green = False
+    else:
+        use_green = True
     if np.sum(red_avg_T) == 0:
         use_red = False
     else:
         use_red = True
+
+    assert use_red or use_green
+
     fig, axs = plt.subplots(3,3, figsize=(9.5, 9))
 
     for i_dim, dim_name in enumerate(["Z", "Y", "X"]):
         for i_m, (method, method_name) in enumerate(zip([np.mean, np.max, np.std], ["mean", "max", "std"])):
-            green_red_dim = normalise_quantile(method(green_avg_T, axis=i_dim), q=(0.05, 0.99), axis=None)
+            if use_green:
+                green_red_dim = normalise_quantile(method(green_avg_T, axis=i_dim), q=(0.05, 0.99), axis=None)
+            else:
+                red_red_dim = normalise_quantile(method(red_avg_T, axis=i_dim), q=(0.05, 0.99), axis=None)
+                green_red_dim = np.zeros_like(red_red_dim)
             if use_red:
                 red_red_dim = normalise_quantile(method(red_avg_T, axis=i_dim), q=(0.05, 0.99), axis=None)
             else:
