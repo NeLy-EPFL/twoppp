@@ -10,9 +10,9 @@ these instructions are specific to the infrastructure available at the Neuroengi
 4. run the [run.py](run.py) script: ```python run.py```
 
 ## Additional Requirements:
-1. Mount the the server where your data is located, to your workstation, for example at /mnt/NAS2. (Refer to the lab manual for details.)
+1. Mount the the server where your data is located, to your workstation, for example at /mnt/nas2. (Refer to the lab manual for details.)
 2. Mount your scratch server from the cluster to your workstation, for example as follows for the user jbraun:
-    - ```sudo sshfs -o allow_other jbraun@fidis.epfl.ch:/scratch/jbraun /mnt/scratch```
+    - ```sudo sshfs -o allow_other jbraun@fidis.epfl.ch:/scratch/jbraun /mnt/scratch/jbraun```
     - make sure to either permanently mount the scratch or to run the command again when you reboot your workstation
 3. save the user password for the twop_linux machine in a file called .pwd
     - not required if you don't want to check for trials on the twop linux machine and don't want to send status e-mails

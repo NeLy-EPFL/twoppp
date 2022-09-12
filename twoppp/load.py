@@ -176,6 +176,9 @@ def load_trial(trial_dir):
     if meta_data.get_gain_b() == 0:
         green = utils2p.load_raw(path=trial_raw, metadata=meta_data)
         return (green[0], None)
+    elif meta_data.get_gain_a() == 0:
+        red = utils2p.load_raw(path=trial_raw, metadata=meta_data)
+        return (None, red[0])
     else:
         green, red = utils2p.load_raw(path=trial_raw, metadata=meta_data)
         return (green, red)
@@ -241,7 +244,8 @@ def convert_raw_to_tiff(trial_dir, overwrite=False, return_stacks=True, green_di
         utils2p.save_img(green_dir, green)
     elif len(stacks) == 2:
         green, red = stacks
-        utils2p.save_img(green_dir, green)
+        if green is not None:
+            utils2p.save_img(green_dir, green)
         if red is not None:
             utils2p.save_img(red_dir, red)
     else:

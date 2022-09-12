@@ -30,7 +30,7 @@ USER_JB = {
     "email": "nelydebugging@outlook.com",
     "send_emails": True,
     # where the FIDIS scratch directory is mounted locally
-    "scratch_dir": "/mnt/scratch",
+    "scratch_dir": "/mnt/scratch/jbraun",
     # whether to check on the scratch directory if files are present or not
     "ignore_scratch": False,
     # whether to ssh into the 2plinux machine to check whether some data might not yet be copied

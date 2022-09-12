@@ -8,10 +8,10 @@ warped='red_com_warped.tif'
 
 convert_to_fidis_dir () {
     replace="scratch/jbraun"
-    fidis_dir=${1/mnt\/NAS\/JB/$replace}
-    fidis_dir=${fidis_dir/mnt\/NAS2\/JB/$replace}
-    fidis_dir=${fidis_dir/mnt\/NAS\/LH/$replace}
-    fidis_dir=${fidis_dir/mnt\/NAS2\/LH/$replace}
+    fidis_dir=${1/mnt\/nas\/JB/$replace}
+    fidis_dir=${fidis_dir/mnt\/nas2\/JB/$replace}
+    fidis_dir=${fidis_dir/mnt\/nas\/LH/$replace}
+    fidis_dir=${fidis_dir/mnt\/nas2\/LH/$replace}
     fidis_dir=${fidis_dir/mnt\/data\/JB/$replace}
     fidis_dir=${fidis_dir/mnt\/data2\/JB/$replace}
     fidis_dir=${fidis_dir/mnt\/data\/LH/$replace}
@@ -20,10 +20,10 @@ convert_to_fidis_dir () {
 }
 convert_to_fidis_mounted_dir () {
     replace="scratch"
-    fidis_dir=${1/NAS\/JB/$replace}
-    fidis_dir=${fidis_dir/NAS2\/JB/$replace}
-    fidis_dir=${fidis_dir/NAS\/LH/$replace}
-    fidis_dir=${fidis_dir/NAS2\/LH/$replace}
+    fidis_dir=${1/nas\/JB/$replace}
+    fidis_dir=${fidis_dir/nas2\/JB/$replace}
+    fidis_dir=${fidis_dir/nas\/LH/$replace}
+    fidis_dir=${fidis_dir/nas2\/LH/$replace}
     fidis_dir=${fidis_dir/data\/JB/$replace}
     fidis_dir=${fidis_dir/data2\/JB/$replace}
     fidis_dir=${fidis_dir/data\/LH/$replace}

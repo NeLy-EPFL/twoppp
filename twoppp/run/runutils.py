@@ -97,7 +97,7 @@ def read_fly_dirs(txt_file: str=os.path.join(LOCAL_DIR, "_fly_dirs_to_process.tx
     fly_dir||trial1,trial2||task1,task2,!task3||additional arguments,
     ! before a task forces an overwrite.
     example:
-    /mnt/NAS2/JB/date_genotype/Fly1||all_trials||pre_cluster,fictrac,post_cluster,denoise,dff,!video
+    /mnt/nas2/JB/date_genotype/Fly1||all_trials||pre_cluster,fictrac,post_cluster,denoise,dff,!video
 
     Parameters
     ----------
@@ -140,7 +140,7 @@ def read_running_tasks(txt_file: str = os.path.join(LOCAL_DIR, "_tasks_running.t
     General requested format of a line in the txt file:
     fly_dir||trial1,trial2||task1||additional arguments,
     example:
-    /mnt/NAS2/JB/date_genotype/Fly1||all_trials||pre_cluster
+    /mnt/nas2/JB/date_genotype/Fly1||all_trials||pre_cluster
 
     Parameters
     ----------
