@@ -12,9 +12,23 @@ import gc
 
 from twoppp.plot import confidence_ellipse
 from twoppp import utils
-from twoppp import rois
+# from twoppp.rois import read_roi_center_file
 from twoppp.behaviour import optic_flow as of
 from twoppp.behaviour import synchronisation as sync
+
+def read_roi_center_file(filename):
+    """
+    copied from rois.py because of circular import
+    caution: this only works for files that were written with write_roi_center_file()
+             and where the coordinates are 3 digits maximum
+    """
+    roi_centers_text = utils.readlines_tolist(filename)
+    roi_centers = []
+    for line in roi_centers_text:
+        roi_centers.append([int(line[-8:-5]), int(line[-3:])])
+    N_rois = len(roi_centers)
+    print("Read the centers of {} ROIs from file".format(N_rois))
+    return roi_centers
 
 def cluster_corr(corr_array):
     """
@@ -365,7 +379,7 @@ class InterPCAAnalysis():
 
     def load(self, load_df=True, load_pixels=False, pixel_shape=None):
         try:
-            self.roi_center = rois.read_roi_center_file(os.path.join(self.fly_dir, "processed", self.roi_center_file))
+            self.roi_center = read_roi_center_file(os.path.join(self.fly_dir, "processed", self.roi_center_file))
         except:
             print("Could not load ROIs for fly ", self.fly_dir)
             self.roi_center = None
