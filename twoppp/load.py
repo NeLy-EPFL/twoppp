@@ -8,8 +8,8 @@ from shutil import copyfile
 
 import utils2p
 
-NAS_DIR = "/mnt/NAS"
-NAS2_DIR = "/mnt/NAS2"
+NAS_DIR = "/mnt/nas"
+NAS2_DIR = "/mnt/nas2"
 LABSERVER_DIR = "/mnt/labserver"
 LABSERVER_DIR_LH = os.path.join(LABSERVER_DIR, "HERMANS_Laura", "Experimental_data")
 LABSERVER_DIR_LH_2P = os.path.join(LABSERVER_DIR_LH, "_2p")
