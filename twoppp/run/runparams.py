@@ -64,6 +64,7 @@ global_params.breadth_first = True
 global_params.overwrite = False
 global_params.select_trials = False
 
+global_params.twoway_align = False
 global_params.i_ref_trial = 0
 global_params.i_ref_frame = 0
 global_params.post_com_crop = True
@@ -74,6 +75,8 @@ global_params.add_df3d_to_df = False
 
 global_params.denoise_crop_size = (320, 736)
 global_params.denoise_correct_illumination_leftright = False
+
+global_params.dff_common_baseline = False
 
 global_params.default_video_camera = CURRENT_USER["video_cam"]
 global_params.behaviour_as_videos = True

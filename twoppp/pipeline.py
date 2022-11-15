@@ -772,7 +772,7 @@ class PreProcessFly:
             if not already_trained:
                 training_processed_dir = todo_trial_processed_dirs[self.params.denoise_train_trial]
                 training_tmp_data_dir = tmp_data_dirs[self.params.denoise_train_trial]
-
+                """
                 with mp.Manager() as manager:
                     print(time.ctime(time.time()),
                           "Starting separate process to train denoising model.")
@@ -788,9 +788,17 @@ class PreProcessFly:
                     p.start()
                     p.join()
                     tmp_run_dir = share_dict[0]
+                """
+                tmp_run_dir = denoise.train(
+                    train_data_tifs=training_tmp_data_dir,
+                    run_base_dir=self.params.denoise_tmp_run_dir,
+                    run_identifier=self.params.denoise_runid(training_processed_dir),
+                    params=self.params.denoise_params
+                    )
 
             tif_out_dirs = [join(processed_dir, self.params.green_denoised)
                             for processed_dir in todo_trial_processed_dirs]
+            """
             kwargs = {
                 "data_tifs": tmp_data_dirs,
                 "run_dir": tmp_run_dir,
@@ -801,6 +809,11 @@ class PreProcessFly:
             p = mp.Process(target=denoise.inference, kwargs=kwargs)
             p.start()
             p.join()
+            """
+            denoise.inference(data_tifs=tmp_data_dirs,
+                            run_dir=tmp_run_dir,
+                            tif_out_dirs=tif_out_dirs,
+                            params=self.params.denoise_params)
             denoise.clean_up(tmp_run_dir, tmp_data_dirs)
             if not already_trained:
                 denoise.copy_run_dir(tmp_run_dir,

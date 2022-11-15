@@ -219,6 +219,10 @@ def reduce_min(values):
     return np.min(values, axis=0)
 def reduce_max(values):
     return np.max(values, axis=0)
+def reduce_max_bool(values):
+    return reduce_max(values).astype(bool)
+def reduce_min_bool(values):
+    return reduce_min(values).astype(bool)
 def reduce_bin_p(values, thres):
     return np.mean(values, axis=0) > thres
 def reduce_bin_50p(values):
@@ -229,6 +233,9 @@ def reduce_bin_90p(values):
     return reduce_bin_p(values, 0.9)
 
 def reduce_behaviour(values, thres=0.75, default=""):
+    return reduce_most_freq(values, thres=thres, default=default)
+
+def reduce_most_freq(values, thres=0, default=None):
     unique_values, N_per_unique = np.unique(values, return_counts=True)
     i_max = np.argmax(N_per_unique)
     if N_per_unique[i_max] < thres * len(values):

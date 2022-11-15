@@ -422,7 +422,6 @@ class PreClusterTask(Task):
 
         trial_dirs = get_selected_trials(fly_dict)
 
-        self.params.twoway_align = True
         self.params.use_com = True
         self.params.overwrite = fly_dict["overwrite"]
 
@@ -438,7 +437,6 @@ class PreClusterTask(Task):
         fly_dict["status"] = "done"
         self.send_status_email(fly_dict)
         return True
-
 
 class PreClusterGreenOnlyTask(Task):
     """
@@ -482,7 +480,6 @@ class PreClusterGreenOnlyTask(Task):
 
         trial_dirs = get_selected_trials(fly_dict)
 
-        self.params.twoway_align = True
         self.params.use_com = True
         self.params.overwrite = fly_dict["overwrite"]
 
@@ -899,6 +896,7 @@ class FictracTask(Task):
 
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
         self.params.overwrite = fly_dict["overwrite"]
+        # self.params.denoise_params.pre_post_frame = 0
 
         trial_dirs = get_selected_trials(fly_dict)
         # this has no inbuilt override protection -

@@ -19,7 +19,7 @@ convert_to_fidis_dir () {
     echo ${fidis_dir}
 }
 convert_to_fidis_mounted_dir () {
-    replace="scratch"
+    replace="scratch/jbraun"
     fidis_dir=${1/nas\/JB/$replace}
     fidis_dir=${fidis_dir/nas2\/JB/$replace}
     fidis_dir=${fidis_dir/nas\/LH/$replace}
