@@ -24,9 +24,9 @@ Also check out the [documentation pages of scitas](https://scitas-data.epfl.ch/k
 1. ask Kate to get access to FIDIS
 2. log in with your gaspar user account
 3. create a virtual environment with python 3.7 and call it ofco
-    1. ```module load gcc/7.4.0 python/3.7.3```
+    1. ```module load gcc/8.4.0 python/3.7.7```
     2. ```mkdir venvs```
-    3. ```python -m venv home/YOUR_USERNAME/venvs/ofco```
+    3. ```python -m venv /home/YOUR_USERNAME/venvs/ofco```
     4. ```source /home/YOUR_USERNAME/venvs/ofco/bin/activate```
 4. install [utils2p](https://github.com/NeLy-EPFL/utils2p) and [ofco](https://github.com/NeLy-EPFL/ofco) into the venv
 5. create a folder called registration (```mkdir registration```) and copy the following files from the twoppp package to the cluster:
