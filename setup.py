@@ -34,5 +34,6 @@ setup(
     # long_description=long_description,
     long_description_content_type="text/x-rst",
     url="https://github.com/NeLy-EPFL/twoppp",
+    python_requires='>=3.7, <3.10',
     install_requires=requirements,
 )
