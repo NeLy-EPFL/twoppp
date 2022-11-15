@@ -2,12 +2,12 @@
 these instructions are specific to the infrastructure available at the Neuroengineering Laboratory at EPFL
 
 ## General procedure:
-1. specify fly directories and the tasks you want to perform in [_fly_dirs_to_process.txt](_fly_dirs_to_process.txt) according to the examples specified therein
-    - if this file cannot be found, try: [_fly_dirs_to_process_example.txt](_fly_dirs_to_process_example.txt)
-    - all available tasks and their names can be found in [tasks.py](tasks.py)
-2. add your user configuration as a dictionary and set parameters in [runparams.py](runparams.py). Set CURRENT_USER to your user
+1. specify fly directories and the tasks you want to perform in [twoppp/run/_fly_dirs_to_process.txt](_fly_dirs_to_process.txt) according to the examples specified therein
+    - if this file cannot be found, try: [twoppp/run/_fly_dirs_to_process_example.txt](_fly_dirs_to_process_example.txt)
+    - all available tasks and their names can be found in [twoppp/run/tasks.py](tasks.py)
+2. add your user configuration as a dictionary and set parameters in [twoppp/run/runparams.py](runparams.py). Set CURRENT_USER to your user
 3. if you want to implement new tasks or variations of tasks, subclass from Task() in [tasks.py](tasks.py) and add them to the task_collection list in [tasks.py](tasks.py)
-4. run the [run.py](run.py) script: ```python run.py```
+4. run the [twoppp/run/run.py](run.py) script: ```python run.py```
 
 ## Additional Requirements:
 1. Mount the the server where your data is located, to your workstation, for example at /mnt/nas2. (Refer to the lab manual for details.)
