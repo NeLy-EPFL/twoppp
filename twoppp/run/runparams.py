@@ -125,8 +125,22 @@ USER_JSP = {
     "check_tasks_running": False,
 }
 
-# SET CURRENT_USER TO YOUR USER HERE!!!
-CURRENT_USER = USER_JB
+
+# Specify your user either by changing DEFAULT_USER in the line below, or add:
+#   export TWOPPP_USER=XYZ
+# to your shell rc file (e.g. ~/.bashrc), replacing XYZ with just your initials, e.g.
+#   export TWOPPP_USER=JSP
+DEFAULT_USER = USER_JB
+
+try:
+    CURRENT_USER = eval('USER_{}'.format(os.environ['TWOPPP_USER']))
+except KeyError:
+    # If TWOPPP_USER is not set, use default
+    CURRENT_USER = DEFAULT_USER
+except NameError:
+    # If TWOPPP_USER is set but that user's settings can't be found
+    raise NameError('Environment variable TWOPPP_USER set to {x} but USER_{x} is '
+                    'not defined in runparams.py'.format(x=os.environ['TWOPPP_USER']))
 
 
 global_params = PreProcessParams()
