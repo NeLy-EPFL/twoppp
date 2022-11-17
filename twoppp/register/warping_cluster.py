@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # largely copied and slightly modified from
 # https://github.com/NeLy-EPFL/ofco/blob/master/examples/register.py
 
@@ -6,6 +8,7 @@ import os.path
 import glob
 import tempfile
 import shutil
+from datetime import datetime
 
 from skimage import io
 import numpy as np
@@ -14,6 +17,9 @@ import utils2p
 
 from ofco import motion_compensate
 from ofco.utils import default_parameters
+
+
+print(datetime.now().strftime('Started at %H:%M:%S on %A %h %d, %Y'))
 
 STACK_IN = "red_com_crop.tif"
 STACK_OUT = "red_com_warped.tif"
@@ -74,3 +80,5 @@ for i, substack in enumerate(utils2p.load_stack_batches(os.path.join(folder, STA
 
 reassamble_warped_images(folder)
 reassamble_vector_fields(folder)
+
+print(datetime.now().strftime('Finished at %H:%M:%S on %A %h %d, %Y'))
