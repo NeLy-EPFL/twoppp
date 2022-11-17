@@ -111,7 +111,7 @@ def run_df3d(tmp_process_dir):
     if os.stat(folders_dir).st_size:  # confirm that the folders.txt file is not empty
         os.chdir(tmp_process_dir)
         os.system("pwd")
-        os.system("sh run_df3d.sh")
+        os.system("./run_df3d.sh")
 
 def postprocess_df3d_trial(trial_dir, overwrite=False, result_prefix=""):
     """run post-processing of deepfly3d data as defined in the df3dPostProcessing package:
