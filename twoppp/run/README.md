@@ -31,8 +31,6 @@ Also check out the [documentation pages of scitas](https://scitas-data.epfl.ch/k
 4. install [utils2p](https://github.com/NeLy-EPFL/utils2p) and [ofco](https://github.com/NeLy-EPFL/ofco) into the venv
 5. create a folder called registration (```mkdir registration```) and copy the following files from the twoppp package to the cluster:
     - [warping_cluster.py](../register/warping_cluster.py): this is the python script that will be run on an individual trial
-    - [registration_commands.sh](../register/registration_commands.sh): this is the shell script that activates your environment and runs the above python script for every individual trial. This is the shell script that will be handed over to a job on the cluster
-        - --> update your username in the file (i.e., replace jbraun by your username)
     - [run_all_folders.sh](../register/run_all_folders.sh): This shell script browses through your scratch directory and finds trial directories for which the processing has not been completely run. For each of these trials, one job will be started on the cluster.
         -  --> update your username in the file (i.e., replace jbraun by your username)
         - adjust the time that you want to request the cluster for. You will only pay for what you actually use, but your job starts faster when you only request shorter jobs. trials of 10000 frames (\~10 mins) usually finish in less than 40h and trials of 4100 frames (\~4minutes) usually finish in less than 16h
