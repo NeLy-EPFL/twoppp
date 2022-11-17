@@ -7,7 +7,7 @@ these instructions are specific to the infrastructure available at the Neuroengi
     - all available tasks and their names can be found in [twoppp/run/tasks.py](tasks.py)
 2. add your user configuration as a dictionary and set parameters in [twoppp/run/runparams.py](runparams.py). Set CURRENT_USER to your user
 3. if you want to implement new tasks or variations of tasks, subclass from Task() in [tasks.py](tasks.py) and add them to the task_collection list in [tasks.py](tasks.py)
-4. run the [twoppp/run/run.py](run.py) script: ```python run.py```
+4. run the [twoppp/run/run.py](run.py) script: ```./run.py```
 
 ## Additional Requirements:
 1. Mount the the server where your data is located, to your workstation, for example at /mnt/nas2. (Refer to the lab manual for details.)
