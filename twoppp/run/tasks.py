@@ -863,6 +863,12 @@ class ROISignalsTask(Task):
         print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
         preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
                                    trial_dirs=trial_dirs)
+
+        dfs_exist = np.array([os.path.isfile(os.path.join(processed_dir, preprocess.params.twop_df_out_dir))
+                           for processed_dir in preprocess.trial_processed_dirs])
+        if np.sum(dfs_exist) < len(dfs_exist):
+            preprocess.params.ball_tracking = ""
+            preprocess.get_dfs(skip_trials=np.where(dfs_exist)[0])
         preprocess.extract_rois()
         return True
 
@@ -928,6 +934,46 @@ class FictracTask(Task):
             preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=params,
                                        trial_dirs=trial_dirs)
             preprocess.get_dfs()
+
+class WheelTask(Task):
+    """
+    Task to run wheel detection and velocity analysis & save the results in the behaviour dataframe
+    """
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "wheel"
+        self.previous_tasks = [BehDataTransferTask(), SyncDataTransfer()]
+
+    def test_todo(self, fly_dict):
+        # print("TODO: implement FictracTask.test_todo() method!!!")
+        TODO1 = self._test_todo_trials(fly_dict, file_name=global_params.df3d_df_out_dir)
+        trial_dirs_todo = get_selected_trials(fly_dict)
+        found_files = [utils.find_file(os.path.join(trial_dir, "behData", "images"),
+                                       name="wheel_locations.pkl",
+                                       raise_error=False) for trial_dir in trial_dirs_todo]
+        TODO2 = any([found_file is None for found_file in found_files])
+        if not TODO2:
+            TODO2 = any([bool(len(found_file)) is None for found_file in found_files])
+        return TODO1  or TODO2
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_status_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        self.params.overwrite = fly_dict["overwrite"]
+        self.params.ball_tracking = "wheel"
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
+                                   trial_dirs=trial_dirs)
+        preprocess.get_dfs()
+        return True
 
 class Df3dTask(Task):
     """
@@ -1153,6 +1199,7 @@ task_collection = {
     "roi_selection": ROISelectionTask(prio=-100),
     "roi_signals": ROISignalsTask(prio=-18),
     "fictrac": FictracTask(prio=0),
+    "wheel": WheelTask(prio=0),
     "df3d": Df3dTask(prio=-20),
     "video": VideoTask(prio=-15),
     "laser_stim_process": LaserStimProcessTask(prio=-1),
