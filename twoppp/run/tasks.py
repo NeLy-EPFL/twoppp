@@ -431,7 +431,7 @@ class PreClusterTask(Task):
         preprocess.run_all_trials()
 
         print("COPYING TO CLUSTER: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
+        utils.run_shell_command("bash " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_to_cluster.sh") + " " + fly_dict["dir"])
 
         fly_dict["status"] = "done"
@@ -500,7 +500,7 @@ class PreClusterGreenOnlyTask(Task):
         _ = [preprocess._com_correct_trial(processed_dir) for processed_dir in preprocess.trial_processed_dirs]
 
         print("COPYING TO CLUSTER: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
+        utils.run_shell_command("bash " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_to_cluster.sh") + " " + fly_dict["dir"])
 
         fly_dict["status"] = "done"
@@ -651,7 +651,7 @@ class PostClusterTask(Task):
 
 
         print("COPYING BACK FLY: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
+        utils.run_shell_command("bash " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_from_cluster.sh") + " " + fly_dict["dir"])
 
         print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
