@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 run script to run processing with the TaskManager class.
 See the README.md file in the same folder for usage instructions
