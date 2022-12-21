@@ -23,7 +23,7 @@ import utils2p.synchronization
 import utils_video.generators
 # from utils_video import make_video
 from utils_video.utils import resize_shape, colorbar, add_colorbar, rgb, process_2p_rgb, get_generator_shape
-from deepfly.CameraNetwork import CameraNetwork
+from pyba.CameraNetwork import CameraNetwork  # from deepfly.CameraNetwork import CameraNetwork
 
 from twoppp.utils import get_stack, find_file, crop_img, crop_stack
 from twoppp import load
