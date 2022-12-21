@@ -18,7 +18,7 @@ from ofco.utils import default_parameters
 from deepinterpolation import interface as denoise
 
 from twoppp import load, dff, OUTPUT_PATH
-from twoppp.utils import makedirs_safe, get_stack, save_stack, readlines_tolist, crop_img
+from twoppp.utils import makedirs_safe, get_stack, save_stack, readlines_tolist, crop_img, find_file
 from twoppp.register import warping, twoway_align
 from twoppp.denoise import prepare_corrected_data
 from twoppp.behaviour import df3d
@@ -27,6 +27,7 @@ from twoppp.rois import local_correlations, get_roi_signals_df
 from twoppp.behaviour.synchronisation import get_synchronised_trial_dataframes
 from twoppp.behaviour.optic_flow import get_opflow_df, get_opflow_in_twop_df
 from twoppp.behaviour.fictrac import get_fictrac_df
+from twoppp.behaviour.wheel import get_wheel_df
 
 class PreProcessParams:
     """Class containing all default parameters for the PreProcessFly class.
@@ -159,6 +160,9 @@ class PreProcessParams:
         self.opflow_win_size = 80  # moving average window used to smooth optical flow
         self.thres_walk = 0.03  # absolute threshold on optical flow data for walking. unit rot/s
         self.thres_rest = 0.01  # absolute threshold on optical flow data for resting. unit rot/s
+
+        # wheel tracking params
+        self.default_wheel_camera = 1  # which camera to use for wheel tracking. should show side view and dots on wheel
 
         # ROI extraction params
         self.roi_size = (7,11)  # size of pattern for ROI extraction
@@ -1495,6 +1499,14 @@ class PreProcessFly:
                 _ = get_fictrac_df(self.beh_trial_dirs[i_trial],
                                     index_df=df3d_out_dir,
                                     df_out_dir=df3d_out_dir)
+            elif self.params.ball_tracking == "wheel":
+                video_file = find_file(self.beh_trial_dirs[i_trial], f"camera_{self.params.default_wheel_camera}.mp4")
+                _ = get_wheel_df(
+                    v=None,
+                    video_file=video_file,
+                    index_df=df3d_out_dir,
+                    df_out_dir=df3d_out_dir
+                )
 
             if self.params.add_df3d_to_df:
                 _ = df3d.get_df3d_dataframe(self.beh_trial_dirs[i_trial],

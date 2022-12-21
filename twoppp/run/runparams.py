@@ -34,7 +34,7 @@ USER_JB = {
     # whether to check on the scratch directory if files are present or not
     "ignore_scratch": False,
     # whether to ssh into the 2plinux machine to check whether some data might not yet be copied
-    "check_2plinux_trials": True,
+    "check_2plinux_trials": False,  # True,
     # the IP address of the linux computer used for recording
     "2p_linux_ip": "128.178.198.12",
     # the user name of the linuc computer used for recording
@@ -43,6 +43,8 @@ USER_JB = {
     "fictrac_cam": 3,
     # which camera should be used for making summary videos
     "video_cam": 5,
+    # which camera should be used for wheel tracking
+    "wheel_cam": 1,
     # which 2pscope you're using
     "2p_scope": 2,
     # fill this file with fly_dirs that should be processed
@@ -202,6 +204,7 @@ global_params.dff_common_baseline = False
 global_params.default_video_camera = CURRENT_USER["video_cam"]
 global_params.behaviour_as_videos = True
 global_params.twop_scope = CURRENT_USER["2p_scope"]
+global_params.default_wheel_camera = CURRENT_USER["wheel_cam"]
 
 # select all False because they will be manually selected in the different Tasks
 global_params.use_com = False
