@@ -3,6 +3,8 @@ outputs/
 .workspace*
 tmp/
 
+.gittoken
+
 # ignore password files and to run file
 *.pwd
 *_fly_dirs_to_process.txt
