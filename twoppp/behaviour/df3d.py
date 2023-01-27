@@ -85,7 +85,8 @@ def prepare_for_df3d(trial_dirs, videos=True, scope=2, tmp_process_dir=None, ove
                     images_dir = find_file(trial_dir, "images", "images folder")
                     if not os.path.isdir(images_dir):
                         raise FileNotFoundError("Could not find 'images' folder.")
-            if overwrite or not len(glob.glob(os.path.join(images_dir, "df3d", "pose_result*"))):
+            pose_result_exist = len(glob.glob(os.path.join(images_dir, "df3d", "pose_result*"))) or len(glob.glob(os.path.join(images_dir, "df3d", "df3d_result*")))
+            if overwrite or not pose_result_exist:
                 f.write(trial_dir + "\n")
 
     return tmp_process_dir
@@ -140,15 +141,25 @@ def postprocess_df3d_trial(trial_dir, overwrite=False, result_prefix=""):
         df3d_dir = find_file(images_dir, "df3d", "df3d folder")
         if not os.path.isdir(images_dir):
             raise FileNotFoundError("Could not find 'df3d' folder.")
-
-    pose_result = find_file(df3d_dir, name="pose_result*", file_type="pose result file")
+    try:
+        pose_result = find_file(df3d_dir, name="df3d_result*", file_type="df3d result file")
+        pose_result_name = "df3d_result"
+    except:
+        print("It seems like you are using an old version of DeepFly3D. Will seach for 'pose_result' file instead of 'df3d_result'")
+        pose_result = find_file(df3d_dir, name="pose_result*", file_type="pose result file")
+        pose_result_name = "pose_result"
     if overwrite or not len(glob.glob(os.path.join(images_dir, "df3d", result_prefix+"joint_angles*"))):
         try:
             mydf3dPostProcess = df3dPostProcess(exp_dir=pose_result, calculate_3d=True,
-                                                correct_outliers=True)
+                                                outlier_correction=True)
         except:
-            print("New version of df3d post processing did not work. Will not correct outliers")
-            mydf3dPostProcess = df3dPostProcess(exp_dir=pose_result, calculate_3d=True)
+            print("Dec. 2022 version of df3d post processing did not work. Will try keywords for older version")
+            try:
+                mydf3dPostProcess = df3dPostProcess(exp_dir=pose_result, calculate_3d=True,
+                                                    correct_outliers=True)
+            except:
+                print("New version of df3d post processing did not work. Will not correct outliers")
+                mydf3dPostProcess = df3dPostProcess(exp_dir=pose_result, calculate_3d=True)
         try:
             aligned_model = mydf3dPostProcess.align_to_template(interpolate=False, scale=True,
                                                                 all_body=True)
@@ -156,7 +167,7 @@ def postprocess_df3d_trial(trial_dir, overwrite=False, result_prefix=""):
             print("New version of df3d post processing did not work.",
                   "Will not align antennal markers")
             aligned_model = mydf3dPostProcess.align_to_template(scale=True)
-        path = pose_result.replace('pose_result',result_prefix+'aligned_pose')
+        path = pose_result.replace(pose_result_name,result_prefix+'aligned_pose')
         with open(path, 'wb') as f:
             pickle.dump(aligned_model, f)
         try: 
@@ -164,7 +175,7 @@ def postprocess_df3d_trial(trial_dir, overwrite=False, result_prefix=""):
         except TypeError:
             print("Using old version of df3d post processing!")
             leg_angles = mydf3dPostProcess.calculate_leg_angles()
-        path = pose_result.replace('pose_result', result_prefix+'joint_angles')
+        path = pose_result.replace(pose_result_name, result_prefix+'joint_angles')
         with open(path, 'wb') as f:
             pickle.dump(leg_angles, f)
 
@@ -267,7 +278,11 @@ def get_df3d_dataframe(trial_dir, index_df=None, out_dir=None, add_abdomen=True)
             Y_names += ["joint_Head_" + head_key + i_ax for i_ax in ["_x", "_y", "_z"]]
 
     if add_abdomen:
-        pose_file = find_file(df3d_dir, name="pose_result*", file_type="pose result file")
+        try:
+            pose_file = find_file(df3d_dir, name="df3d_result*", file_type="df3d result file")
+        except:
+            print("It seems like you are using an old version of DeepFly3D. Will seach for 'pose_result' file instead of 'df3d_result'")
+            pose_file = find_file(df3d_dir, name="pose_result*", file_type="pose result file")
         with open(pose_file, "rb") as f:
             pose = pickle.load(f)
         abdomen_keys = ["RStripe1", "RStripe2", "RStripe3", "LStripe1", "LStripe2", "LStripe3"]

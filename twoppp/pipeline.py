@@ -985,6 +985,9 @@ class PreProcessFly:
                 print(time.ctime(time.time()), "postprocessing df3d for trial: " + trial_dir)
                 df3d.postprocess_df3d_trial(trial_dir, overwrite=self.params.overwrite,
                                             result_prefix=result_prefix)
+                df3d_out_dir = os.path.join(trial_dir, load.PROCESSED_FOLDER, self.params.df3d_df_out_dir)
+                if os.path.isfile(os.path.join(df3d_out_dir)):
+                    df3d.get_df3d_dataframe(trial_dir, index_df=df3d_out_dir, out_dir=df3d_out_dir, add_abdomen=True)
 
     def _make_dff_video_trial(self, i_trial, mask=None):
         """make a video of the DFF for one trial.
