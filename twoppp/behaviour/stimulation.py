@@ -288,7 +288,7 @@ def get_beh_info_to_twop_df(beh_df, twop_df, twop_df_out_dir=None, key_map=beh_t
             Warning(f"Could not find key {beh_key} in behaviour_df. Will continue.")
             continue
         twop_df.loc[:, twop_key] = np.zeros((len(twop_df), 1), dtype=signal.dtype)
-        twop_df.loc[:len(signal), twop_key] = signal
+        twop_df.iloc[:len(signal)].loc[:, twop_key] = signal
         
     if twop_df_out_dir is not None:
         twop_df.to_pickle(twop_df_out_dir)
