@@ -13,7 +13,7 @@ from twoppp import load, utils, TWOPPP_PATH
 from twoppp.register import warping
 from twoppp.pipeline import PreProcessFly, PreProcessParams
 from twoppp.behaviour.fictrac import config_and_run_fictrac
-from twoppp.behaviour.stimulation import get_sync_signals_stimulation
+from twoppp.behaviour.stimulation import get_sync_signals_stimulation, get_beh_info_to_twop_df, add_beh_state_to_twop_df
 from twoppp.behaviour.olfaction import get_sync_signals_olfaction
 from twoppp.rois import prepare_roi_selection
 from twoppp.plot import show3d
@@ -121,6 +121,7 @@ class Task:
     def test_todo(self, fly_dict: dict) -> bool:
         """
         check whether this task still needs to be performed for a particular fly.
+        Return True if still to do and False if already finished.
         Implement this in every sub-class.
         You can use the _test_todo_trials and _test_todo_fly methods.
 
@@ -248,7 +249,13 @@ class Task:
             if not isinstance(self.previous_tasks, list)
         """
         if isinstance(self.previous_tasks, list):
-            return not any([task.test_todo(fly_dict) for task in self.previous_tasks])
+            if "OR" in self.previous_tasks:
+                previous_tasks = deepcopy(self.previous_tasks)
+                OR = previous_tasks.pop(previous_tasks.index("OR"))
+
+                return np.logical_or.reduce([not task.test_todo(fly_dict) for task in previous_tasks])
+            else:
+                return not any([task.test_todo(fly_dict) for task in self.previous_tasks])
         else:
             raise NotImplementedError
 
@@ -1075,7 +1082,7 @@ class LaserStimProcessTask(Task):
     def __init__(self, prio=0):
         super().__init__(prio)
         self.name = "laser_stim_process"
-        self.previous_tasks = [FictracTask()]  # TODO: make a logical or out of wheel and laser task for cases where stimulated on wheel
+        self.previous_tasks = [FictracTask(), "OR", WheelTask()]
 
     def test_todo(self, fly_dict):
         TODO1 = self._test_todo_trials(fly_dict, file_name="stim_paradigm.pkl")
@@ -1102,6 +1109,10 @@ class LaserStimProcessTask(Task):
                                              overwrite=self.params.overwrite,
                                              index_df=beh_df,
                                              df_out_dir=beh_df)
+            twop_df = os.path.join(trial_dir, load.PROCESSED_FOLDER, self.params.twop_df_out_dir)
+            if os.path.isfile(twop_df):
+                _ = get_beh_info_to_twop_df(beh_df, twop_df, twop_df_out_dir=twop_df)
+                _ = add_beh_state_to_twop_df(twop_df, twop_df_out_dir=twop_df)
         return True
 
 class OlfacStimProcessTask(Task):
