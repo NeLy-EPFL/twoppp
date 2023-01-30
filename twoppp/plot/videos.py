@@ -23,7 +23,7 @@ import utils2p.synchronization
 import utils_video.generators
 # from utils_video import make_video
 from utils_video.utils import resize_shape, colorbar, add_colorbar, rgb, process_2p_rgb, get_generator_shape
-from deepfly.CameraNetwork import CameraNetwork
+from pyba.CameraNetwork import CameraNetwork  # from deepfly.CameraNetwork import CameraNetwork
 
 from twoppp.utils import get_stack, find_file, crop_img, crop_stack
 from twoppp import load
@@ -164,7 +164,7 @@ def generator_frames_2p(red_stack, green_stack, percentiles=(5, 95), red_vlim=No
 
 def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None, vmax=None,
                   blur=0, mask=None, crop=None, log_lim=False,
-                  text=None, colorbarlabel="dff"):
+                  text=None, show_colorbar=True, colorbarlabel="dff"):
     """generator to make dff videos.
     Modified from https://github.com/NeLy-EPFL/utils_video
 
@@ -209,6 +209,9 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
     text : str, optional
         text to show in top left of image, by default None
 
+    show_colorbar : bool, optional
+        whether to show a colorbar on the right or not, by default True
+
     colorbarlabel : str, optional
         text printed next to the colourbar, by default "dff"
 
@@ -234,19 +237,25 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
         norm = plt.Normalize(vmin, vmax)
     cmap = plt.cm.jet
 
-    if size is None:
+    if size is None and show_colorbar:
         image_shape = stack.shape[1:3]
         cbar_shape = (stack.shape[1], max(math.ceil(stack.shape[2] * 0.1), 150))
-    else:
+    elif show_colorbar:
         cbar_width = max(math.ceil(size[1] * 0.1), 150)
         image_shape = (size[0], size[1] - cbar_width)
         image_shape = resize_shape(image_shape, stack.shape[1:3])
         cbar_shape = (image_shape[0], cbar_width)
-    try:
-        cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size, label=colorbarlabel)
-    except:
-        print("Using old version of utils_video. please update utils_video")
-        cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size)
+    elif size is not None:
+        image_shape = (size[0], size[1])
+        image_shape = resize_shape(image_shape, stack.shape[1:3])
+    else:
+        image_shape = stack.shape[1:3]
+    if show_colorbar:
+        try:
+            cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size, label=colorbarlabel)
+        except:
+            print("Using old version of utils_video. please update utils_video")
+            cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size)
 
     def frame_generator():
         for frame in stack:
@@ -255,7 +264,8 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
             frame = cmap(norm(frame))
             frame = (frame * 255).astype(np.uint8)
             frame = cv2.resize(frame, image_shape[::-1])
-            frame = add_colorbar(frame, cbar, "right")
+            if show_colorbar:
+                frame = add_colorbar(frame, cbar, "right")
             yield frame
 
     generator = frame_generator()
@@ -1038,9 +1048,9 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
     if no_dff:
         dff = np.zeros_like(green)
 
+    len_diff = (len(frame_times_2p) - len(dff)) // 2
     if len(dff) < len(frame_times_2p):
         # adapt for denoised data when some frames in the beginning and in the end are missing
-        len_diff = (len(frame_times_2p) - len(dff)) // 2
         first_frame_start_time = frame_times_2p[len_diff]
         last_frame_end_time = frame_times_2p[len_diff+len(dff)]
         frame_times_2p = frame_times_2p[len_diff:len_diff+len(dff)]
@@ -1396,7 +1406,14 @@ def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, ou
     # start_frames = [[ind1, ind2], [ind3, ind4]]
     # N_frames = 100*20
     # stim_range = [500,1500]
-    assert all(np.array(stim_range) < N_frames)
+    if isinstance(stim_range[0], int) and isinstance(stim_range[1], int):
+        # only one stim range for all videos --> red dot is the same for all
+        general_stim_range = True
+        assert (np.array(stim_range) < N_frames).all()
+    else:
+        general_stim_range = False
+        for trial_stim_range in stim_range:
+            assert (np.array(trial_stim_range) < N_frames).all()
     generators = []
     frame_rates = []
     for i_fly, (video_dir, start_frames_list) in enumerate(zip(video_dirs, start_frames)):
@@ -1406,10 +1423,16 @@ def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, ou
         frame_rates.append(metadata["FPS"])
         del metadata
 
-        for start_frame in start_frames_list:
-            this_generator = generator_video(video_dir, start=start_frame, stop=start_frame+N_frames, size=size)
-            this_generator = stimulus_dot_generator(this_generator, stim_range[0], stim_range[1])
-            generators.append(this_generator)
+        if general_stim_range:
+            for start_frame in start_frames_list:
+                this_generator = generator_video(video_dir, start=start_frame, stop=start_frame+N_frames, size=size)
+                this_generator = stimulus_dot_generator(this_generator, stim_range[0], stim_range[1])
+                generators.append(this_generator)
+        else:
+            for start_frame, this_stim_range in zip(start_frames_list, stim_range[i_fly]):
+                this_generator = generator_video(video_dir, start=start_frame, stop=start_frame+N_frames, size=size)
+                this_generator = stimulus_dot_generator(this_generator, this_stim_range[0], this_stim_range[1])
+                generators.append(this_generator)
 
     mean_frame_rate = np.mean(frame_rates)
     if frame_rate is None:

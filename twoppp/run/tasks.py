@@ -14,6 +14,7 @@ from twoppp.register import warping
 from twoppp.pipeline import PreProcessFly, PreProcessParams
 from twoppp.behaviour.fictrac import config_and_run_fictrac
 from twoppp.behaviour.stimulation import get_sync_signals_stimulation
+from twoppp.behaviour.olfaction import get_sync_signals_olfaction
 from twoppp.rois import prepare_roi_selection
 from twoppp.plot import show3d
 from twoppp.run.runparams import global_params, CURRENT_USER
@@ -431,7 +432,7 @@ class PreClusterTask(Task):
         preprocess.run_all_trials()
 
         print("COPYING TO CLUSTER: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
+        utils.run_shell_command("bash " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_to_cluster.sh") + " " + fly_dict["dir"])
 
         fly_dict["status"] = "done"
@@ -500,7 +501,7 @@ class PreClusterGreenOnlyTask(Task):
         _ = [preprocess._com_correct_trial(processed_dir) for processed_dir in preprocess.trial_processed_dirs]
 
         print("COPYING TO CLUSTER: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
+        utils.run_shell_command("bash " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_to_cluster.sh") + " " + fly_dict["dir"])
 
         fly_dict["status"] = "done"
@@ -558,7 +559,7 @@ class ClusterTask(Task):
 
         print(time.ctime(time.time()), scratch_fly_dict["dir"],
               "cluster status:", status_files, f"/{n_batches}")
-        if any(np.array(status_files) < n_batches):
+        if any(np.array(status_files) < n_batches) and self.test_todo(fly_dict):
             time.sleep(self.t_sleep_s)
             return False  # cluster is not yet finished
         else:
@@ -651,7 +652,7 @@ class PostClusterTask(Task):
 
 
         print("COPYING BACK FLY: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
+        utils.run_shell_command("bash " + os.path.join(TWOPPP_PATH, "register",
                                                     "copy_from_cluster.sh") + " " + fly_dict["dir"])
 
         print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
@@ -863,6 +864,12 @@ class ROISignalsTask(Task):
         print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
         preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
                                    trial_dirs=trial_dirs)
+
+        dfs_exist = np.array([os.path.isfile(os.path.join(processed_dir, preprocess.params.twop_df_out_dir))
+                           for processed_dir in preprocess.trial_processed_dirs])
+        if np.sum(dfs_exist) < len(dfs_exist):
+            preprocess.params.ball_tracking = ""
+            preprocess.get_dfs(skip_trials=np.where(dfs_exist)[0])
         preprocess.extract_rois()
         return True
 
@@ -929,6 +936,45 @@ class FictracTask(Task):
                                        trial_dirs=trial_dirs)
             preprocess.get_dfs()
 
+class WheelTask(Task):
+    """
+    Task to run wheel detection and velocity analysis & save the results in the behaviour dataframe
+    """
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "wheel"
+        self.previous_tasks = [BehDataTransferTask(), SyncDataTransfer()]
+
+    def test_todo(self, fly_dict):
+        TODO1 = self._test_todo_trials(fly_dict, file_name=global_params.df3d_df_out_dir)
+        trial_dirs_todo = get_selected_trials(fly_dict)
+        found_files = [utils.find_file(os.path.join(trial_dir, "behData", "images"),
+                                       name="wheel_locations.pkl",
+                                       raise_error=False) for trial_dir in trial_dirs_todo]
+        TODO2 = any([found_file is None for found_file in found_files])
+        if not TODO2:
+            TODO2 = any([bool(len(found_file)) is None for found_file in found_files])
+        return TODO1  or TODO2
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_status_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        self.params.overwrite = fly_dict["overwrite"]
+        self.params.ball_tracking = "wheel"
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
+                                   trial_dirs=trial_dirs)
+        preprocess.get_dfs()
+        return True
+
 class Df3dTask(Task):
     """
     Task to run poase estimation using DeepFly3D and DF3D post processing
@@ -971,7 +1017,6 @@ class Df3dTask(Task):
                                    trial_dirs=trial_dirs)
         preprocess._pose_estimate()
         preprocess._post_process_pose()
-
         return True
 
 class VideoTask(Task):
@@ -1029,8 +1074,8 @@ class LaserStimProcessTask(Task):
     """
     def __init__(self, prio=0):
         super().__init__(prio)
-        self.name = "stim_process"
-        self.previous_tasks = [FictracTask()]
+        self.name = "laser_stim_process"
+        self.previous_tasks = [FictracTask()]  # TODO: make a logical or out of wheel and laser task for cases where stimulated on wheel
 
     def test_todo(self, fly_dict):
         TODO1 = self._test_todo_trials(fly_dict, file_name="stim_paradigm.pkl")
@@ -1057,6 +1102,45 @@ class LaserStimProcessTask(Task):
                                              overwrite=self.params.overwrite,
                                              index_df=beh_df,
                                              df_out_dir=beh_df)
+        return True
+
+class OlfacStimProcessTask(Task):
+    """
+    Task to process the synchronisation signals from olfactory stimulation
+    """
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "olfac_stim_process"
+        self.previous_tasks = [FictracTask()]
+
+    def test_todo(self, fly_dict):
+        TODO1 = self._test_todo_trials(fly_dict, file_name="olfac_paradigm.pkl")
+        TODO2 = self._test_todo_trials(fly_dict, file_name=global_params.df3d_df_out_dir)
+        return TODO1 or TODO2
+
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_status_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        self.params.overwrite = fly_dict["overwrite"]
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        for trial_dir in trial_dirs:
+            beh_df = os.path.join(trial_dir, load.PROCESSED_FOLDER, self.params.df3d_df_out_dir)
+            _ = get_sync_signals_olfaction(trial_dir,
+                                           sync_out_file="olfac_sync.pkl",
+                                           paradigm_out_file="olfac_paradigm.pkl",
+                                           overwrite=self.params.overwrite,
+                                           index_df=beh_df,
+                                           df_out_dir=beh_df,
+                                           new_olfac=True,
+                                           new_olfac_odour="H2O",  # TODO: make more general for multiple odours
+                                           stim_time=5)  # TODO: make this more general
         return True
 
 class VideoPlot3DTask(Task):
@@ -1153,8 +1237,10 @@ task_collection = {
     "roi_selection": ROISelectionTask(prio=-100),
     "roi_signals": ROISignalsTask(prio=-18),
     "fictrac": FictracTask(prio=0),
+    "wheel": WheelTask(prio=0),
     "df3d": Df3dTask(prio=-20),
     "video": VideoTask(prio=-15),
     "laser_stim_process": LaserStimProcessTask(prio=-1),
+    "olfac_stim_process": OlfacStimProcessTask(prio=-1),
     "video_plot_3d": VideoPlot3DTask(prio=-15)
 }

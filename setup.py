@@ -1,5 +1,14 @@
 from setuptools import setup, find_packages
 
+try:
+    import numpy as np
+except ImportError or ModuleNotFoundError:
+    raise ImportError(
+        "You must install numpy explicitly before installing twoppp "
+        "because a dependency, utils2p, requires this. "
+        "'pip install numpy' and then try again."
+    )
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
@@ -25,5 +34,6 @@ setup(
     # long_description=long_description,
     long_description_content_type="text/x-rst",
     url="https://github.com/NeLy-EPFL/twoppp",
+    python_requires='>=3.7, <3.10',
     install_requires=requirements,
 )

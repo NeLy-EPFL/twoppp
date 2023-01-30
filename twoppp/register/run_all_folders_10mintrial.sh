@@ -1,11 +1,10 @@
 #!/bin/bash
 time="40:00:00"
-partition="parallel"
 output="./outputs/slurm-%j.out"    
 mkdir -p ./outputs
 
 # while read dir; do
-for dir in $(find /scratch/jbraun/**/**/**/processed -type d); do
+for dir in $(find /scratch/$USER/**/**/**/processed -type d); do
     echo ${dir}
     base_dir1=$(dirname ${dir})
     base_dir2=$(dirname ${base_dir1})
@@ -15,7 +14,7 @@ for dir in $(find /scratch/jbraun/**/**/**/processed -type d); do
             ref_frame="${folder}/../../processed/ref_frame_com.tif"
             echo ${folder}
             echo ${ref_frame}
-            sbatch --nodes 1 --ntasks 1 --cpus-per-task 28 --time "${time}" --mem 128G --partition ${partition} --output "${output}" "registration_commands.sh" ${folder} ${ref_frame}
+            sbatch --nodes 1 --ntasks 1 --cpus-per-task 28 --time "${time}" --mem 128G --qos serial --output "${output}" warping_cluster.py ${folder} ${ref_frame}
         else
             echo "ALREADY PROCESSED: CONTINUE"
         fi

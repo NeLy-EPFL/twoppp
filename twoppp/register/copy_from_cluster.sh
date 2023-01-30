@@ -1,35 +1,16 @@
 #!/bin/bash
-shopt -s globstar
 
 fly_dir=$1
 to_warp='red_com_crop.tif'
-warped='red_com_warped.tif'
 ref_frame='ref_frame_com.tif'
+warped='red_com_warped.tif'
 weights="w.npy"
 
 convert_to_fidis_dir () {
-    replace="scratch/jbraun"
-    fidis_dir=${1/mnt\/nas\/JB/$replace}
-    fidis_dir=${fidis_dir/mnt\/nas2\/JB/$replace}
-    fidis_dir=${fidis_dir/mnt\/nas\/LH/$replace}
-    fidis_dir=${fidis_dir/mnt\/nas2\/LH/$replace}
-    fidis_dir=${fidis_dir/mnt\/data\/JB/$replace}
-    fidis_dir=${fidis_dir/mnt\/data2\/JB/$replace}
-    fidis_dir=${fidis_dir/mnt\/data\/LH/$replace}
-    fidis_dir=${fidis_dir/mnt\/data2\/LH/$replace}
-    echo ${fidis_dir}
+    echo "/scratch/$USER/${1#/mnt\/*\/*/}"
 }
 convert_to_fidis_mounted_dir () {
-    replace="scratch/jbraun"
-    fidis_dir=${1/nas\/JB/$replace}
-    fidis_dir=${fidis_dir/nas2\/JB/$replace}
-    fidis_dir=${fidis_dir/nas\/LH/$replace}
-    fidis_dir=${fidis_dir/nas2\/LH/$replace}
-    fidis_dir=${fidis_dir/data\/JB/$replace}
-    fidis_dir=${fidis_dir/data2\/JB/$replace}
-    fidis_dir=${fidis_dir/data\/LH/$replace}
-    fidis_dir=${fidis_dir/data2\/LH/$replace}
-    echo ${fidis_dir}
+    echo "/mnt/scratch/$USER/${1#/mnt\/*\/*/}"
 }
 
 convert_to_file_serv_dir () {

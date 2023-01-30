@@ -5,7 +5,7 @@ import os
 import sys
 import pickle
 import glob
-from scipy.ndimage import gaussian_filter1d, median_filter
+from scipy.ndimage import gaussian_filter1d, median_filter, gaussian_filter
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -266,19 +266,24 @@ def plot_olfac_conditions(t, signals, conditions, start_indices, t_stim=10, t_pl
         return fig, signals_to_avg
     return fig
 
-def average_neural_across_repetitions(beh_dfs, to_average, output_dir=None, condition="WaterB", t_range=[-5, 15], twop_fs=16.24):
+def average_neural_across_repetitions(beh_dfs, to_average, output_dir=None, condition="WaterB", t_range=[-5, 15], twop_fs=16.24, standardise=False, filt=True):
     N_rep = 0
     
     for i_t, (beh_df, stack) in enumerate(tqdm(zip(beh_dfs, to_average))):
         if not isinstance(beh_df, pd.DataFrame):
             beh_df = pd.read_pickle(beh_df)
         stack = utils.get_stack(stack)
+        if standardise:
+            mean = np.mean(stack, axis=0, dtype=np.float32)
+            stack = stack - mean
+            std = np.std(stack, axis=0, dtype=np.float32)
+            stack = stack / std
         N_frames = len(stack)
         if i_t == 0:
             output = np.zeros((1+int(t_range[1]*twop_fs)-int(t_range[0]*twop_fs), stack.shape[1], stack.shape[2]))
-        stim_start = np.argwhere(np.diff(beh_df["olfac_stim"].to_numpy().astype(int))==1).flatten()
+        stim_start = np.argwhere(beh_df["olfac_start"].values).flatten()
         stim_start = [s for s in stim_start if beh_df["olfac_cond"].to_numpy()[s+2] == condition]
-        twop_stim_start = beh_df["twop_index"].to_numpy()[stim_start]
+        twop_stim_start = beh_df["twop_index"].to_numpy()[stim_start]  + 30  # TODO: make adaptive for denoising
         
 
         for this_stim_start in twop_stim_start:
@@ -290,6 +295,8 @@ def average_neural_across_repetitions(beh_dfs, to_average, output_dir=None, cond
 
 
     output /= N_rep
+    if filt:
+        output = gaussian_filter(median_filter(output.astype(np.float32), size=(1,3,3)), sigma=(1,2,2))
     if output_dir is not None:
         utils.save_stack(output_dir, output)
     return output
