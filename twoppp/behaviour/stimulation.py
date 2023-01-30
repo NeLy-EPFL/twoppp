@@ -226,6 +226,7 @@ def get_sync_signals_stimulation(trial_dir, sync_out_file="stim_sync.pkl", parad
         index_df["laser_stim"] = binary_cond_signal
         index_df["laser_cond"] = condition_name_signal
         index_df["laser_power"] = power_signal
+        index_df["laser_power_uW"] = get_stim_p_uW(power_signal, return_mean=False)
         index_df["laser_start"] = np.diff(np.array(binary_cond_signal).astype(int), prepend=0) == 1
         index_df["laser_stop"] = np.diff(np.array(binary_cond_signal).astype(int), prepend=0) == -1
 
@@ -234,22 +235,25 @@ def get_sync_signals_stimulation(trial_dir, sync_out_file="stim_sync.pkl", parad
 
     return t_trig, condition_signals, trig_laser_start, trig_laser_stop, condition_list
 
-def get_stim_p_mW(laser_power):
-    laser_power = np.mean(laser_power)
-    if np.isnan(laser_power):
-        laser_power = 0.0
-    i_stim = int(np.where([laser_power >= stim_range[0] and laser_power < stim_range[1] for stim_range in STIM_RANGES])[0])
-    return STIM_LEVELS[i_stim]
+def get_stim_p_uW(laser_power, return_mean=False):
+    laser_power = np.nan_to_num(np.array(laser_power))
+    if return_mean:
+        laser_power = np.array(np.mean(laser_power))
+    laser_power_uW = -1 * np.ones_like(laser_power)
+    for stim_level, stim_range in zip(STIM_LEVELS, STIM_RANGES):
+        meets_cond = np.logical_and(laser_power >= stim_range[0], laser_power < stim_range[1])
+        laser_power_uW[meets_cond] = stim_level
+    return laser_power_uW
 
-def get_trial_stim_level(laser_power_mW, stim_start, stim_stop, fraction=0.5, laser_power_raw=None):
+def get_trial_stim_level(laser_power_uW, stim_start, stim_stop, fraction=0.5, laser_power_raw=None):
     stim_dur = stim_stop - stim_start
     i_start = int(stim_start + stim_dur * (1 - fraction) // 2)
     i_stop = int(stim_start + stim_dur * (1 + fraction) // 2)
 
-    if laser_power_mW is not None:
-        return reduce_most_freq(laser_power_mW[i_start:i_stop])
+    if laser_power_uW is not None:
+        return reduce_most_freq(laser_power_uW[i_start:i_stop])
     else:
-        return get_stim_p_mW(laser_power_raw[i_start:i_stop])
+        return get_stim_p_uW(laser_power_raw[i_start:i_stop], return_mean=True)
 
 beh_twop_key_map = {
     "v": ("v", reduce_mean),
@@ -258,7 +262,8 @@ beh_twop_key_map = {
     "delta_rot_lab_side": ("v_side", reduce_mean),
     "delta_lab_rot_turn": ("v_turn", reduce_mean),
     "laser_stim": ("laser_stim", reduce_max_bool),
-    "laser_power": ("laser_power_mW", get_stim_p_mW),
+    "laser_power": ("laser_power", reduce_max),
+    "laser_power_uW": ("laser_power_uW", reduce_max),
     "laser_start": ("laser_start", reduce_max_bool),
     "laser_stop": ("laser_stop", reduce_max_bool),
     # "": ("", reduce_mean),
@@ -304,7 +309,7 @@ def add_beh_state_to_twop_df(twop_df, twop_df_out_dir=None):
         walk = np.logical_and(np.convolve(walk, np.ones(winsize)/winsize, mode="same") >= 0.75, walk)
         return walk
 
-    def resting(v, thres_rest=0.5, winsize=8, walk=None, back=None): 
+    def resting(v, thres_rest=0.5, winsize=8, walk=None, back=None):
         rest = gaussian_filter1d(v, sigma=5) <= thres_rest
         if walk is not None:
             rest = np.logical_and(rest, np.logical_not(walk))
@@ -393,7 +398,12 @@ def get_triggered_avg_videos(green_stacks, twop_dfs, video_dir, stim_dur_s=5, wa
             green_stacks[i_trial] = stack
 
     try:
-        twop_stim_levels = [[get_trial_stim_level(twop_df["laser_power_mW"].values, trial_start, trial_stop)
+        try:
+            twop_stim_levels = [[get_trial_stim_level(twop_df["laser_power_uW"].values, trial_start, trial_stop)
+            for trial_start, trial_stop in zip(trial_stim_starts, trial_stim_stops)]
+                for twop_df, trial_stim_starts, trial_stim_stops in zip(twop_dfs, twop_stim_starts, twop_stim_stops)]
+        except KeyError:  # for backwards compatibility
+            twop_stim_levels = [[get_trial_stim_level(twop_df["laser_power_mW"].values, trial_start, trial_stop)
             for trial_start, trial_stop in zip(trial_stim_starts, trial_stim_stops)]
                 for twop_df, trial_stim_starts, trial_stim_stops in zip(twop_dfs, twop_stim_starts, twop_stim_stops)]
     except KeyError:
@@ -566,7 +576,11 @@ def get_triggered_beh_neural_plot(twop_dfs, plot_name=None, plot_out_dir=None, s
     N_stims_per_trial = len(twop_stim_starts)
 
     try:
-        twop_stim_levels = [get_trial_stim_level(twop_df["laser_power_mW"].values, trial_start, trial_stop)
+        try:
+            twop_stim_levels = [get_trial_stim_level(twop_df["laser_power_uW"].values, trial_start, trial_stop)
+                for trial_start, trial_stop in zip(twop_stim_starts, twop_stim_stops)]
+        except KeyError:
+            twop_stim_levels = [get_trial_stim_level(twop_df["laser_power_mW"].values, trial_start, trial_stop)
             for trial_start, trial_stop in zip(twop_stim_starts, twop_stim_stops)]
     except KeyError:
         twop_stim_levels = [get_trial_stim_level(None, trial_start, trial_stop, laser_power_raw=twop_df["laser_power"].values)
