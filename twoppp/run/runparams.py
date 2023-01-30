@@ -29,7 +29,7 @@ USER_JB = {
     # under which e-mail to receive status messages
     "email": "nelydebugging@outlook.com",
     "send_emails": True,
-    # where the FIDIS scratch directory is mounted locally
+    # where the JED scratch directory is mounted locally
     "scratch_dir": "/mnt/scratch/jbraun",
     # whether to check on the scratch directory if files are present or not
     "ignore_scratch": False,
@@ -67,7 +67,7 @@ USER_FH = {
     # under which e-mail to receive status messages
     "email": "nelydebugging@outlook.com",
     "send_emails": True,
-    # where the FIDIS scratch directory is mounted locally
+    # where the JED scratch directory is mounted locally
     "scratch_dir": "/mnt/scratch/hurtak",
     # whether to check on the scratch directory if files are present or not
     "ignore_scratch": False,
@@ -103,7 +103,7 @@ USER_JSP_1ST_SCOPE = {
     # under which e-mail to receive status messages
     "email": "nelydebugging@outlook.com",
     "send_emails": False,
-    # where the FIDIS scratch directory is mounted locally
+    # where the JED scratch directory is mounted locally
     "scratch_dir": "/mnt/scratch/phelps",
     # whether to check on the scratch directory if files are present or not
     "ignore_scratch": False,
@@ -138,7 +138,7 @@ USER_JSP_2ND_SCOPE = {
     # under which e-mail to receive status messages
     "email": "nelydebugging@outlook.com",
     "send_emails": False,
-    # where the FIDIS scratch directory is mounted locally
+    # where the JED scratch directory is mounted locally
     "scratch_dir": "/mnt/scratch/phelps",
     # whether to check on the scratch directory if files are present or not
     "ignore_scratch": False,
