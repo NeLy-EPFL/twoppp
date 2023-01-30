@@ -204,7 +204,8 @@ global_params.dff_common_baseline = False
 global_params.default_video_camera = CURRENT_USER["video_cam"]
 global_params.behaviour_as_videos = True
 global_params.twop_scope = CURRENT_USER["2p_scope"]
-global_params.default_wheel_camera = CURRENT_USER["wheel_cam"]
+if "wheel_cam" in CURRENT_USER:
+    global_params.default_wheel_camera = CURRENT_USER["wheel_cam"]
 
 # select all False because they will be manually selected in the different Tasks
 global_params.use_com = False
