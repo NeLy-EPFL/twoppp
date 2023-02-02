@@ -65,8 +65,8 @@ USER_FH = {
     # user name
     "name": "Femke Hurtak",
     # under which e-mail to receive status messages
-    "email": "nelydebugging@outlook.com",
-    "send_emails": True,
+    "email": "",
+    "send_emails": False,
     # where the JED scratch directory is mounted locally
     "scratch_dir": "/mnt/scratch/hurtak",
     # whether to check on the scratch directory if files are present or not
