@@ -236,6 +236,7 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
     else:
         norm = plt.Normalize(vmin, vmax)
     cmap = plt.cm.jet
+    cmap.set_bad(color="black")
 
     if size is None and show_colorbar:
         image_shape = stack.shape[1:3]
@@ -1401,7 +1402,7 @@ def stimulus_dot_generator(generator, start_stim, stop_stim):
             cv2.circle(frame, (int(50*factor),int(50*factor)), int(40*factor), (255,0,0), -1)
         yield frame
 
-def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, out_dir, video_name, frame_rate=None, size=None):
+def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, out_dir, video_name, frame_rate=None, size=None, asgenerator=False):
     # video_dirs = [fly1, fly2]
     # start_frames = [[ind1, ind2], [ind3, ind4]]
     # N_frames = 100*20
@@ -1439,7 +1440,9 @@ def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, ou
         frame_rate = mean_frame_rate
     elif not np.isclose(frame_rate, mean_frame_rate):
         print(f"Selected frame rate {frame_rate} is not close to average frame rate of videos {mean_frame_rate}.")
-
+    
+    if asgenerator:
+        return generators
     generator = utils_video.generators.grid(generators)
     if not video_name.endswith(".mp4"):
             video_name = video_name + ".mp4"
