@@ -255,5 +255,85 @@ def get_trial_stim_level(laser_power_uW, stim_start, stim_stop, fraction=0.5, la
     else:
         return get_stim_p_uW(laser_power_raw[i_start:i_stop], return_mean=True)
 
+beh_twop_key_map = {
+    "v": ("v", reduce_mean),
+    "th": ("th", reduce_mean),
+    "delta_rot_lab_forward": ("v_forw", reduce_mean),
+    "delta_rot_lab_side": ("v_side", reduce_mean),
+    "delta_lab_rot_turn": ("v_turn", reduce_mean),
+    "laser_stim": ("laser_stim", reduce_max_bool),
+    "laser_power": ("laser_power", reduce_max),
+    "laser_power_uW": ("laser_power_uW", reduce_max),
+    "laser_start": ("laser_start", reduce_max_bool),
+    "laser_stop": ("laser_stop", reduce_max_bool),
+    "olfac_stim": ("olfac_stim", reduce_max_bool),
+    "olfac_cond": ("olfac_cond", reduce_first_and_last_str),
+    "olfac_start": ("olfac_start", reduce_max_bool),
+    "olfac_stop": ("olfac_stop", reduce_max_bool),
+    # "": ("", reduce_mean),
+}
+
+def get_beh_info_to_twop_df(beh_df, twop_df, twop_df_out_dir=None, key_map=beh_twop_key_map):
+    if isinstance(beh_df, str) and os.path.isfile(beh_df):
+        beh_df = pd.read_pickle(beh_df)
+    assert isinstance (beh_df, pd.DataFrame)
+    if isinstance(twop_df, str) and os.path.isfile(twop_df):
+        twop_df = pd.read_pickle(twop_df)
+    assert isinstance (twop_df, pd.DataFrame)
+
+    twop_index = beh_df.twop_index.values
+    for beh_key, (twop_key, red_function) in key_map.items():
+        try:
+            signal = reduce_during_2p_frame(
+                twop_index=twop_index,
+                values=beh_df[beh_key],
+                function=red_function)
+        except KeyError:
+            Warning(f"Could not find key {beh_key} in behaviour_df. Will continue.")
+            continue
+        twop_df.loc[:, twop_key] = np.zeros((len(twop_df), 1), dtype=signal.dtype)
+        twop_df.iloc[:len(signal)].loc[:, twop_key] = signal
+        
+    if twop_df_out_dir is not None:
+        twop_df.to_pickle(twop_df_out_dir)
+    return twop_df
+
+def add_beh_state_to_twop_df(twop_df, twop_df_out_dir=None):
+    if isinstance(twop_df, str) and os.path.isfile(twop_df):
+        twop_df = pd.read_pickle(twop_df)
+    assert isinstance (twop_df, pd.DataFrame)
+
+    def backwards_walking(v_forw, thres_back=-0.25, winsize=4):
+        back_walk = gaussian_filter1d(v_forw, sigma=5) < thres_back
+        back_walk = np.logical_and(np.convolve(back_walk, np.ones(winsize)/winsize, mode="same") >= 0.75, back_walk)
+        return back_walk
+
+    def walking(v_forw, thres_walk=0.75, winsize=4): 
+        walk = gaussian_filter1d(v_forw, sigma=5) > thres_walk
+        walk = np.logical_and(np.convolve(walk, np.ones(winsize)/winsize, mode="same") >= 0.75, walk)
+        return walk
+
+    def resting(v, thres_rest=0.5, winsize=8, walk=None, back=None):
+        rest = gaussian_filter1d(v, sigma=5) <= thres_rest
+        if walk is not None:
+            rest = np.logical_and(rest, np.logical_not(walk))
+        if back is not None:
+            rest = np.logical_and(rest, np.logical_not(back))
+        rest = np.logical_and(np.convolve(rest, np.ones(winsize)/winsize, mode="same") >= 0.75, rest)
+        return rest
+    try:
+        v_forw = twop_df.v_forw.values
+    except AttributeError:
+        Warning(f"twop_df {twop_df_out_dir} does not have attribute 'v_forw'. Taking 'v' instead.")
+        v_forw = twop_df.v.values
+    twop_df["back"] = backwards_walking(v_forw).astype(int)
+    twop_df["walk"] = walking(v_forw).astype(int)
+    twop_df["rest"] = resting(v_forw, walk=twop_df["walk"].values, back=twop_df["back"].values).astype(int)
+    twop_df["beh_catvar"] = twop_df["rest"].values + 2 * twop_df["walk"].values + 4 * twop_df["back"].values
+
+    if twop_df_out_dir is not None:
+        twop_df.to_pickle(twop_df_out_dir)
+    return twop_df
+
 # many old functions are now in:
 # jonas-data-analysis-scratch/scripts/gng/moved_from_twoppp_stimulation.py
