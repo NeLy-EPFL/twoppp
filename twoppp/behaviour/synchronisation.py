@@ -231,6 +231,18 @@ def reduce_bin_75p(values):
     return reduce_bin_p(values, 0.75)
 def reduce_bin_90p(values):
     return reduce_bin_p(values, 0.9)
+def reduce_first(values):
+    return values[0]
+def reduce_last(values):
+    return values[-1]
+def reduce_first_and_last_str(values):
+    first = values[0]
+    last = values[-1]
+    if first == last:
+        return first
+    else:
+        return first + last
+
 
 def reduce_behaviour(values, thres=0.75, default=""):
     return reduce_most_freq(values, thres=thres, default=default)
@@ -312,6 +324,14 @@ def reduce_during_2p_frame(twop_index, values, function=reduce_mean):
     dtype = values.dtype
     if np.issubdtype(dtype, np.number):
         dtype = np.float
+    elif dtype == bool:  #  and function in [reduce_max_bool, reduce_min_bool]
+        return_dtype = function(values[:2]).dtype
+        if return_dtype == bool:
+            dtype = bool
+        elif np.issubdtype(return_dtype, np.number):
+            dtype = np.float
+        else:
+            dtype = np.object
     else:
         dtype = np.object
     reduced = np.empty((len(index_unique),) + values.shape[1:], dtype=dtype)
