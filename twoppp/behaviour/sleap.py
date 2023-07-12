@@ -3,6 +3,8 @@ sub-module to interact with sleap for a faster and lighter version of 2D pose es
 Please install sleap according to instructions and create a conda environment called 'sleap' to use the capabilities of this module.
 https://github.com/talmolab/sleap:
 conda create -y -n sleap -c conda-forge -c nvidia -c sleap -c anaconda sleap
+in case this does not work, try installing from source:
+https://sleap.ai/installation.html#conda-from-source 
 
 TODO: it is necessary to copy all files related to a trained sleap model into the following subfolder in order to use sleap:
 twoppp/behaviour/sleap_model
