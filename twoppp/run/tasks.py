@@ -15,6 +15,7 @@ from twoppp.pipeline import PreProcessFly, PreProcessParams
 from twoppp.behaviour.fictrac import config_and_run_fictrac
 from twoppp.behaviour.stimulation import get_sync_signals_stimulation, get_beh_info_to_twop_df, add_beh_state_to_twop_df
 from twoppp.behaviour.olfaction import get_sync_signals_olfaction
+from twoppp.behaviour.sleap import prepare_sleap, run_sleap, add_sleap_to_beh_df
 from twoppp.rois import prepare_roi_selection
 from twoppp.plot import show3d
 from twoppp.run.runparams import global_params, CURRENT_USER
@@ -1016,9 +1017,54 @@ class WheelTask(Task):
         preprocess.get_dfs()
         return True
 
+class SleapTask(Task):
+    """
+    Task to run simple and fast 2D pose estimation using Sleap 
+    and save results in behaviour dataframe.
+    Please install sleap according to instructions and create a conda environment called 'sleap' to use the capabilities of this module.
+    https://github.com/talmolab/sleap:
+    conda create -y -n sleap -c conda-forge -c nvidia -c sleap -c anaconda sleap
+
+    TODO: it is necessary to copy all files related to a trained sleap model into the following subfolder in order to use sleap:
+    twoppp/behaviour/sleap_model
+    an example model can be found here: 
+    /mnt/labserver/Ramdya-Lab/BRAUN_Jonas/Other/sleap/models/230516_135509.multi_instance.n=400
+    """
+    def __init__(self, prio: int=0) -> None:
+        super().__init__(prio)
+        self.name = "sleap"
+        self.previous_tasks = ["OR", FictracTask(), WheelTask(), DfTask()]
+
+    def test_todo(self, fly_dict: dict) -> bool:
+        trial_dirs_todo = get_selected_trials(fly_dict)
+        found_files = [utils.find_file(os.path.join(trial_dir, "behData", "images"),
+                                    name="sleap_output.h5",
+                                    raise_error=False) for trial_dir in trial_dirs_todo]
+        TODO = any([found_file is None for found_file in found_files])
+        return TODO
+
+    def run(self, fly_dict: dict, params: PreProcessParams=None) -> bool:
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_status_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        self.params.overwrite = fly_dict["overwrite"]
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        prepare_sleap(trial_dirs)
+        run_sleap()
+        for trial_dir in trial_dirs:
+            beh_df = os.path.join(trial_dir, load.PROCESSED_FOLDER, global_params.df3d_df_out_dir)
+            beh_df = add_sleap_to_beh_df(trial_dir=trial_dir, beh_df=beh_df, out_dir=beh_df)
+        return True
+
 class Df3dTask(Task):
     """
-    Task to run poase estimation using DeepFly3D and DF3D post processing
+    Task to run pose estimation using DeepFly3D and DF3D post processing
     and save results in behaviour dataframe.
     """
     def __init__(self, prio: int=0) -> None:
@@ -1298,6 +1344,7 @@ task_collection = {
     "df": DfTask(prio=0),
     "fictrac": FictracTask(prio=0),
     "wheel": WheelTask(prio=0),
+    "sleap": SleapTask(prio=-2),
     "df3d": Df3dTask(prio=-20),
     "video": VideoTask(prio=-19),
     "laser_stim_process": LaserStimProcessTask(prio=-1),

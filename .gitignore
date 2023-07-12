@@ -3,6 +3,8 @@ outputs/
 .workspace*
 tmp/
 
+twoppp/behaviour/sleap_model/*
+
 .gittoken
 
 # ignore password files and to run file
