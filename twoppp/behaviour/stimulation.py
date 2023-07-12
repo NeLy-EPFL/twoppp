@@ -5,7 +5,7 @@ import os
 import sys
 import pickle
 import glob
-from scipy.ndimage import gaussian_filter1d, median_filter
+from scipy.ndimage import gaussian_filter1d, median_filter, gaussian_filter
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -14,10 +14,12 @@ from tqdm import tqdm
 import utils2p
 import utils2p.synchronization
 from utils2p.synchronization import get_lines_from_h5_file, process_cam_line, process_stimulus_line, crop_lines, get_times, SyncMetadata
+import utils_video.generators
 
-from twoppp import load, utils
+from twoppp import load, utils, rois
 from twoppp import plot as myplt
-from twoppp.behaviour.synchronisation import reduce_during_2p_frame, get_processed_lines
+from twoppp.behaviour.synchronisation import reduce_during_2p_frame, get_processed_lines, reduce_mean, reduce_max, reduce_most_freq, reduce_max_bool, reduce_first_and_last_str
+from twoppp.plot import videos
 
 THR_LASER_ON = 10
 THR_HEAD = -0.53
@@ -25,6 +27,15 @@ THR_HEAD_CC = -0.5
 THR_THORAX_CC = -0.48
 THR_THORAX = -0.45
 THR_ZERO = - 1.15
+
+STIM_LEVELS = np.array([0, 1, 5, 10, 20])
+STIM_RANGES = np.array([
+    [-1, 0.02],
+    [0.02, 0.3],
+    [0.3, 0.7],
+    [0.7, 1.4],
+    [1.4, 2.5]
+])
 
 def compute_background_mean(stack, N_rows=50, len_convolution=20):
     stack = utils.get_stack(stack)
@@ -215,6 +226,7 @@ def get_sync_signals_stimulation(trial_dir, sync_out_file="stim_sync.pkl", parad
         index_df["laser_stim"] = binary_cond_signal
         index_df["laser_cond"] = condition_name_signal
         index_df["laser_power"] = power_signal
+        index_df["laser_power_uW"] = get_stim_p_uW(power_signal, return_mean=False)
         index_df["laser_start"] = np.diff(np.array(binary_cond_signal).astype(int), prepend=0) == 1
         index_df["laser_stop"] = np.diff(np.array(binary_cond_signal).astype(int), prepend=0) == -1
 
@@ -222,14 +234,106 @@ def get_sync_signals_stimulation(trial_dir, sync_out_file="stim_sync.pkl", parad
         index_df.to_pickle(df_out_dir)
 
     return t_trig, condition_signals, trig_laser_start, trig_laser_stop, condition_list
-    
 
-if __name__ == "__main__":
-    date_dir = os.path.join(load.NAS2_DIR_JB, "220602_MDN3xCsChr")
-    fly_dirs = load.get_flies_from_datedir(date_dir)
-    all_trial_dirs = load.get_trials_from_fly(fly_dirs)
-    trial_dir = all_trial_dirs[0][2]
+def get_stim_p_uW(laser_power, return_mean=False):
+    laser_power = np.nan_to_num(np.array(laser_power))
+    if return_mean:
+        laser_power = np.array(np.mean(laser_power))
+    laser_power_uW = -1 * np.ones_like(laser_power)
+    for stim_level, stim_range in zip(STIM_LEVELS, STIM_RANGES):
+        meets_cond = np.logical_and(laser_power >= stim_range[0], laser_power < stim_range[1])
+        laser_power_uW[meets_cond] = stim_level
+    return laser_power_uW
 
-    get_sync_signals_stimulation(trial_dir, sync_out_file="stim_sync.pkl", paradigm_out_file="stim_paradigm.pkl",
-                               overwrite=False, index_df=None, df_out_dir=None)
-    pass
+def get_trial_stim_level(laser_power_uW, stim_start, stim_stop, fraction=0.5, laser_power_raw=None):
+    stim_dur = stim_stop - stim_start
+    i_start = int(stim_start + stim_dur * (1 - fraction) // 2)
+    i_stop = int(stim_start + stim_dur * (1 + fraction) // 2)
+
+    if laser_power_uW is not None:
+        return reduce_most_freq(laser_power_uW[i_start:i_stop])
+    else:
+        return get_stim_p_uW(laser_power_raw[i_start:i_stop], return_mean=True)
+
+beh_twop_key_map = {
+    "v": ("v", reduce_mean),
+    "th": ("th", reduce_mean),
+    "delta_rot_lab_forward": ("v_forw", reduce_mean),
+    "delta_rot_lab_side": ("v_side", reduce_mean),
+    "delta_lab_rot_turn": ("v_turn", reduce_mean),
+    "laser_stim": ("laser_stim", reduce_max_bool),
+    "laser_power": ("laser_power", reduce_max),
+    "laser_power_uW": ("laser_power_uW", reduce_max),
+    "laser_start": ("laser_start", reduce_max_bool),
+    "laser_stop": ("laser_stop", reduce_max_bool),
+    "olfac_stim": ("olfac_stim", reduce_max_bool),
+    "olfac_cond": ("olfac_cond", reduce_first_and_last_str),
+    "olfac_start": ("olfac_start", reduce_max_bool),
+    "olfac_stop": ("olfac_stop", reduce_max_bool),
+    # "": ("", reduce_mean),
+}
+
+def get_beh_info_to_twop_df(beh_df, twop_df, twop_df_out_dir=None, key_map=beh_twop_key_map):
+    if isinstance(beh_df, str) and os.path.isfile(beh_df):
+        beh_df = pd.read_pickle(beh_df)
+    assert isinstance (beh_df, pd.DataFrame)
+    if isinstance(twop_df, str) and os.path.isfile(twop_df):
+        twop_df = pd.read_pickle(twop_df)
+    assert isinstance (twop_df, pd.DataFrame)
+
+    twop_index = beh_df.twop_index.values
+    for beh_key, (twop_key, red_function) in key_map.items():
+        try:
+            signal = reduce_during_2p_frame(
+                twop_index=twop_index,
+                values=beh_df[beh_key],
+                function=red_function)
+        except KeyError:
+            Warning(f"Could not find key {beh_key} in behaviour_df. Will continue.")
+            continue
+        twop_df.loc[:, twop_key] = np.zeros((len(twop_df), 1), dtype=signal.dtype)
+        twop_df.iloc[:len(signal)].loc[:, twop_key] = signal
+        
+    if twop_df_out_dir is not None:
+        twop_df.to_pickle(twop_df_out_dir)
+    return twop_df
+
+def add_beh_state_to_twop_df(twop_df, twop_df_out_dir=None):
+    if isinstance(twop_df, str) and os.path.isfile(twop_df):
+        twop_df = pd.read_pickle(twop_df)
+    assert isinstance (twop_df, pd.DataFrame)
+
+    def backwards_walking(v_forw, thres_back=-0.25, winsize=4):
+        back_walk = gaussian_filter1d(v_forw, sigma=5) < thres_back
+        back_walk = np.logical_and(np.convolve(back_walk, np.ones(winsize)/winsize, mode="same") >= 0.75, back_walk)
+        return back_walk
+
+    def walking(v_forw, thres_walk=0.75, winsize=4): 
+        walk = gaussian_filter1d(v_forw, sigma=5) > thres_walk
+        walk = np.logical_and(np.convolve(walk, np.ones(winsize)/winsize, mode="same") >= 0.75, walk)
+        return walk
+
+    def resting(v, thres_rest=0.5, winsize=8, walk=None, back=None):
+        rest = gaussian_filter1d(v, sigma=5) <= thres_rest
+        if walk is not None:
+            rest = np.logical_and(rest, np.logical_not(walk))
+        if back is not None:
+            rest = np.logical_and(rest, np.logical_not(back))
+        rest = np.logical_and(np.convolve(rest, np.ones(winsize)/winsize, mode="same") >= 0.75, rest)
+        return rest
+    try:
+        v_forw = twop_df.v_forw.values
+    except AttributeError:
+        Warning(f"twop_df {twop_df_out_dir} does not have attribute 'v_forw'. Taking 'v' instead.")
+        v_forw = twop_df.v.values
+    twop_df["back"] = backwards_walking(v_forw).astype(int)
+    twop_df["walk"] = walking(v_forw).astype(int)
+    twop_df["rest"] = resting(v_forw, walk=twop_df["walk"].values, back=twop_df["back"].values).astype(int)
+    twop_df["beh_catvar"] = twop_df["rest"].values + 2 * twop_df["walk"].values + 4 * twop_df["back"].values
+
+    if twop_df_out_dir is not None:
+        twop_df.to_pickle(twop_df_out_dir)
+    return twop_df
+
+# many old functions are now in:
+# jonas-data-analysis-scratch/scripts/gng/moved_from_twoppp_stimulation.py

@@ -268,7 +268,11 @@ def read_roi_center_file(filename):
     roi_centers_text = readlines_tolist(filename)
     roi_centers = []
     for line in roi_centers_text:
-        roi_centers.append([int(line[-8:-5]), int(line[-3:])])
+        roi_center = [int(line[-8:-5]), int(line[-3:])]
+        if not any([roi_centers[i_roi] == roi_center for i_roi in range(len(roi_centers))]):
+            roi_centers.append(roi_center)
+        else:
+            print(f"ROI center duplicate in {filename}: {roi_center}")
     N_rois = len(roi_centers)
     print("Read the centers of {} ROIs from file".format(N_rois))
     return roi_centers

@@ -64,6 +64,34 @@ def get_selected_trials(fly_dict: dict, twoplinux_trial_names: List[str] = None)
                                 f"Available trials: {trial_dirs}")
     return selected_trials
 
+def split_fly_dict_trials(fly_dict: dict) -> List[dict]:
+    """splits a fly_dict with multiple trials into a list of dictionaries with one trial each
+
+    Parameters
+    ----------
+    fly_dict : dict
+        dictionary containing information about the fly.
+        Should have at least the following fields:
+        - "selected_trials": a string describing which trials to run on,
+                             e.g. "001,002" or "all_trials"
+    Returns
+    -------
+    List[dict]
+        a list of dictionaries like fly_dict,
+        but each containing only one trial in the "selected_trials" field
+    """
+    split_comma = fly_dict["selected_trials"].split(",")
+    if len(split_comma) == 1:
+        return [fly_dict]
+    else:
+        fly_dicts_split_trials = []
+        fly_dict_copy = deepcopy(fly_dict)
+        for trial in split_comma:
+            fly_dict_copy = deepcopy(fly_dict)
+            fly_dict_copy["selected_trials"] = trial
+            fly_dicts_split_trials.append(fly_dict_copy)
+        return fly_dicts_split_trials
+
 def get_scratch_fly_dict(fly_dict: dict, scratch_base: str) -> dict:
     """
     convert a local fly dict into one where the "dir" field points to the scratch directory

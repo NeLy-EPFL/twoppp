@@ -13,13 +13,14 @@ from twoppp import load, utils, TWOPPP_PATH
 from twoppp.register import warping
 from twoppp.pipeline import PreProcessFly, PreProcessParams
 from twoppp.behaviour.fictrac import config_and_run_fictrac
-from twoppp.behaviour.stimulation import get_sync_signals_stimulation
+from twoppp.behaviour.stimulation import get_sync_signals_stimulation, get_beh_info_to_twop_df, add_beh_state_to_twop_df
 from twoppp.behaviour.olfaction import get_sync_signals_olfaction
+from twoppp.behaviour.sleap import prepare_sleap, run_sleap, add_sleap_to_beh_df
 from twoppp.rois import prepare_roi_selection
 from twoppp.plot import show3d
 from twoppp.run.runparams import global_params, CURRENT_USER
 from twoppp.run.runutils import get_selected_trials, get_scratch_fly_dict, find_trials_2plinux
-from twoppp.run.runutils import send_email
+from twoppp.run.runutils import send_email,split_fly_dict_trials
 
 class Task:
     """
@@ -121,6 +122,7 @@ class Task:
     def test_todo(self, fly_dict: dict) -> bool:
         """
         check whether this task still needs to be performed for a particular fly.
+        Return True if still to do and False if already finished.
         Implement this in every sub-class.
         You can use the _test_todo_trials and _test_todo_fly methods.
 
@@ -248,7 +250,16 @@ class Task:
             if not isinstance(self.previous_tasks, list)
         """
         if isinstance(self.previous_tasks, list):
-            return not any([task.test_todo(fly_dict) for task in self.previous_tasks])
+            if "OR" in self.previous_tasks:
+                previous_tasks = deepcopy(self.previous_tasks)
+                OR = previous_tasks.pop(previous_tasks.index("OR"))
+                fly_dicts_split_trials = split_fly_dict_trials(fly_dict)
+                trials_ready = []
+                for trial_fly_dict in fly_dicts_split_trials:
+                    trials_ready.append(np.logical_or.reduce([not task.test_todo(trial_fly_dict) for task in previous_tasks]))
+                return all(trials_ready)
+            else:
+                return not any([task.test_todo(fly_dict) for task in self.previous_tasks])
         else:
             raise NotImplementedError
 
@@ -302,7 +313,8 @@ class TwopDataTransferTask(Task):
         trial_dirs_todo = get_selected_trials(fly_dict, twoplinux_trial_names)
 
         for trial_dir in trial_dirs_todo:
-            if utils.find_file(trial_dir, "Image_0001_0001.raw", raise_error=False) is None:
+            if utils.find_file(trial_dir, "Image_0001_0001.raw", raise_error=False) is None \
+                and utils.find_file(trial_dir, "Image_001_001.raw", raise_error=False) is None:  # new Thorsync
                 return True
             if utils.find_file(trial_dir, "Experiment.xml", raise_error=False) is None:
                 return True
@@ -873,6 +885,36 @@ class ROISignalsTask(Task):
         preprocess.extract_rois()
         return True
 
+class DfTask(Task):
+    """
+    Task to run create beh_df and twop_df without running fictrac or wheel processing.
+    """
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "df"
+        self.previous_tasks = [BehDataTransferTask(), SyncDataTransfer()]
+    def test_todo(self, fly_dict):
+        return self._test_todo_trials(fly_dict, file_name=global_params.df3d_df_out_dir)
+    def run(self, fly_dict, params=None):
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_status_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        self.params.overwrite = fly_dict["overwrite"]
+        self.params.ball_tracking = None
+        self.params.denoise_params.pre_post_frame = 0
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
+                                   trial_dirs=trial_dirs)
+        preprocess.get_dfs()
+        return True
+
 class FictracTask(Task):
     """
     Task to run fictrac to track the ball movement and save the results in the behaviour dataframe
@@ -975,9 +1017,54 @@ class WheelTask(Task):
         preprocess.get_dfs()
         return True
 
+class SleapTask(Task):
+    """
+    Task to run simple and fast 2D pose estimation using Sleap 
+    and save results in behaviour dataframe.
+    Please install sleap according to instructions and create a conda environment called 'sleap' to use the capabilities of this module.
+    https://github.com/talmolab/sleap:
+    conda create -y -n sleap -c conda-forge -c nvidia -c sleap -c anaconda sleap
+
+    TODO: it is necessary to copy all files related to a trained sleap model into the following subfolder in order to use sleap:
+    twoppp/behaviour/sleap_model
+    an example model can be found here: 
+    /mnt/labserver/Ramdya-Lab/BRAUN_Jonas/Other/sleap/models/230516_135509.multi_instance.n=400
+    """
+    def __init__(self, prio: int=0) -> None:
+        super().__init__(prio)
+        self.name = "sleap"
+        self.previous_tasks = ["OR", FictracTask(), WheelTask(), DfTask()]
+
+    def test_todo(self, fly_dict: dict) -> bool:
+        trial_dirs_todo = get_selected_trials(fly_dict)
+        found_files = [utils.find_file(os.path.join(trial_dir, "behData", "images"),
+                                    name="sleap_output.h5",
+                                    raise_error=False) for trial_dir in trial_dirs_todo]
+        TODO = any([found_file is None for found_file in found_files])
+        return TODO
+
+    def run(self, fly_dict: dict, params: PreProcessParams=None) -> bool:
+        if not self.wait_for_previous_task(fly_dict):
+            return False
+        else:
+            self.send_status_email(fly_dict)
+            print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+        self.params.overwrite = fly_dict["overwrite"]
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        prepare_sleap(trial_dirs)
+        run_sleap()
+        for trial_dir in trial_dirs:
+            beh_df = os.path.join(trial_dir, load.PROCESSED_FOLDER, global_params.df3d_df_out_dir)
+            beh_df = add_sleap_to_beh_df(trial_dir=trial_dir, beh_df=beh_df, out_dir=beh_df)
+        return True
+
 class Df3dTask(Task):
     """
-    Task to run poase estimation using DeepFly3D and DF3D post processing
+    Task to run pose estimation using DeepFly3D and DF3D post processing
     and save results in behaviour dataframe.
     """
     def __init__(self, prio: int=0) -> None:
@@ -1075,7 +1162,7 @@ class LaserStimProcessTask(Task):
     def __init__(self, prio=0):
         super().__init__(prio)
         self.name = "laser_stim_process"
-        self.previous_tasks = [FictracTask()]  # TODO: make a logical or out of wheel and laser task for cases where stimulated on wheel
+        self.previous_tasks = ["OR", FictracTask(), WheelTask(), DfTask()]
 
     def test_todo(self, fly_dict):
         TODO1 = self._test_todo_trials(fly_dict, file_name="stim_paradigm.pkl")
@@ -1096,12 +1183,23 @@ class LaserStimProcessTask(Task):
 
         for trial_dir in trial_dirs:
             beh_df = os.path.join(trial_dir, load.PROCESSED_FOLDER, self.params.df3d_df_out_dir)
+            
             _ = get_sync_signals_stimulation(trial_dir,
                                              sync_out_file="stim_sync.pkl",
                                              paradigm_out_file="stim_paradigm.pkl",
                                              overwrite=self.params.overwrite,
                                              index_df=beh_df,
                                              df_out_dir=beh_df)
+            
+            twop_df = os.path.join(trial_dir, load.PROCESSED_FOLDER, self.params.twop_df_out_dir)
+            # change self.previous_task temporarily to only persue behavioural data processing
+            # if there actually is behavioural data
+            previous_tasks = deepcopy(self.previous_tasks)
+            self.previous_tasks = ["OR", FictracTask(), WheelTask()]
+            if os.path.isfile(twop_df) and self.test_previous_task_ready(fly_dict):
+                _ = get_beh_info_to_twop_df(beh_df, twop_df, twop_df_out_dir=twop_df)
+                _ = add_beh_state_to_twop_df(twop_df, twop_df_out_dir=twop_df)
+            self.previous_tasks = previous_tasks
         return True
 
 class OlfacStimProcessTask(Task):
@@ -1111,7 +1209,7 @@ class OlfacStimProcessTask(Task):
     def __init__(self, prio=0):
         super().__init__(prio)
         self.name = "olfac_stim_process"
-        self.previous_tasks = [FictracTask()]
+        self.previous_tasks = ["OR", FictracTask(), WheelTask(), DfTask()]
 
     def test_todo(self, fly_dict):
         TODO1 = self._test_todo_trials(fly_dict, file_name="olfac_paradigm.pkl")
@@ -1132,6 +1230,7 @@ class OlfacStimProcessTask(Task):
 
         for trial_dir in trial_dirs:
             beh_df = os.path.join(trial_dir, load.PROCESSED_FOLDER, self.params.df3d_df_out_dir)
+            
             _ = get_sync_signals_olfaction(trial_dir,
                                            sync_out_file="olfac_sync.pkl",
                                            paradigm_out_file="olfac_paradigm.pkl",
@@ -1141,6 +1240,12 @@ class OlfacStimProcessTask(Task):
                                            new_olfac=True,
                                            new_olfac_odour="H2O",  # TODO: make more general for multiple odours
                                            stim_time=5)  # TODO: make this more general
+            
+            twop_df = os.path.join(trial_dir, load.PROCESSED_FOLDER, self.params.twop_df_out_dir)
+            if os.path.isfile(twop_df):
+                _ = get_beh_info_to_twop_df(beh_df, twop_df, twop_df_out_dir=twop_df)
+                _ = add_beh_state_to_twop_df(twop_df, twop_df_out_dir=twop_df)
+            
         return True
 
 class VideoPlot3DTask(Task):
@@ -1226,7 +1331,7 @@ task_collection = {
     "twop_data_transfer": TwopDataTransferTask(prio=-100),
     "beh_data_transfer": BehDataTransferTask(prio=-100),
     "pre_cluster": PreClusterTask(prio=10),
-    "pre_cluster_green_only": PreClusterGreenOnlyTask(prio=8),
+    "pre_cluster_green_only": PreClusterGreenOnlyTask(prio=10),
     "tif": TifTask(prio=9),
     "cluster": ClusterTask(prio=-100),
     "post_cluster": PostClusterTask(prio=-5),
@@ -1236,10 +1341,12 @@ task_collection = {
     "prepare_roi_selection": PrepareROISelectionTask(prio=-17),
     "roi_selection": ROISelectionTask(prio=-100),
     "roi_signals": ROISignalsTask(prio=-18),
+    "df": DfTask(prio=0),
     "fictrac": FictracTask(prio=0),
     "wheel": WheelTask(prio=0),
+    "sleap": SleapTask(prio=-2),
     "df3d": Df3dTask(prio=-20),
-    "video": VideoTask(prio=-15),
+    "video": VideoTask(prio=-19),
     "laser_stim_process": LaserStimProcessTask(prio=-1),
     "olfac_stim_process": OlfacStimProcessTask(prio=-1),
     "video_plot_3d": VideoPlot3DTask(prio=-15)

@@ -69,12 +69,12 @@ def process_lines_olfaction(sync_file, sync_metadata_file, seven_camera_metadata
     return processed_lines
 
 def get_sync_signals_olfaction(trial_dir, rep_time=30, stim_time=10, sync_out_file="sync.pkl", paradigm_out_file="paradigm.pkl",
-                               overwrite=False, sync_to_fall=False, index_df=None, df_out_dir=None, new_olfac=False, new_olfac_odour="H2O"):
+                               overwrite=False, sync_to_fall=False, index_df=None, df_out_dir=None, new_olfac=True, new_olfac_odour="H2O"):
     sync_file = utils2p.find_sync_file(trial_dir)
     sync_metadata_file = utils2p.find_sync_metadata_file(trial_dir)
     seven_camera_metadata_file = utils2p.find_seven_camera_metadata_file(trial_dir)
-    sync_out_file = os.path.join(trial_dir, sync_out_file)
-    paradigm_out_file = os.path.join(trial_dir, paradigm_out_file)
+    sync_out_file = os.path.join(trial_dir, load.PROCESSED_FOLDER, sync_out_file)
+    paradigm_out_file = os.path.join(trial_dir, load.PROCESSED_FOLDER, paradigm_out_file)
 
     if isinstance(index_df, str) and os.path.isfile(index_df):
         index_df = pd.read_pickle(index_df)
@@ -149,7 +149,7 @@ def get_sync_signals_olfaction(trial_dir, rep_time=30, stim_time=10, sync_out_fi
             high_value = np.quantile(processed_lines_crop["odor"], 0.99)
             low_value = np.quantile(processed_lines_crop["odor"], 0.01)
             odor_thres = np.mean([high_value, low_value])
-            switch = np.logical_and(odor <= odor_thres, np.roll(odor, shift=1) > odor_thres)
+            switch = np.diff((odor >= odor_thres).astype(int)) == 1
             list_i_start = np.where(switch)[0]  # [:-1] TODO
 
         list_t_start = t[list_i_start]

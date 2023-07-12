@@ -135,7 +135,7 @@ def get_ball_parameters(img, output_dir=None):
             mask = (rr < r)
             current_inside = np.mean(edges[mask])  # np.diff(np.quantile(edges[mask], [0.05, 0.95]))
             if  current_inside < inside:
-                x_min, y_min, r_min = x, y, r
+                x_min, y_min, r_min = int(x), int(y), int(r)
                 inside = current_inside
         if output_dir is not None:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
