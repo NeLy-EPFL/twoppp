@@ -579,7 +579,7 @@ def make_video_df3d(trial_dir, out_dir, video_name, frames=None, frame_rate=None
     make_video(os.path.join(out_dir, video_name), generator, frame_rate/factor_downsample*speedup)
 
 def generator_video(path, size=None, start=0, stop=9223372036854775807, try_frames=True,
-                    required_n_frames=None):
+                    required_n_frames=None, brighter=None):
     """load video from file and return as generator
 
     Parameters
@@ -601,6 +601,9 @@ def generator_video(path, size=None, start=0, stop=9223372036854775807, try_fram
 
     required_n_frames: int, optional
         number of camera frames that have to be found, by default None
+
+    brighter: float, optional
+        factor to make the video brigher than before, default None
 
     Yields
     -------
@@ -625,7 +628,9 @@ def generator_video(path, size=None, start=0, stop=9223372036854775807, try_fram
                     if size is not None:
                         shape = resize_shape(size, frame.shape[:2])
                         frame = cv2.resize(frame, shape[::-1])
-                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2RGBA)
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)  # COLOR_RGB2RGBA
+                    if brighter is not None:
+                        frame = np.clip(np.array(frame*brighter, dtype=np.uint8), 0, 255)
                     yield frame
                 elif ret == False or current_frame >= stop:
                     break
@@ -1367,7 +1372,7 @@ def make_multiple_video_raw_dff_beh(dffs, trial_dirs, out_dir, video_name, beh_d
         video_name = video_name + ".mp4"
     make_video(os.path.join(out_dir, video_name), generator, frame_rate, n_frames=N_frames)
 
-def stimulus_dot_generator(generator, start_stim, stop_stim):
+def stimulus_dot_generator(generator, start_stim, stop_stim, color=(255,0,0)):
     """add a red dot to a video generator whenever a stimulus was on.
     Will add red dot upon start_stim and remove it at stop_stim
 
@@ -1399,10 +1404,10 @@ def stimulus_dot_generator(generator, start_stim, stop_stim):
             im_size = frame.shape[0]
             factor = im_size / 480
             frame = frame.copy()
-            cv2.circle(frame, (int(50*factor),int(50*factor)), int(40*factor), (255,0,0), -1)
+            cv2.circle(frame, (int(50*factor),int(50*factor)), int(40*factor), color, -1)
         yield frame
 
-def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, out_dir, video_name, frame_rate=None, size=None, asgenerator=False):
+def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, out_dir, video_name, frame_rate=None, size=None, asgenerator=False, color=(255,1,1), brighter=None):
     # video_dirs = [fly1, fly2]
     # start_frames = [[ind1, ind2], [ind3, ind4]]
     # N_frames = 100*20
@@ -1426,13 +1431,13 @@ def make_behaviour_grid_video(video_dirs, start_frames, N_frames, stim_range, ou
 
         if general_stim_range:
             for start_frame in start_frames_list:
-                this_generator = generator_video(video_dir, start=start_frame, stop=start_frame+N_frames, size=size)
-                this_generator = stimulus_dot_generator(this_generator, stim_range[0], stim_range[1])
+                this_generator = generator_video(video_dir, start=start_frame, stop=start_frame+N_frames, size=size, brighter=brighter)
+                this_generator = stimulus_dot_generator(this_generator, stim_range[0], stim_range[1], color=color)
                 generators.append(this_generator)
         else:
             for start_frame, this_stim_range in zip(start_frames_list, stim_range[i_fly]):
-                this_generator = generator_video(video_dir, start=start_frame, stop=start_frame+N_frames, size=size)
-                this_generator = stimulus_dot_generator(this_generator, this_stim_range[0], this_stim_range[1])
+                this_generator = generator_video(video_dir, start=start_frame, stop=start_frame+N_frames, size=size, brighter=brighter)
+                this_generator = stimulus_dot_generator(this_generator, this_stim_range[0], this_stim_range[1], color=color)
                 generators.append(this_generator)
 
     mean_frame_rate = np.mean(frame_rates)

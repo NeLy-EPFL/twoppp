@@ -47,7 +47,7 @@ def run_sleap():
         # os.chdir(os.path.dirname(os.path.abspath(__file__)))
         # os.system("pwd")
         # os.system("./run_sleap_multiple_folders.sh sleap_dirs.txt")
-        subprocess.run(["sh", os.path.join(os.path.dirname(os.path.abspath(__file__)), "run_sleap_multiple_folders.sh"),
+        subprocess.run(["bash", os.path.join(os.path.dirname(os.path.abspath(__file__)), "run_sleap_multiple_folders.sh"),
                         os.path.join(os.path.dirname(os.path.abspath(__file__)), "sleap_dirs.txt")])
 
 
@@ -106,7 +106,7 @@ def joint_motionenergy(x1,y1, moving_average=50):
     return np.convolve(me, np.ones(moving_average), 'same') / moving_average
 
 def add_sleap_to_beh_df(trial_dir, beh_df, out_dir=None):
-    beh_df = pd.read_pickle(beh_df) if os.path.isfile(beh_df) else beh_df
+    beh_df = pd.read_pickle(beh_df) if not isinstance(beh_df, pd.DataFrame) and os.path.isfile(beh_df) else beh_df
     assert isinstance(beh_df, pd.DataFrame)
 
     locations, node_names = read_sleap_output(trial_dir)
