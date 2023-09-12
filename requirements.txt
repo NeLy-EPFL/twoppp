@@ -4,7 +4,7 @@ deepinterpolation @ https://github.com/NeLy-EPFL/deepinterpolation/archive/adapt
 numpy
 pandas
 ofco @ git+https://github.com/NeLy-EPFL/ofco.git
-utils_video @ git+https://github.com/NeLy-EPFL/utils_video.git
+utils_video @ git+https://github.com/NeLy-EPFL/utils_video/archive/handbrake.tar.gz
 df3dPostProcessing @ https://github.com/NeLy-EPFL/df3dPostProcessing/archive/new-df3d.tar.gz
 behavelet
 utils2p @ git+https://github.com/NeLy-EPFL/utils2p.git
