@@ -2,7 +2,9 @@ jupyter
 nely-df3d @ git+https://github.com/NeLy-EPFL/DeepFly3D.git
 deepinterpolation @ https://github.com/NeLy-EPFL/deepinterpolation/archive/adapttoR57C10.tar.gz
 numpy
-pandas
+pandas==1.3.5
+opencv-contrib-python==4.2.0.32
+opencv-python==4.2.0.32
 ofco @ git+https://github.com/NeLy-EPFL/ofco.git
 utils_video @ https://github.com/NeLy-EPFL/utils_video/archive/handbrake.tar.gz
 df3dPostProcessing @ https://github.com/NeLy-EPFL/df3dPostProcessing/archive/new-df3d.tar.gz
