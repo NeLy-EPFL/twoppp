@@ -46,3 +46,9 @@ Create conda environment and install twoppp package
 - change directory: ```cd twoppp```
 - install using pip: ```pip install -e .```
 - fix numpy installation: ```pip install numpy --upgrade```
+- fix opencv installation:
+   - ```pip uninstall opencv-contrib-python```
+   - ```pip install opencv-contrib-python==4.2.0.32```
+- fix pandas installation:
+   - ```pip uninstall pandas```
+   - ```pip install pandas==1.3.5```
