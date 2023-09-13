@@ -2,7 +2,7 @@
 
 This package allows to process simulataneously recorded two-photon imaging data and behavioural data.
 
-** The standard interface to automatically run the entire pipeline or subsets of it on multiple flies is documented [here](twoppp/run/README.md):**
+**The standard interface to automatically run the entire pipeline or subsets of it on multiple flies is documented [here](twoppp/run/README.md):**
 
 **Most of the sub-modules and functions are already documented. More docstrings are forthcoming!**
 
