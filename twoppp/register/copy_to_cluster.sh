@@ -19,15 +19,8 @@ convert_to_fidis_dir () {
     echo ${fidis_dir}
 }
 convert_to_fidis_mounted_dir () {
-    replace="scratch"
-    fidis_dir=${1/nas\/JB/$replace}
-    fidis_dir=${fidis_dir/nas2\/JB/$replace}
-    fidis_dir=${fidis_dir/nas\/LH/$replace}
-    fidis_dir=${fidis_dir/nas2\/LH/$replace}
-    fidis_dir=${fidis_dir/data\/JB/$replace}
-    fidis_dir=${fidis_dir/data2\/JB/$replace}
-    fidis_dir=${fidis_dir/data\/LH/$replace}
-    fidis_dir=${fidis_dir/data2\/LH/$replace}
+    replace="scratch/helvetios"    
+    fidis_dir=${1/nas2\/VLR/$replace}
     echo ${fidis_dir}
 }
 

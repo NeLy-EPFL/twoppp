@@ -1,11 +1,11 @@
 #!/bin/bash
-time="16:00:00"
+time="40:00:00"
 partition="parallel"
 output="./outputs/slurm-%j.out"    
 mkdir -p ./outputs
 
 # while read dir; do
-for dir in $(find /scratch/jbraun/**/**/**/processed -type d); do
+for dir in $(find /scratch/lobato/**/**/**/processed -type d); do
     echo ${dir}
     base_dir1=$(dirname ${dir})
     base_dir2=$(dirname ${base_dir1})

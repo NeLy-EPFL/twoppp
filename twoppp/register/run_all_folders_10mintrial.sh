@@ -5,7 +5,7 @@ output="./outputs/slurm-%j.out"
 mkdir -p ./outputs
 
 # while read dir; do
-for dir in $(find /scratch/jbraun/**/**/**/processed -type d); do
+for dir in $(find /scratch/lobato/**/**/**/processed -type d); do
     echo ${dir}
     base_dir1=$(dirname ${dir})
     base_dir2=$(dirname ${base_dir1})

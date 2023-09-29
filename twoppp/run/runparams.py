@@ -17,34 +17,34 @@ from twoppp.pipeline import PreProcessParams
 
 LOCAL_DIR, _ = os.path.split(os.path.realpath(__file__))
 
-USER_JB = {
-    "initials": "JB",
-    "labserver": os.path.join(load.LABSERVER_DIR, "BRAUN_Jonas", "Experimental_data", "2p"),
-    "nas": os.path.join(load.NAS_DIR, "JB"),
-    "nas2": os.path.join(load.NAS2_DIR, "JB"),
+USER_VLR = {
+    "initials": "VLR",
+    "labserver": os.path.join(load.LABSERVER_DIR, "LOBATO_RIOS_Victor", "Experimental_data", "2p"),
+    "nas": os.path.join(load.NAS_DIR, "VLR"),
+    "nas2": os.path.join(load.NAS2_DIR, "VLR"),
     # will copy generated videos to this folder
-    "video_dir": os.path.join(load.NAS2_DIR, "JB", "_videos"),
+    "video_dir": os.path.join(load.NAS2_DIR, "VLR", "_videos"),
     # user name
-    "name": "Jonas Braun",
+    "name": "Victor Lobato Rios",
     # under which e-mail to receive status messages
     "email": "nelydebugging@outlook.com",
-    "send_emails": True,
+    "send_emails": False,
     # where the FIDIS scratch directory is mounted locally
-    "scratch_dir": "/mnt/scratch/jbraun",
+    "scratch_dir": "/mnt/scratch/helvetios",
     # whether to check on the scratch directory if files are present or not
     "ignore_scratch": False,
     # whether to ssh into the 2plinux machine to check whether some data might not yet be copied
-    "check_2plinux_trials": True,
+    "check_2plinux_trials": False,
     # the IP address of the linux computer used for recording
     "2p_linux_ip": "128.178.198.12",
     # the user name of the linuc computer used for recording
     "2p_linux_user": "dalco",
     # which camera should be used for fictrac
-    "fictrac_cam": 3,
+    "fictrac_cam": 4,
     # which camera should be used for making summary videos
-    "video_cam": 5,
+    "video_cam": 6,
     # which 2pscope you're using
-    "2p_scope": 2,
+    "2p_scope": 1,
     # fill this file with fly_dirs that should be processed
     "txt_file_to_process": os.path.join(LOCAL_DIR, "_fly_dirs_to_process.txt"),
     # where to store which tasks are currently running
@@ -54,7 +54,7 @@ USER_JB = {
 }
 
 # SET CURRENT_USER TO YOUR USER HERE!!!
-CURRENT_USER = USER_JB
+CURRENT_USER = USER_VLR
 
 
 global_params = PreProcessParams()
@@ -65,13 +65,20 @@ global_params.overwrite = False
 global_params.select_trials = False
 
 global_params.i_ref_trial = 0
-global_params.i_ref_frame = 0
+global_params.i_ref_frame = -2
+global_params.use_com = True
+global_params.twoway_align = False
 global_params.post_com_crop = True
 global_params.post_com_crop_values = [0, 0]  # manually assigned for each fly
+global_params.crop_warped_roi = False
+global_params.dff_common_baseline = True
+global_params.dff_use_crop = False
+global_params.dff_video_downsample = 1
 
 global_params.ball_tracking = "fictrac"
 global_params.add_df3d_to_df = False
 
+global_params.denoise_train_trial = 0
 global_params.denoise_crop_size = (320, 736)
 global_params.denoise_correct_illumination_leftright = False
 
@@ -80,7 +87,7 @@ global_params.behaviour_as_videos = True
 global_params.twop_scope = CURRENT_USER["2p_scope"]
 
 # select all False because they will be manually selected in the different Tasks
-global_params.use_com = False
+#global_params.use_com = False
 global_params.use_warp = False
 global_params.use_denoise = False
 global_params.use_dff = False

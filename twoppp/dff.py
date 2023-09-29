@@ -6,11 +6,12 @@ import sys, os.path
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import gaussian_filter1d, convolve1d
-from scipy.signal import medfilt, convolve
+from scipy.signal import medfilt, convolve, find_peaks
 from skimage.filters import threshold_otsu
 from skimage.morphology import binary_opening, binary_closing
 from scipy.ndimage.filters import median_filter
 import math
+import cv2
 
 import matplotlib
 matplotlib.use('agg')
@@ -131,33 +132,106 @@ def find_dff_mask(baseline, otsu_frac=0.4, kernel=np.ones((20,20)), sigma=0, cro
     mask = crop_img(mask, crop)
     return mask
 
+def find_region_to_crop(stack):
+    mean_img = np.zeros_like(stack[0, :, :], dtype=np.float64)
+    for img in stack:
+        mean_img += img
+    mean_img = mean_img/stack.shape[0]
+    mean_img = mean_img.astype(np.uint8)
+    
+    hist = cv2.calcHist([mean_img],[0],None,[256],[0,256])
+    vals_hist = hist.T[0]
+    tot_pixels = np.sum(vals_hist)
+    peaks, _ = find_peaks(vals_hist, height=tot_pixels*0.01)
+
+    #import matplotlib
+    #matplotlib.use('TkAgg')
+    #import matplotlib.pyplot as plt
+    #plt.plot(vals_hist)
+    #plt.plot(peaks, vals_hist[peaks], "x")
+    #plt.xlim([0,256])
+    #plt.show()
+
+    start_peak = np.where(vals_hist[:peaks[0]] > 0.05*vals_hist[peaks[0]])[0]
+    threshold = start_peak[0]
+    
+    #if len(peaks)>1:
+    #    threshold = int((peaks[0]+peaks[1])/2)
+    #else:
+    #    threshold = int(peaks[0]+5)
+    
+    _,roi = cv2.threshold(mean_img,threshold,255,cv2.THRESH_BINARY_INV)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(35,35))
+    roi_clean = cv2.morphologyEx(roi, cv2.MORPH_CLOSE, kernel)
+    
+    output = cv2.connectedComponentsWithStats(roi_clean, 4, cv2.CV_32S)
+    stats = np.transpose(output[2])
+    sizes = stats[4]
+    label_roi = np.argmax(sizes[1:])+1
+    
+    left = stats[0][label_roi]
+    top = stats[1][label_roi]
+    width = stats[2][label_roi]
+    height = stats[3][label_roi]
+    
+    h, w = roi_clean.shape
+    label_img = np.zeros((h,w),np.uint8)
+    label_img[np.where(output[1] == label_roi)] = 255
+
+    #cv2.imshow("mean_img",mean_img)
+    #cv2.imshow("roi",roi)
+    #cv2.imshow("img_clean",roi_clean)
+    #cv2.imshow("label",label_img)
+    #cv2.waitKey()
+    
+    gap = 30
+    y0 = top - gap if top-gap>0 else 0 
+    y1 = top + height + gap if top+height+gap<h else h-1 
+    x0 = left - gap if left-gap>0 else 0
+    x1 = left + width + gap if left+width+gap<w else w-1
+
+    if (y1-y0)%2>0:
+        y0+=1
+    if (x1-x0)%2>0:
+        x0+=1
+    
+    return [y0, y1, x0, x1]
+
 def compute_dff_from_stack(stack, baseline_blur=10, baseline_med_filt=1, blur_pre=True, baseline_mode="convolve", # slow alternative: "quantile"
                            baseline_length=10, baseline_quantile=0.05, baseline_dir=None,
                            use_crop=False, manual_add_to_crop=20, min_baseline=None,
                            dff_blur=0, dff_out_dir=None, return_stack=True):
     # load from path in case stack is a path. if numpy array, then just continue
+    
     stack = get_stack(stack)
     N_frames, N_y, N_x = stack.shape
 
-    dff_baseline = find_dff_baseline(stack, baseline_blur=baseline_blur,
+    if not os.path.isfile(baseline_dir):
+        dff_baseline = find_dff_baseline(stack, baseline_blur=baseline_blur,
                                      baseline_med_filt=baseline_med_filt, blur_pre=blur_pre,
                                      baseline_mode=baseline_mode, baseline_length=baseline_length,
                                      baseline_quantile=baseline_quantile, baseline_dir=baseline_dir,
                                      min_baseline=min_baseline)
-        
+
+    else:
+        dff_baseline = get_stack(baseline_dir)
     # 3. compute cropping indices or use the ones supplied externally
     if (isinstance(use_crop, list) or isinstance(use_crop, tuple)) and len(use_crop) == 4:
         x_min, x_max, y_min, y_max = use_crop
     elif isinstance(use_crop, bool) and use_crop:
-        z_projected = np.std(stack, axis=0)
-        threshold_value = threshold_otsu(z_projected)
-        mask = z_projected > threshold_value
-        mask = binary_opening(mask, selem=np.ones((3, 3)))
-        idx = np.where(mask)
-        y_min = np.maximum(np.min(idx[0]) - manual_add_to_crop, 0)
-        y_max = np.minimum(np.max(idx[0]) + manual_add_to_crop, stack.shape[1])
-        x_min = np.maximum(np.min(idx[1]) - manual_add_to_crop, 0)
-        x_max = np.minimum(np.max(idx[1]) + manual_add_to_crop, stack.shape[2])
+        #z_projected = np.std(stack, axis=0)
+        #threshold_value = threshold_otsu(z_projected)
+        #mask = z_projected > threshold_value
+        #mask = binary_opening(mask, selem=np.ones((3, 3)))
+        #idx = np.where(mask)
+        #y_min = np.maximum(np.min(idx[0]) - manual_add_to_crop, 0)
+        #y_max = np.minimum(np.max(idx[0]) + manual_add_to_crop, stack.shape[1])
+        #x_min = np.maximum(np.min(idx[1]) - manual_add_to_crop, 0)
+        #x_max = np.minimum(np.max(idx[1]) + manual_add_to_crop, stack.shape[2])
+        
+        y_min, y_max, x_min, x_max = find_region_to_crop(stack)
+        #print(y_min, y_max, x_min, x_max)
+        
     else:
         x_min = 0
         x_max = N_x

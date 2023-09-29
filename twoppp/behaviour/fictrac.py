@@ -20,7 +20,7 @@ from time import sleep
 
 from twoppp import load, utils
 
-IGNORE_ROI = [579, 122, 528, 141, 477, 134, 438, 140, 381, 151, 323, 153, 291, 134, 234, 75, 320, 39, 323, 37, 416, 27, 499, 27, 568, 26]
+IGNORE_ROI = [230, 180, 230, 280, 690, 280, 690, 180]
 
 # see https://github.com/rjdmoore/fictrac/blob/master/doc/data_header.txt for fictrac output description
 col_names = ["Frame_counter",
@@ -43,7 +43,7 @@ col_names = ["Frame_counter",
 f_s = 100
 r_ball = 5
 
-def get_mean_image(video_file, skip_existing=True, output_name="camera_3_mean_image.jpg"):
+def get_mean_image(video_file, camera_num, skip_existing=True, max_count = 6000):
     """compute the mean image of a video and save it as a file.
     partially copied and modified from Florian Aymann's
     https://github.com/NeLy-EPFL/ABO_data_processing/blob/master/add_fictrac_config.py
@@ -64,18 +64,19 @@ def get_mean_image(video_file, skip_existing=True, output_name="camera_3_mean_im
     numpy array
         mean image
     """
+    output_name = f"camera_{camera_num}_mean_image.jpg"
     directory = os.path.dirname(video_file)
     mean_frame_file = os.path.join(directory, output_name)
     if skip_existing and os.path.isfile(mean_frame_file):
         print(f"{mean_frame_file} exists loading image from file without recomputing.")
-        mean_frame = cv2.imread(mean_frame_file)[:, :, 0]
+        mean_frame = cv2.imread(mean_frame_file,0)
     else:
         f = cv2.VideoCapture(video_file)
         rval, frame = f.read()
         # Convert rgb to grey scale
         mean_frame = np.zeros_like(frame[:, :, 0], dtype=np.int64)
         count = 0
-        while rval:
+        while rval and count<max_count:
             mean_frame =  mean_frame + frame[:, :, 0]
             rval, frame = f.read()
             count += 1
@@ -85,7 +86,7 @@ def get_mean_image(video_file, skip_existing=True, output_name="camera_3_mean_im
         cv2.imwrite(mean_frame_file, mean_frame)
     return mean_frame
 
-def get_ball_parameters(img, output_dir=None):
+def get_ball_parameters(img, camera_num, output_dir=None):
     """Using an image that includes the ball, for example the mean image,
     compute the location and the radius.
     Uses cv2.HoughCircles to find circles in the image and then selects the most likely one.
@@ -114,38 +115,42 @@ def get_ball_parameters(img, output_dir=None):
     img = cv2.medianBlur(img, 5)
     canny_params = dict(threshold1 = 120, threshold2 = 60)  # Florian's original params: 40 & 50
     edges = cv2.Canny(img, **canny_params)
-    
-    circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, 2, 200, param1=120, param2=10, minRadius=200, maxRadius=300)
-    
-    if circles is not None:
-        circles = np.round(circles[0, :]).astype(int)
-        inside = np.inf
-        x_min, y_min, r_min = np.nan, np.nan, np.nan
-        for x, y, r in circles:
-            if x + r > img.shape[1] or x - r < 0:  # check that ball completely in the image in x
-                continue
-            elif x < img.shape[1] * 3 / 8 or x > img.shape[1] * 5 / 8:  # check that ball center in central quarter of x axis
-                continue
-            elif y - r <= img.shape[0] / 10:  # check that top of the ball is below 1/10 of the image
-                continue
-            xx, yy = np.meshgrid(np.arange(img.shape[1]), np.arange(img.shape[0]))
-            xx = xx - x
-            yy = yy - y
-            rr = np.sqrt(xx ** 2 + yy ** 2)
-            mask = (rr < r)
-            current_inside = np.mean(edges[mask])  # np.diff(np.quantile(edges[mask], [0.05, 0.95]))
-            if  current_inside < inside:
-                x_min, y_min, r_min = x, y, r
-                inside = current_inside
-        if output_dir is not None:
-            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    inside = np.inf
+    x_min, y_min, r_min = np.nan, np.nan, np.nan
+
+    for i in range(3):
+        circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, 2, 200, param1=120, param2=10, minRadius=200, maxRadius=250)
+
+        if circles is not None:
+            circles = np.round(circles[0, :]).astype(int)
             for x, y, r in circles:
-                cv2.circle(img, (x, y), r, (255, 255, 255), 1)
-                cv2.rectangle(img, (x - 5, y - 5), (x + 5, y + 5), (255, 128, 255), -1)
-            cv2.circle(img, (x_min, y_min), r_min, (255, 0, 0), 1)
-            cv2.rectangle(img, (x_min - 5, y_min - 5), (x_min + 5, y_min + 5), (255, 128, 255), -1)
-            cv2.imwrite(os.path.join(output_dir, "camera_3_circ_fit.jpg"), img)
-        return x_min, y_min, r_min
+                if x + r > img.shape[1] or x - r < 0:  # check that ball completely in the image in x
+                    continue
+                elif x < img.shape[1] * 3 / 8 or x > img.shape[1] * 5 / 8:  # check that ball center in central quarter of x axis
+                    continue
+                elif y - r <= img.shape[0] / 4:  # check that top of the ball is below 1/10 of the image
+                    continue
+                xx, yy = np.meshgrid(np.arange(img.shape[1]), np.arange(img.shape[0]))
+                xx = xx - x
+                yy = yy - y
+                rr = np.sqrt(xx ** 2 + yy ** 2)
+                mask = (rr < r)
+                current_inside = np.mean(edges[mask])  # np.diff(np.quantile(edges[mask], [0.05, 0.95]))
+                if  current_inside < inside:
+                    x_min, y_min, r_min = x, y, r
+                    inside = current_inside
+        else:
+            print("No circles found.")
+    if output_dir is not None:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        for x, y, r in circles:
+            cv2.circle(img, (x, y), r, (255, 255, 255), 1)
+            cv2.rectangle(img, (x - 5, y - 5), (x + 5, y + 5), (255, 128, 255), -1)
+        cv2.circle(img, (x_min, y_min), r_min, (255, 0, 0), 1)
+        cv2.rectangle(img, (x_min - 5, y_min - 5), (x_min + 5, y_min + 5), (255, 128, 255), -1)
+        cv2.imwrite(os.path.join(output_dir, f"camera_{camera_num}_circ_fit.jpg"), img)
+    
+    return x_min, y_min, r_min
 
 def get_circ_points_for_config(x, y, r, img_shape, n=12):
     """convert circle parameters into individual points on the surfac of the ball
@@ -202,9 +207,9 @@ def _format_list(l):
     s = s.replace("]", " }")
     return s
 
-def write_config_file(video_file, roi_circ, vfov=3.05, q_factor=40, c2a_src="c2a_cnrs_xz", do_display="n",
-                      c2a_t=[-5.800291, -23.501165, 1762.927645], c2a_r=[1.200951, -1.196946, -1.213069],
-                      c2a_cnrs_xz=[422, 0, 422, 0, 422, 10, 422, 10], overwrite=False,
+def write_config_file(video_file, roi_circ, vfov=3.05, q_factor=10, c2a_src="c2a_cnrs_yz", do_display="n",
+                      c2a_t=[-0.618335, -2.360241, 216.557445], c2a_r=[-1.57, 0.0, 0.0 ],
+                      c2a_cnrs_yz=[473, 127, 435, 127, 435, 156, 474, 157], overwrite=False,
                       ignore_roi=IGNORE_ROI):
     """Create a config file for fictrac.
     See: https://github.com/rjdmoore/fictrac/blob/master/doc/params.md for interpretation of parameters
@@ -264,7 +269,7 @@ def write_config_file(video_file, roi_circ, vfov=3.05, q_factor=40, c2a_src="c2a
     content += f"\nroi_ignr         : {{ {_format_list(ignore_roi)} }}"
     content += f"\nc2a_t            : {_format_list(c2a_t)}"
     content += f"\nc2a_r            : {_format_list(c2a_r)}"
-    content += f"\nc2a_cnrs_xz      : {_format_list(c2a_cnrs_xz)}"
+    content += f"\nc2a_cnrs_yz      : {_format_list(c2a_cnrs_yz)}"
     content += f"\nroi_circ         : {_format_list(roi_circ)}"
     
     with open(config_file, "w", encoding="utf-8") as f:
@@ -272,7 +277,7 @@ def write_config_file(video_file, roi_circ, vfov=3.05, q_factor=40, c2a_src="c2a
 
     return config_file
 
-def run_fictrac_config_gui(config_file, fictrac_config_gui="~/bin/fictrac/bin/configGui"):
+def run_fictrac_config_gui(config_file, fictrac_config_gui="~/fictrac/bin/configGui"):
     """runs the fictrac config gui in a subprocess and sequentially sends "y\n" responses to continue.
     This is required because the config gui computes some parameters based on the inputs given.
 
@@ -282,13 +287,13 @@ def run_fictrac_config_gui(config_file, fictrac_config_gui="~/bin/fictrac/bin/co
         absolut path of config file
 
     fictrac_config_gui : str, optional
-        location of fictrac config gui command, by default "~/bin/fictrac/bin/configGui"
+        location of fictrac config gui command, by default "~/fictrac/bin/configGui"
     """
     directory = os.path.dirname(config_file)
     command = f'/bin/bash -c "cd {directory} && yes | xvfb-run -a {fictrac_config_gui} {config_file}"'
     utils.run_shell_command(command, allow_ctrl_c=False, suppress_output=True)
 
-def run_fictrac(config_file, fictrac="~/bin/fictrac/bin/fictrac"):
+def run_fictrac(config_file, fictrac="~/fictrac/bin/fictrac"):
     """Runs fictrac in the current console using the subprocess module.
     The console will not be blocked, but the outputs will be printed regularily
 
@@ -298,13 +303,13 @@ def run_fictrac(config_file, fictrac="~/bin/fictrac/bin/fictrac"):
         path to config file generate by the config gui or automatically
 
     fictrac : str, optional
-        location of fictrac on computer, by default "~/bin/fictrac/bin/fictrac"
+        location of fictrac on computer, by default "~/fictrac/bin/fictrac"
     """
     command = f"{fictrac} {config_file}"
     utils.run_shell_command(command, allow_ctrl_c=True, suppress_output=False)
     return
 
-def config_and_run_fictrac(fly_dir, trial_dirs=None):
+def config_and_run_fictrac(fly_dir, trial_dirs=None, camera_num=3):
     """Automatically create config file for fictrac and then run it using the newly generated config.
 
     Parameters
@@ -322,13 +327,13 @@ def config_and_run_fictrac(fly_dir, trial_dirs=None):
 
     config_files = []
     for trial_dir in tqdm(trial_dirs):
-        video_file = utils.find_file(trial_dir, "camera_3.mp4")
+        video_file = utils.find_file(trial_dir, f"camera_{camera_num}.mp4")
         image_dir = os.path.dirname(video_file)
         if not os.path.isfile(video_file):
             print("Could not find video file: ", video_file, "Will continue.")
             continue
-        mean_image = get_mean_image(video_file)
-        x_min, y_min, r_min = get_ball_parameters(mean_image, output_dir=image_dir)
+        mean_image = get_mean_image(video_file, camera_num)
+        x_min, y_min, r_min = get_ball_parameters(mean_image, camera_num, output_dir=image_dir)
         points = get_circ_points_for_config(x_min, y_min, r_min, img_shape=mean_image.shape[:2])
         config_file = write_config_file(video_file, points, overwrite=False)
         run_fictrac_config_gui(config_file)

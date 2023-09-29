@@ -156,15 +156,19 @@ def generator_frames_2p(red_stack, green_stack, percentiles=(5, 95), red_vlim=No
     if ASSIGN_RED_STACK:
         red_stack = [None for i in range(len(green_stack))]
 
+    extra_space = (green_stack.shape[1], max(math.ceil(green_stack.shape[2] * 0.1), 150), 3)
+    black_image = np.zeros(extra_space, dtype = "uint8")
+
     for red_frame, green_frame in zip(red_stack, green_stack):
         frame = rgb(red_frame, green_frame, green_frame, None)
         frame = process_2p_rgb(frame, channels, v_max, v_min)
         frame = frame.astype(np.uint8)
+        frame = add_colorbar(frame, black_image, "right")
         yield frame
 
 def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None, vmax=None,
                   blur=0, mask=None, crop=None, log_lim=False,
-                  text=None, colorbarlabel="dff"):
+                  text=None, colorbarlabel="dff", colorbarbg="black", include_colorbar=True):
     """generator to make dff videos.
     Modified from https://github.com/NeLy-EPFL/utils_video
 
@@ -228,6 +232,7 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
 
     vmin = np.percentile(stack, pmin) if vmin is None else vmin
     vmax = np.percentile(stack, pmax)if vmax is None else vmax
+    vmax *= 1.5
     if log_lim:
         norm = colors.LogNorm(vmin=np.maximum(0.1,vmin), vmax=vmax)
     else:
@@ -243,7 +248,7 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
         image_shape = resize_shape(image_shape, stack.shape[1:3])
         cbar_shape = (image_shape[0], cbar_width)
     try:
-        cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size, label=colorbarlabel)
+        cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size, label=colorbarlabel, background=colorbarbg)
     except:
         print("Using old version of utils_video. please update utils_video")
         cbar = colorbar(norm, cmap, cbar_shape, font_size=font_size)
@@ -255,7 +260,8 @@ def generator_dff(stack, size=None, font_size=16, pmin=0.5, pmax=99.5, vmin=None
             frame = cmap(norm(frame))
             frame = (frame * 255).astype(np.uint8)
             frame = cv2.resize(frame, image_shape[::-1])
-            frame = add_colorbar(frame, cbar, "right")
+            if include_colorbar:
+                frame = add_colorbar(frame, cbar, "right")
             yield frame
 
     generator = frame_generator()
@@ -1081,7 +1087,7 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
     if not no_dff:
         dff_generator = generator_dff(dff, vmin=vmin, vmax=vmax, pmin=pmin, pmax=pmax,
                                     blur=blur, mask=mask, crop=crop, colorbarlabel=colorbarlabel,
-                                    text=text if text_loc=="dff" else None, log_lim=log_lim)
+                                    text=None if text_loc=="dff" else None, log_lim=log_lim)
     else:
         dff_generator = None
 
@@ -1092,7 +1098,7 @@ def make_video_raw_dff_beh(dff, trial_dir, out_dir, video_name, beh_dir=None, sy
 
     if time:
         text = [f"{t:.1f}s" for t in frame_times_beh]
-        beh_generator = utils_video.generators.add_text(beh_generator, text, scale=3, pos=(10, 150))
+        beh_generator = utils_video.generators.add_text(beh_generator, text, scale=2, pos=(10, 50))
     elif text_loc == "beh":
         beh_generator = utils_video.generators.add_text(beh_generator, text, scale=2, pos=(10, 50))
     with open(seven_camera_metadata_file, "r") as f:

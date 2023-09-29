@@ -97,6 +97,8 @@ class PreProcessParams:
         self.twoway_shift = None  # which shift to apply for twoway alignment
         self.correct_red_avg_baseline = False  # whether to correct the baseline fluorescence of the mean of the red channel
 
+        self.com_threshold = 50 # Threshold to find moved frames
+        
         # ofco (optical flow motion correction) params
         self.i_ref_trial = 0  # in which trial to search for reference frame
         self.i_ref_frame = 0  # which frame to pick in that trial
@@ -105,6 +107,7 @@ class PreProcessParams:
         self.post_com_crop_values = None  # cropping after com: (Y_SIZE, X_SIZE)
         self.save_motion_field = False  # whether to save motion field. They are very large
         self.ofco_param = default_parameters()  # parameters from ofco including regularisation
+        self.crop_warped_roi = False
         self.ofco_parallel = True  # whether to use parallel processing with multiprocessing.Pool
         self.ofco_verbose = True  # whether to inform about intermediate processing steps
         # self.ofco_out_dtype = np.float32  # TODO: verify whether this is the best choice
@@ -634,26 +637,63 @@ class PreProcessFly:
                 stack1 = join(processed_dir, self.params.red_raw)
                 stack2 = join(processed_dir, self.params.green_raw)
                 use_com = self.params.use_com
-
+            
             print(time.ctime(time.time()), "warping trial: " + processed_dir)
-
             _ = warping.warp(stack1=stack1,
-                            stack2=stack2,
-                            ref_frame=self.ref_frame,
-                            stack1_out_dir=join(processed_dir, self.params.red_com_warped),
-                            stack2_out_dir=join(processed_dir, self.params.green_com_warped),
-                            com_pre_reg=use_com,
-                            offset_dir=join(processed_dir, self.params.com_offset),
-                            return_stacks=False,
-                            overwrite=self.params.overwrite,
-                            select_frames=None,
-                            parallel=self.params.ofco_parallel,
-                            verbose=self.params.ofco_verbose,
-                            w_output=join(processed_dir, self.params.motion_field),
-                            initial_w=None,
-                            save_motion_field=self.params.save_motion_field,
-                            param=self.params.ofco_param
+                             stack2=stack2,
+                             ref_frame=self.ref_frame,
+                             stack1_out_dir=join(processed_dir, self.params.red_com_warped),
+                             stack2_out_dir=join(processed_dir, self.params.green_com_warped),
+                             com_pre_reg=use_com,
+                             offset_dir=join(processed_dir, self.params.com_offset),
+                             return_stacks=False,
+                             overwrite=self.params.overwrite,
+                             select_frames=None,
+                             parallel=self.params.ofco_parallel,
+                             verbose=self.params.ofco_verbose,
+                             w_output=join(processed_dir, self.params.motion_field),
+                             initial_w=None,
+                             save_motion_field=self.params.save_motion_field,
+                             param=self.params.ofco_param,
+                             crop_roi=self.params.crop_warped_roi
                             )
+
+    def _replace_moving_frames(self):
+        for trial in self.trial_processed_dirs:
+            com_offset = join(trial, self.params.com_offset)
+            print("Replacing moving frames in:", trial)
+            data = np.load(com_offset)
+            correction = np.abs(np.diff(data.T[0])+np.diff(data.T[1]))
+            peaks = np.where(correction > self.params.com_threshold)[0]
+            if len(peaks) > 0:
+                start = peaks[0] - 5
+                end = peaks[-1] + 5
+                print(f"Replacing images from frames {start} to {end}.")
+            else:
+                print("No frames to replace.")
+                continue
+
+            com_crops = [self.params.green_com_crop, self.params.red_com_crop]
+            com_warped = [self.params.green_com_warped, self.params.red_com_warped]
+            for crop_file, warped_file in zip(com_crops, com_warped):
+                try:
+                    imgs = get_stack(join(trial, warped_file))
+                    original_stack = f"original_{warped_file}"
+                    new_stack = warped_file
+                except:
+                    print(f"{warped_file} not found, using {crop_file}")
+                    imgs = get_stack(join(trial, crop_file))
+                    original_stack = f"original_{crop_file}"
+                    new_stack = crop_file
+
+                save_stack(join(trial, original_stack), imgs)
+
+                for frame in range(start, end):
+                    imgs[frame,:,:] = imgs[start,:,:]
+
+                save_stack(join(trial, new_stack), imgs)
+            
+        return True
 
     def _denoise_trial_trainNinfer(self, processed_dir):
         """train a DeepInterpolation model on one trial and infer on the same trial
@@ -773,34 +813,46 @@ class PreProcessFly:
                 training_processed_dir = todo_trial_processed_dirs[self.params.denoise_train_trial]
                 training_tmp_data_dir = tmp_data_dirs[self.params.denoise_train_trial]
 
-                with mp.Manager() as manager:
-                    print(time.ctime(time.time()),
-                          "Starting separate process to train denoising model.")
-                    share_dict = manager.dict()
-                    kwargs = {
-                        "train_data_tifs": training_tmp_data_dir,
-                        "run_base_dir": self.params.denoise_tmp_run_dir,
-                        "run_identifier": self.params.denoise_runid(training_processed_dir),
-                        "params": self.params.denoise_params,
-                        "return_dict_run_dir": share_dict
-                    }
-                    p = mp.Process(target=denoise.train, kwargs=kwargs)
-                    p.start()
-                    p.join()
-                    tmp_run_dir = share_dict[0]
+                #with mp.Manager() as manager:
+                #    print(time.ctime(time.time()),
+                #          "Starting separate process to train denoising model.")
+                #    share_dict = manager.dict()
+                #    kwargs = {
+                #        "train_data_tifs": training_tmp_data_dir,
+                #        "run_base_dir": self.params.denoise_tmp_run_dir,
+                #        "run_identifier": self.params.denoise_runid(training_processed_dir),
+                #        "params": self.params.denoise_params,
+                #        "return_dict_run_dir": share_dict
+                #    }
+                #    p = mp.Process(target=denoise.train, kwargs=kwargs)
+                #    p.start()
+                #    p.join()
+                #    tmp_run_dir = share_dict[0]
 
+                print(time.ctime(time.time()),
+                          "Starting process to train denoising model.")
+                model_dir = denoise.train(train_data_tifs=training_tmp_data_dir,
+                                           run_base_dir=self.params.denoise_tmp_run_dir,
+                                           run_identifier=self.params.denoise_runid(training_processed_dir),
+                                           params=self.params.denoise_params)
+                tmp_run_dir = model_dir
+                    
             tif_out_dirs = [join(processed_dir, self.params.green_denoised)
                             for processed_dir in todo_trial_processed_dirs]
-            kwargs = {
-                "data_tifs": tmp_data_dirs,
-                "run_dir": tmp_run_dir,
-                "tif_out_dirs": tif_out_dirs,
-                "params": self.params.denoise_params
-            }
+            #kwargs = {
+            #    "data_tifs": tmp_data_dirs,
+            #    "run_dir": tmp_run_dir,
+            #    "tif_out_dirs": tif_out_dirs,
+            #    "params": self.params.denoise_params
+            #}
             print(time.ctime(time.time()), "Starting separate process to perform inference.")
-            p = mp.Process(target=denoise.inference, kwargs=kwargs)
-            p.start()
-            p.join()
+            #p = mp.Process(target=denoise.inference, kwargs=kwargs)
+            #p.start()
+            #p.join()
+            denoise.inference(data_tifs=tmp_data_dirs,
+                              run_dir=tmp_run_dir,
+                              tif_out_dirs=tif_out_dirs,
+                              params=self.params.denoise_params)
             denoise.clean_up(tmp_run_dir, tmp_data_dirs)
             if not already_trained:
                 denoise.copy_run_dir(tmp_run_dir,
@@ -845,6 +897,7 @@ class PreProcessFly:
         """
         if processed_dir != "":
             stack = join(processed_dir, self.params.green_denoised)
+            #stack = join(processed_dir, self.params.green_com_warped)
             if self.params.dff_common_baseline and not force_single_baseline:
                 baseline_mode = "fromfile"
                 blur_pre = False
@@ -901,6 +954,9 @@ class PreProcessFly:
         stacks = [join(processed_dir, self.params.green_denoised)
                   for i_dir, processed_dir in enumerate(self.trial_processed_dirs)
                   if processed_dir != "" and not self.params.dff_baseline_exclude_trials[i_dir]]
+        #stacks = [join(processed_dir, self.params.green_com_warped)
+        #          for i_dir, processed_dir in enumerate(self.trial_processed_dirs)
+        #          if processed_dir != "" and not self.params.dff_baseline_exclude_trials[i_dir]]
         baseline_dirs = [
             join(processed_dir, self.params.dff_baseline)
             for i_dir, processed_dir in enumerate(self.trial_processed_dirs)

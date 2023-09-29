@@ -1,7 +1,7 @@
 #!/bin/bash
 
 folder=$1  # /scratch/jbraun/210723/fly1/cs_001/processed
-time="16:00:00"
+time="40:00:00"
 partition="parallel"  # "debug"  # "parallel"
 output="./outputs/slurm-%j.out"
 mkdir -p ./outputs

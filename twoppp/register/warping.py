@@ -203,7 +203,7 @@ def apply_offset(frames, offsets):
 def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_dir=None, 
          com_pre_reg=False, offset_dir=None, return_stacks=False, overwrite=False,
          select_frames=None, parallel=True, verbose=False, w_output=None, initial_w=None, 
-         save_motion_field=True, param=None):
+         save_motion_field=True, param=None, crop_roi=False):
     """use optic flow motion correction (ofco) to perform non-affine registraion.
     Wrapper around https://github.com/NeLy-EPFL/ofco
     Will try to use existing w_output and apply it to stack2.
@@ -274,6 +274,7 @@ def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_di
     NotImplementedError
         if stack1 is not a numpy array or cannot be found
     """
+    
     param = ofco.utils.default_parameters() if param is None else param
 
     if os.path.isfile(stack1_out_dir) and not overwrite:
@@ -286,13 +287,34 @@ def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_di
                 print("Stack1 is already warped, stack2 is not. \n"+\
                       "Could not find motion weights. If you want to recalculate, " +\
                           "select 'overwrite' flag.")
-        if not return_stacks:
+        if not return_stacks and not crop_roi:
             return None, None
+
+        if not return_stacks and crop_roi:
+            print("Finding ROI")
+            stack1_warped = utils2p.load_img(stack1_out_dir)
+            coords = find_region_to_crop(stack1_warped)
+            
+            print("Saving original warped stacks")
+            stack2_warped = utils2p.load_img(stack2_out_dir)
+            utils2p.save_img(stack1_out_dir.replace("warped","warped_noCrop"), stack1_warped)
+            utils2p.save_img(stack2_out_dir.replace("warped","warped_noCrop"), stack2_warped)
+            
+            print("Cropping warped stacks")
+            stack1_warped = utils.crop_stack(stack1_warped, coords)
+            stack2_warped = utils.crop_stack(stack2_warped, coords)
+            utils2p.save_img(stack1_out_dir, stack1_warped)
+            utils2p.save_img(stack2_out_dir, stack2_warped)
+            
+            return None, None
+
+        print("Loading warped stacks")
         stack1_warped = utils2p.load_img(stack1_out_dir)
         if stack2 is not None and os.path.isfile(stack2_out_dir):
             stack2_warped = utils2p.load_img(stack2_out_dir)
         else:
             stack2_warped = None
+            
         return stack1_warped, stack2_warped
 
     if isinstance(stack1, str):
@@ -331,13 +353,68 @@ def warp(stack1, stack2=None, ref_frame=None, stack1_out_dir=None, stack2_out_di
         param=param, verbose=verbose, parallel=parallel,
         w_output=w_output if save_motion_field else None,
         initial_w=initial_w, ref_frame=ref_frame)
-
+        
     if stack1_out_dir is not None:
         utils2p.save_img(stack1_out_dir, stack1_warped)
     if stack2_out_dir is not None:
         utils2p.save_img(stack2_out_dir, stack2_warped)
 
     return stack1_warped, stack2_warped if return_stacks else None, None
+
+def find_region_to_crop(stack):
+    mean_img = np.zeros_like(stack[0, :, :], dtype=np.int64)
+    for img in stack:
+        mean_img += img
+    mean_img = mean_img/stack.shape[0]
+    mean_img = mean_img.astype(np.uint8)
+    
+    hist = cv2.calcHist([mean_img],[0],None,[256],[0,256])
+    vals_hist = hist.T[0]
+    max_hist = np.max(vals_hist)
+    min_hist = np.min(vals_hist)
+
+    #import matplotlib.pyplot as plt
+    #plt.plot(hist)
+    #plt.xlim([0,256])
+    #plt.savefig("/home/nely/Desktop/his.png")
+    
+    starting_peak = np.where(vals_hist[10:]>0.1*(max_hist-min_hist))[0]
+    threshold = starting_peak[0]
+    _,roi = cv2.threshold(mean_img,threshold,255,cv2.THRESH_BINARY_INV)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(35,35))
+    roi_clean = cv2.morphologyEx(roi, cv2.MORPH_CLOSE, kernel)
+    
+    output = cv2.connectedComponentsWithStats(roi_clean, 4, cv2.CV_32S)
+    stats = np.transpose(output[2])
+    sizes = stats[4]
+    label_roi = np.argmax(sizes[1:])+1
+    
+    left = stats[0][label_roi]
+    top = stats[1][label_roi]
+    width = stats[2][label_roi]
+    height = stats[3][label_roi]
+    
+    h, w = roi_clean.shape
+    #label_img = np.zeros((h,w),np.uint8)
+    #label_img[np.where(output[1] == label_roi)] = 255
+    
+    #cv2.imshow("img",roi)
+    #cv2.imshow("img_clean",roi_clean)
+    #cv2.imshow("label",label_img)
+    #cv2.waitKey()
+
+    gap = 30
+    y0 = top - gap if top-gap>0 else 0 
+    y1 = top + height + gap if top+height+gap<h else h-1 
+    x0 = left - gap if left-gap>0 else 0
+    x1 = left + width + gap if left+width+gap<w else w-1
+
+    if (y1-y0)%2>0:
+        y0+=1
+    if (x1-x0)%2>0:
+        x0+=1
+    
+    return [y0, y1, x0, x1]
 
 def warp_N_parts(stack1, stack1_out_dir, N_parts, stack2=None, stack2_out_dir=None, ref_frame=None,
          com_pre_reg=False, offset_dir=None, return_stacks=False, overwrite=False,

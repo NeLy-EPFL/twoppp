@@ -394,8 +394,7 @@ def get_processed_lines(sync_file,
             processed_lines["Frame Counter"], metadata_2p)
     if len(np.unique(processed_lines["CO2"])) > 1:  # i.e. the CO2 line was actually used
         processed_lines["CO2"] = utils2p.synchronization.process_stimulus_line(processed_lines["CO2"])
-
-    if "Optical flow" in processed_lines.keys():
+    if "Optical flow" in processed_lines.keys() and np.sum(processed_lines["Optical flow"])>0:
         processed_lines["Optical flow"] = utils2p.synchronization.process_optical_flow_line(
             processed_lines["Optical flow"])
 

@@ -79,8 +79,12 @@ class Task:
                                                              twop=True)
         else:
             twoplinux_trial_names = None
-        trial_dirs_todo = get_selected_trials(fly_dict, twoplinux_trial_names)
-
+        try:
+            trial_dirs_todo = get_selected_trials(fly_dict, twoplinux_trial_names)
+        except:
+            TODO = True
+            return TODO
+            
         files = [os.path.join(trial_dir, load.PROCESSED_FOLDER, file_name)
                  for trial_dir in trial_dirs_todo]
 
@@ -379,8 +383,8 @@ class TifTask(Task):
 
         trial_dirs = get_selected_trials(fly_dict)
 
-        self.params.twoway_align = False
-        self.params.ref_frame = ""  # -> don't save ref frame
+        #self.params.twoway_align = False
+        #self.params.ref_frame = ""  # -> don't save ref frame
         self.params.overwrite = fly_dict["overwrite"]
 
         preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
@@ -422,8 +426,8 @@ class PreClusterTask(Task):
 
         trial_dirs = get_selected_trials(fly_dict)
 
-        self.params.twoway_align = True
-        self.params.use_com = True
+        #self.params.twoway_align = True
+        #self.params.use_com = True
         self.params.overwrite = fly_dict["overwrite"]
 
         preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
@@ -432,7 +436,7 @@ class PreClusterTask(Task):
         preprocess.run_all_trials()
 
         print("COPYING TO CLUSTER: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
+        utils.run_shell_command(os.path.join(TWOPPP_PATH, "register",
                                                     "copy_to_cluster.sh") + " " + fly_dict["dir"])
 
         fly_dict["status"] = "done"
@@ -482,7 +486,7 @@ class PreClusterGreenOnlyTask(Task):
 
         trial_dirs = get_selected_trials(fly_dict)
 
-        self.params.twoway_align = True
+        #self.params.twoway_align = True
         self.params.use_com = True
         self.params.overwrite = fly_dict["overwrite"]
 
@@ -639,11 +643,8 @@ class PostClusterTask(Task):
         else:
             self.send_status_email(fly_dict)
             print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
-
         self.params = deepcopy(params) if params is not None else deepcopy(global_params)
-
         trial_dirs = get_selected_trials(fly_dict)
-
         # use this parameter combination to only run warping after successful com registration
         # this makes sure that the "overwrite" only applies to the warping and not to com
         self.params.use_com = False
@@ -654,7 +655,7 @@ class PostClusterTask(Task):
 
 
         print("COPYING BACK FLY: ", fly_dict["dir"])
-        utils.run_shell_command(". " + os.path.join(TWOPPP_PATH, "register",
+        utils.run_shell_command(os.path.join(TWOPPP_PATH, "register",
                                                     "copy_from_cluster.sh") + " " + fly_dict["dir"])
 
         print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
@@ -664,6 +665,41 @@ class PostClusterTask(Task):
         _ = [preprocess._warp_trial(processed_dir)
              for processed_dir in preprocess.trial_processed_dirs]
         # preprocess.run_all_trials()
+        return True
+
+class ReplaceMovingFrames(Task):
+    """
+    Task to replace frames where the social arena is moved while introducing the second fly.
+    It replaces the moved frames with the last good frame.
+    """
+    def __init__(self, prio=0):
+        super().__init__(prio)
+        self.name = "replace_moving_frames"
+        self.previous_tasks = [PreClusterTask()]
+
+    def test_todo(self, fly_dict):####TO DO#######
+        return self._test_todo_trials(fly_dict, file_name=global_params.green_denoised)
+
+    def run(self, fly_dict, params=None):
+        #if not self.wait_for_previous_task(fly_dict):
+        #    return False
+        #else:
+        #    self.send_status_email(fly_dict)
+        #    print(f"{time.ctime(time.time())}: starting {self.name} task for fly {fly_dict['dir']}")
+
+        self.params = deepcopy(params) if params is not None else deepcopy(global_params)
+
+        trial_dirs = get_selected_trials(fly_dict)
+
+        #self.params.use_com = True
+        #self.params.use_warp = True
+        #self.params.use_denoise = True
+        #self.params.overwrite = fly_dict["overwrite"]
+
+        print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
+        preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
+                                   trial_dirs=trial_dirs)
+        preprocess._replace_moving_frames()
         return True
 
 class DenoiseTask(Task):
@@ -710,6 +746,7 @@ class DffTask(Task):
     def __init__(self, prio=0):
         super().__init__(prio)
         self.name = "dff"
+        #self.previous_tasks = [PostClusterTask()]
         self.previous_tasks = [DenoiseTask()]
 
     def test_todo(self, fly_dict):
@@ -903,7 +940,7 @@ class FictracTask(Task):
         trial_dirs = get_selected_trials(fly_dict)
         # this has no inbuilt override protection -
         # -> only protected by the test_todo() method of this Task
-        config_and_run_fictrac(fly_dict["dir"], trial_dirs)
+        config_and_run_fictrac(fly_dict["dir"], trial_dirs, CURRENT_USER['fictrac_cam'])
 
         print("STARTING PREPROCESSING OF FLY: \n" + fly_dict["dir"])
         preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
@@ -1010,18 +1047,20 @@ class VideoTask(Task):
         trial_dirs = get_selected_trials(fly_dict)
 
         self.params.dff_video_max_length = None # 100
-        self.params.dff_video_downsample = 2
-        self.params.overwrite = self.params.overwrite = fly_dict["overwrite"]
+        #self.params.dff_video_downsample = 2
+        self.params.overwrite = fly_dict["overwrite"]
 
         preprocess = PreProcessFly(fly_dir=fly_dict["dir"], params=self.params,
                                    trial_dirs=trial_dirs)
         for i, trial_dir in enumerate(trial_dirs):
             preprocess._make_dff_behaviour_video_trial(i_trial=i, mask=None, include_2p=True)
+            name_video = f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_" +\
+                f"{preprocess.trial_names[i]}_{preprocess.params.dff_beh_video_name}.mp4"
+            if not os.path.exists(CURRENT_USER["video_dir"]):
+                os.makedirs(CURRENT_USER["video_dir"])
             shutil.copy2(
-                os.path.join(trial_dir, load.PROCESSED_FOLDER,
-                f"{preprocess.date}_{preprocess.genotype}_Fly{preprocess.fly}_" +\
-                f"{preprocess.trial_names[i]}_{preprocess.params.dff_beh_video_name}.mp4"),
-                CURRENT_USER["video_dir"])
+                os.path.join(trial_dir, load.PROCESSED_FOLDER,name_video),
+                os.path.join(CURRENT_USER["video_dir"],name_video))
 
         return True
 
@@ -1158,5 +1197,6 @@ task_collection = {
     "df3d": Df3dTask(prio=-20),
     "video": VideoTask(prio=-15),
     "laser_stim_process": LaserStimProcessTask(prio=-1),
-    "video_plot_3d": VideoPlot3DTask(prio=-15)
+    "video_plot_3d": VideoPlot3DTask(prio=-15),
+    "replace_moving_frames": ReplaceMovingFrames(prio=10)
 }
