@@ -331,6 +331,13 @@ def get_roi_signals_df(stack, roi_center_filename, size=(7,11), pattern="default
         if N_samples > len(index_df) and raw:
             roi_signals = roi_signals[30:-30]
             N_samples -= 60
+        if len(index_df) -60 == N_samples:
+            N_samples += 60
+            roi_signals_new = np.zeros((N_samples, N_rois))
+            roi_signals_new[:] = np.nan
+            roi_signals_new[30:-30,:] = roi_signals
+            roi_signals = roi_signals_new
+            print("Warning: ROI signals were shorter than the DataFrame (likely because of denoising): setting first 30 and last 30 samples in df to 'np.nan'.")
         if len(index_df) > N_samples:
             if len(index_df) - N_samples <= 5:
                 print("Difference between thorsync ticks and two photon data: {} frames \n".format(len(index_df) - N_samples)+\
@@ -470,6 +477,7 @@ def prepare_roi_selection(fly_dir: str, trial_dirs: List[str], std: str="raw", s
                                     in zip(green_pixels, green_pixel_means, green_pixel_stds)],
                                     axis=0)
     green_pixel_std = np.mean(green_pixel_stds, axis=0)
+    N_samples = np.minimum(N_samples, len(green_pixel_stds[0]))
     i_samples = rng.choice(np.arange(len(green_pixel_stds[0])), size=N_samples, replace=False,
                            p=green_pixel_std/np.sum(green_pixel_std))
     # i_samples_rand = rng.choice(np.arange(len(green_pixel_stds[0])), size=N_samples,replace=False)

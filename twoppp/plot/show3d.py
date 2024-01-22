@@ -9,7 +9,7 @@ from twoppp.utils import get_stack, save_stack, normalise_quantile
 from twoppp.plot import videos
 
 def tmp_avg_3d_stacks(green, red, green_avg=None, red_avg=None):
-    save_avgs = False
+    save_avgs = True
     if green_avg is not None and red_avg is not None:
         try:
             green_avg_T = get_stack(green_avg)
@@ -46,7 +46,7 @@ def make_avg_videos_3d(green, red, out_dir, green_avg=None, red_avg=None):
     videos.make_video_2p(np.transpose(green_avg_T, (1,0,2)), out_dir=out_dir, video_name="ystack.mp4",
                      red=np.transpose(red_avg_T, (1,0,2)), percentiles=(5,99), frames=None, frame_rate=60, trial_dir=None)
 
-def plot_projections_3d(green, red, out_dir, green_avg=None, red_avg=None):
+def plot_projections_3d(green, red, out_dir, green_avg=None, red_avg=None, return_data=False):
     green_avg_T, red_avg_T = tmp_avg_3d_stacks(green, red, green_avg, red_avg)
     if np.sum(green_avg_T) == 0:
         use_green = False
@@ -60,6 +60,7 @@ def plot_projections_3d(green, red, out_dir, green_avg=None, red_avg=None):
     assert use_red or use_green
 
     fig, axs = plt.subplots(3,3, figsize=(9.5, 9))
+    rgb_imgs = []
 
     for i_dim, dim_name in enumerate(["Z", "Y", "X"]):
         for i_m, (method, method_name) in enumerate(zip([np.mean, np.max, np.std], ["mean", "max", "std"])):
@@ -73,6 +74,7 @@ def plot_projections_3d(green, red, out_dir, green_avg=None, red_avg=None):
             else:
                 red_red_dim = np.zeros_like(green_red_dim)
             rgb_im = videos.rgb(red_red_dim, green_red_dim, green_red_dim, None)
+            rgb_imgs.append(rgb_im)
 
             axs[i_dim, i_m].imshow(rgb_im)
             axs[i_dim, i_m].set_title(f"{dim_name} {method_name} projection")
@@ -82,6 +84,9 @@ def plot_projections_3d(green, red, out_dir, green_avg=None, red_avg=None):
             axs[i_dim, i_m].spines['bottom'].set_color('none')
 
     fig.tight_layout()
-    fig.savefig(os.path.join(out_dir, "3dproject.png"), dpi=300)
+    if out_dir is not None:
+        fig.savefig(os.path.join(out_dir, "3dproject.png"), dpi=300)
+    if return_data:
+        return rgb_imgs
 
     
