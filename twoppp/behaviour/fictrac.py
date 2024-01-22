@@ -124,7 +124,7 @@ def get_ball_parameters(img, output_dir=None):
         for x, y, r in circles:
             if x + r > img.shape[1] or x - r < 0:  # check that ball completely in the image in x
                 continue
-            elif x < img.shape[1] * 3 / 8 or x > img.shape[1] * 5 / 8:  # check that ball center in central quarter of x axis
+            elif x < img.shape[1] * 1 / 4 or x > img.shape[1] * 3 / 4:  # check that ball center in central half of x axis
                 continue
             elif y - r <= img.shape[0] / 10:  # check that top of the ball is below 1/10 of the image
                 continue
