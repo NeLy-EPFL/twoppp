@@ -1196,10 +1196,10 @@ class LaserStimProcessTask(Task):
             twop_df = os.path.join(trial_dir, load.PROCESSED_FOLDER, self.params.twop_df_out_dir)
             # change self.previous_task temporarily to only persue behavioural data processing
             # if there actually is behavioural data
+            _ = get_beh_info_to_twop_df(beh_df, twop_df, twop_df_out_dir=twop_df)
             previous_tasks = deepcopy(self.previous_tasks)
             self.previous_tasks = ["OR", FictracTask(), WheelTask()]
             if os.path.isfile(twop_df) and self.test_previous_task_ready(fly_dict):
-                _ = get_beh_info_to_twop_df(beh_df, twop_df, twop_df_out_dir=twop_df)
                 _ = add_beh_state_to_twop_df(twop_df, twop_df_out_dir=twop_df)
             self.previous_tasks = previous_tasks
         return True
